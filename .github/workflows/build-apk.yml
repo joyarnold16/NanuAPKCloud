@@ -1,0 +1,48 @@
+name: Build Nanu God UI APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses || true
+      - name: Install SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build debug APK
+        run: gradle --no-daemon clean assembleDebug --stacktrace
+      - name: Prepare APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk nanu-god-ui-debug.apk
+          ls -lh nanu-god-ui-debug.apk
+      - name: Replace latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nanu-god-ui --cleanup-tag -y || true
+          git push origin :refs/tags/nanu-god-ui || true
+          gh release create nanu-god-ui nanu-god-ui-debug.apk \
+            --title "Nanu God UI APK" \
+            --notes "All-in-one Nanu God UI APK. Internal paper engine, animated profit/loss logo, premium cockpit UI. Paper first." \
+            --latest
