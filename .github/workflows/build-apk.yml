@@ -1,27 +1,21 @@
-name: Build Nanu Final Loaded APK
+name: Build Nanu Final APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
-    paths:
-      - 'mobile_apk/**'
-      - '.github/workflows/build-apk.yml'
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
-  build-debug-apk:
-    name: Build debug APK
+  build-apk:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: mobile_apk
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Nanu source
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -33,22 +27,32 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses || true
+
       - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
 
+      - name: Show project files
+        run: |
+          pwd
+          ls -la
+          ls -la mobile_apk
+
       - name: Build debug APK
-        run: gradle --no-daemon clean assembleDebug
+        working-directory: mobile_apk
+        run: gradle --no-daemon clean assembleDebug --stacktrace
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk ../nanu-final-loaded-debug.apk
+      - name: Check APK output
+        run: ls -lh mobile_apk/app/build/outputs/apk/debug/
 
-      - name: Upload APK artifact
+      - name: Upload Nanu APK
         uses: actions/upload-artifact@v4
         with:
-          name: nanu-final-loaded-debug-apk
-          path: nanu-final-loaded-debug.apk
+          name: nanu-final-apk
+          path: mobile_apk/app/build/outputs/apk/debug/app-debug.apk
