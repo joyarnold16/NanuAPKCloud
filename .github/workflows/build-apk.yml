@@ -1,4 +1,4 @@
-name: Build Nanu Final APK
+name: Build Nanu God Mode APK
 
 on:
   workflow_dispatch:
@@ -35,27 +35,27 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Build debug APK
+      - name: Build God Mode debug APK
         working-directory: mobile_apk
         run: gradle --no-daemon clean assembleDebug --stacktrace
 
       - name: Prepare APK
         run: |
-          cp mobile_apk/app/build/outputs/apk/debug/app-debug.apk nanu-final-loaded-debug.apk
-          ls -lh nanu-final-loaded-debug.apk
+          cp mobile_apk/app/build/outputs/apk/debug/app-debug.apk nanu-god-mode-debug.apk
+          ls -lh nanu-god-mode-debug.apk
 
-      - name: Delete old release if exists
+      - name: Delete old God Mode release if exists
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete nanu-latest --cleanup-tag -y || true
-          git push origin :refs/tags/nanu-latest || true
+          gh release delete nanu-god-mode --cleanup-tag -y || true
+          git push origin :refs/tags/nanu-god-mode || true
 
-      - name: Create APK release
+      - name: Create God Mode APK release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create nanu-latest nanu-final-loaded-debug.apk \
-            --title "Nanu Final Loaded APK" \
-            --notes "Latest Nanu APK built by GitHub Actions." \
+          gh release create nanu-god-mode nanu-god-mode-debug.apk \
+            --title "Nanu God Mode APK" \
+            --notes "Nanu God Mode safe-edition APK. Paper first; live trading is not guaranteed profit." \
             --latest
