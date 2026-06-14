@@ -1,0 +1,11 @@
+config.ini
+storage/*.db
+storage/*.json
+storage/*.log
+__pycache__/
+*.pyc
+.env
+.DS_Store
+build/
+dist/
+*.apk

@@ -1,0 +1,2 @@
+# Nanu core uses Python standard library only.
+# Optional future packages can be added here.
