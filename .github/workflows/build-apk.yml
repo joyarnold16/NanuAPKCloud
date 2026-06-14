@@ -2,12 +2,9 @@ name: Build Nanu Final APK
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -38,21 +35,27 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Show project files
-        run: |
-          pwd
-          ls -la
-          ls -la mobile_apk
-
       - name: Build debug APK
         working-directory: mobile_apk
         run: gradle --no-daemon clean assembleDebug --stacktrace
 
-      - name: Check APK output
-        run: ls -lh mobile_apk/app/build/outputs/apk/debug/
+      - name: Prepare APK
+        run: |
+          cp mobile_apk/app/build/outputs/apk/debug/app-debug.apk nanu-final-loaded-debug.apk
+          ls -lh nanu-final-loaded-debug.apk
 
-      - name: Upload Nanu APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: nanu-final-apk
-          path: mobile_apk/app/build/outputs/apk/debug/app-debug.apk
+      - name: Delete old release if exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nanu-latest --cleanup-tag -y || true
+          git push origin :refs/tags/nanu-latest || true
+
+      - name: Create APK release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create nanu-latest nanu-final-loaded-debug.apk \
+            --title "Nanu Final Loaded APK" \
+            --notes "Latest Nanu APK built by GitHub Actions." \
+            --latest
