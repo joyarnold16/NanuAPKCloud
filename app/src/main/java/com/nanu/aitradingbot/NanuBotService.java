@@ -1,0 +1,33 @@
+package com.nanu.aitradingbot;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Intent;
+import android.graphics.Color;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+
+public class NanuBotService extends Service {
+    Handler h = new Handler(Looper.getMainLooper());
+    Runnable loop = new Runnable() { @Override public void run() { AppStore.get(NanuBotService.this).engine.tick(false); h.postDelayed(this, 2500); } };
+    @Override public void onCreate() { super.onCreate(); createChannel(); }
+    @Override public int onStartCommand(Intent intent, int flags, int startId) { startForeground(77, notification()); h.removeCallbacks(loop); h.post(loop); return START_STICKY; }
+    @Override public void onDestroy() { h.removeCallbacks(loop); super.onDestroy(); }
+    @Override public IBinder onBind(Intent intent) { return null; }
+    private void createChannel() { if (Build.VERSION.SDK_INT >= 26) { NotificationChannel ch = new NotificationChannel("nanu", "Nanu Bot", NotificationManager.IMPORTANCE_LOW); ch.setDescription("Nanu AI Trading Bot engine"); ch.setLightColor(Color.CYAN); ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(ch); } }
+    private Notification notification() {
+        Intent i = new Intent(this, MainActivity.class);
+        PendingIntent pi = PendingIntent.getActivity(this, 0, i, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "nanu") : new Notification.Builder(this);
+        return b.setContentTitle("Nanu AI Trading Bot")
+                .setContentText("Engine running. Profit Guard and alerts are armed when enabled.")
+                .setSmallIcon(android.R.drawable.ic_menu_compass)
+                .setContentIntent(pi)
+                .build();
+    }
+}
