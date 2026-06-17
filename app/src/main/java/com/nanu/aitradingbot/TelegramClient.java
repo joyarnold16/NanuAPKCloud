@@ -24,6 +24,30 @@ public class TelegramClient {
         });
     }
 
+    public static void sendSilent(AppStore store, String title, String message, String category, boolean critical) {
+        if (store == null) return;
+        if (!store.telegramAlertsEnabled) return;
+
+        String cat = category == null ? "general" : category.toLowerCase();
+
+        if (store.telegramQuietMode && !(critical || cat.equals("panic") || cat.equals("profitguard") || cat.equals("api") || cat.equals("dryrun") || cat.equals("live"))) {
+            return;
+        }
+
+        boolean allowed = true;
+        if (cat.equals("startstop")) allowed = store.telegramAlertStartStop;
+        else if (cat.equals("profit") || cat.equals("profitguard")) allowed = store.telegramAlertProfit;
+        else if (cat.equals("panic")) allowed = store.telegramAlertPanic;
+        else if (cat.equals("api")) allowed = store.telegramAlertApi;
+        else if (cat.equals("dryrun")) allowed = store.telegramAlertDryRun;
+        else if (cat.equals("live")) allowed = store.telegramAlertLive;
+        else if (cat.equals("daily")) allowed = store.telegramAlertDaily;
+
+        if (!allowed) return;
+
+        sendSilent(store, title, message);
+    }
+
     public static void test(AppStore store, Callback cb) {
         exec.execute(() -> {
             try {
