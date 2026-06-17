@@ -658,6 +658,89 @@ public class MainActivity extends Activity {
         TelegramClient.test(store, result -> runOnUiThread(() -> { telegramDoctorRunning = false; alert("Telegram Doctor", result); render(false); }));
     }
 
+
+    String safetyReport() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("NANU AI TRADING BOT v5.6.2\n");
+        sb.append("Safety Report\n");
+        sb.append("Generated: ").append(System.currentTimeMillis()).append("\n\n");
+
+        sb.append("=== MODE ===\n");
+        sb.append("Current mode: ").append(store.mode.toUpperCase(Locale.US)).append("\n");
+        sb.append("Bot running: ").append(store.engine.running).append("\n");
+        sb.append("Panic state: ").append(store.engine.panic).append("\n");
+        sb.append("Live dry-run gate unlocked: ").append(store.liveUnlocked).append("\n");
+        sb.append("Real live orders: BLOCKED in v5.6.2\n\n");
+
+        sb.append("=== API DOCTOR ===\n");
+        sb.append("API Doctor OK for current mode: ").append(store.apiDoctorOkForCurrentMode()).append("\n");
+        sb.append("Last API mode: ").append(store.lastApiMode).append("\n");
+        sb.append("HTTP code: ").append(store.lastApiHttpCode).append("\n");
+        sb.append("Private API OK: ").append(store.lastApiPrivateOk).append("\n");
+        sb.append("Spot trading OK: ").append(store.lastApiCanTrade).append("\n");
+        sb.append("Account withdraw ability flag: ").append(store.lastApiAccountCanWithdraw).append("\n");
+        sb.append("Manual withdrawals OFF confirmed: ").append(store.withdrawalPermissionConfirmedOff).append("\n");
+        sb.append("Public IP: ").append(store.lastPublicIp == null ? "" : store.lastPublicIp).append("\n\n");
+
+        sb.append("=== TELEGRAM ===\n");
+        sb.append("Telegram Doctor OK: ").append(store.telegramDoctorOk).append("\n");
+        sb.append("Telegram Alerts Enabled: ").append(store.telegramAlertsEnabled).append("\n");
+        sb.append("Quiet Mode: ").append(store.telegramQuietMode).append("\n");
+        sb.append("Start/Stop alerts: ").append(store.telegramAlertStartStop).append("\n");
+        sb.append("Profit alerts: ").append(store.telegramAlertProfit).append("\n");
+        sb.append("Panic alerts: ").append(store.telegramAlertPanic).append("\n");
+        sb.append("API alerts: ").append(store.telegramAlertApi).append("\n");
+        sb.append("Dry-run alerts: ").append(store.telegramAlertDryRun).append("\n");
+        sb.append("Live alerts: ").append(store.telegramAlertLive).append("\n\n");
+
+        sb.append("=== PROFIT GUARD ===\n");
+        sb.append("Profit Guard Enabled: ").append(store.profitGuardEnabled).append("\n");
+        sb.append("Profit Target USDT: ").append(store.profitTargetUsdt).append("\n");
+        sb.append("Repeated Profit Detector: ").append(store.duplicateProfitGuardEnabled).append("\n");
+        sb.append("Repeated Profit Count: ").append(store.sameProfitRepeats).append(" / ").append(store.duplicateProfitRepeatCount).append("\n");
+        sb.append("Phone Notifications: ").append(store.phoneNotifications).append("\n");
+        sb.append("Long Sound Alerts: ").append(store.longSoundAlerts).append("\n\n");
+
+        sb.append("=== RISK / SAFETY ENGINE ===\n");
+        sb.append("Risk per trade: ").append(store.riskPerTrade).append("%\n");
+        sb.append("Daily loss limit: ").append(store.dailyLossLimit).append("%\n");
+        sb.append("Stop-loss: ").append(store.stopLoss).append("%\n");
+        sb.append("Take-profit: ").append(store.takeProfit).append("%\n");
+        sb.append("Trailing stop: ").append(store.trailingStop).append("%\n");
+        sb.append("Max open trades: ").append(store.maxOpenTrades).append("\n");
+        sb.append("Max live trades/day: ").append(store.maxLiveTradesPerDay).append("\n");
+        sb.append("Order cooldown seconds: ").append(store.orderCooldownSeconds).append("\n");
+        sb.append("Panic button tested: ").append(store.panicButtonTested).append("\n\n");
+
+        sb.append("=== DRY-RUN ORDER PREVIEW ===\n");
+        sb.append("Controlled Live Dry-Run: ").append(store.liveDryRunEnabled).append("\n");
+        sb.append("Dry-run order USDT: ").append(store.liveDryRunOrderUsdt).append("\n");
+        sb.append("Min notional USDT: ").append(store.minOrderNotionalUsdt).append("\n");
+        sb.append("Slippage limit: ").append(store.slippageLimitPct).append("%\n");
+        sb.append("Open dry-run trades: ").append(store.liveDryRunOpenTrades).append(" / ").append(Math.max(1, store.maxOpenTrades)).append("\n");
+        sb.append("Dry-run previews today: ").append(store.dryRunPreviewsToday).append("\n");
+        sb.append("Last preview symbol: ").append(store.lastOrderSymbol).append("\n");
+        sb.append("Last preview passed: ").append(store.lastOrderSafetyPass).append("\n");
+        sb.append("Last preview:\n").append(store.lastOrderPreview).append("\n\n");
+
+        sb.append("=== BALANCE SNAPSHOT ===\n");
+        sb.append(store.lastBalanceSnapshot == null ? "Balance not synced yet." : store.lastBalanceSnapshot).append("\n\n");
+
+        sb.append("=== PRIVACY ===\n");
+        sb.append("API key: HIDDEN\n");
+        sb.append("API secret: HIDDEN\n");
+        sb.append("Telegram token: HIDDEN\n");
+        sb.append("PIN lock enabled: ").append(store.appPinEnabled).append("\n\n");
+
+        sb.append("Report note: This report does not contain secrets. It is only for checking Nanu safety status.");
+
+        String report = sb.toString();
+        store.lastSafetyReport = report;
+        store.save();
+        return report;
+    }
+
     String developerReport() { return "Nanu AI Trading Bot v5.6.2\nMode: " + store.mode + "\nRunning: " + store.engine.running + "\nPanic: " + store.engine.panic + "\nCoin mode: " + (store.autoCoinMode?"Auto":"Manual") + "\nWatchlist: " + store.watchlist + "\nPaper UI trades: " + store.engine.trades.size() + "\nOpen dry-run trades: " + store.liveDryRunOpenTrades + "/" + Math.max(1, store.maxOpenTrades) + "\nLive unlocked: " + store.liveUnlocked + "\nProfit Guard: " + store.profitGuardEnabled + " / target " + store.profitTargetUsdt + " USDT" + "\nDuplicate Guard: " + store.duplicateProfitGuardEnabled + " / repeats " + store.sameProfitRepeats + "/" + store.duplicateProfitRepeatCount + "\nAPI last mode: " + store.lastApiMode + "\nAPI HTTP: " + store.lastApiHttpCode + "\nAPI private OK: " + store.lastApiPrivateOk + "\nAPI can trade: " + store.lastApiCanTrade + "\nAccount withdraw ability: " + store.lastApiAccountCanWithdraw + "\nManual withdrawals OFF confirmed: " + store.withdrawalPermissionConfirmedOff + "\nTelegram Doctor: " + store.telegramDoctorOk + "\nPanic tested: " + store.panicButtonTested + "\nPublic IP: " + store.lastPublicIp + "\nAPI diagnosis: " + store.lastApiDiagnosis; }
 
     TextView tv(String s, int sp, int color, boolean bold) { TextView t = new TextView(this); t.setText(s); t.setTextSize(sp); t.setTextColor(color); t.setIncludeFontPadding(true); t.setLineSpacing(dp(2), 1.0f); if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); return t; }
