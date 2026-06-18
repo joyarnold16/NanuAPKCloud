@@ -8,8 +8,8 @@ android {
         applicationId 'com.nanu.aitradingbot'
         minSdk 23
         targetSdk 35
-        versionCode 20
-        versionName '6.0-controlled-live-scalping'
+        versionCode 21
+        versionName '6.0-fixed-codex'
     }
     buildTypes {
         debug {
