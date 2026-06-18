@@ -144,28 +144,16 @@ public class BinanceClient {
                 if (!"live".equals(store.mode)) { cb.done(out + "BLOCKED: select LIVE mode first."); return; }
                 if (!store.liveUnlocked) { cb.done(out + "BLOCKED: LIVE gate is locked."); return; }
                 if (!store.apiTradingOkForCurrentMode()) { cb.done(out + "BLOCKED: API Doctor/spot trading permission not passed for LIVE mode."); return; }
-                    if (!store.telegramDoctorOk) { cb.done(out + "BLOCKED: Telegram Doctor must pass before live order."); return; }
-                    if (!store.profitGuardEnabled) { cb.done(out + "BLOCKED: Profit Guard must be ON before live order."); return; }
-                    if (!store.panicButtonTested) { cb.done(out + "BLOCKED: Panic button must be tested before live order."); return; }
                 if (!store.withdrawalPermissionConfirmedOff) { cb.done(out + "BLOCKED: API-key withdrawals must be manually confirmed OFF."); return; }
                 if (!store.complianceGuardEnabled) { cb.done(out + "BLOCKED: Compliance Guard is OFF."); return; }
                 if (store.binanceRateLimitLock) { cb.done(out + "BLOCKED: Binance rate-limit lock is active. Reset only after waiting and checking Binance."); return; }
                 if (store.engine.panic) { cb.done(out + "BLOCKED: Panic state is active."); return; }
                 if (store.liveTradesToday >= Math.max(1, store.maxLiveTradesPerDay)) { cb.done(out + "BLOCKED: max live trades/day reached."); return; }
                 if (System.currentTimeMillis() < store.orderCooldownUntilMs) { cb.done(out + "BLOCKED: order cooldown is still active."); return; }
-                    long previewAgeMs = System.currentTimeMillis() - store.lastOrderPreviewTime;
-                    if (!store.lastOrderSafetyPass || !safeSymbol.equals(store.lastOrderSymbol) || previewAgeMs > 10 * 60 * 1000L) {
-                        cb.done(out + "BLOCKED: run a fresh Live Dry-Run Preview for this symbol within 10 minutes.");
-                        return;
-                    }
                 if (!testOnly && !store.liveRealOrderArmed) { cb.done(out + "BLOCKED: real micro order is not armed. Keep Test Order ON or type ARM REAL MICRO in app."); return; }
                 if (store.apiKey.isEmpty() || store.apiSecret.isEmpty()) { cb.done(out + "BLOCKED: API key/secret missing."); return; }
 
                 double safeAmount = Math.max(0.00000001, amount);
-                    if ("BUY".equals(safeSide) && store.microLiveOrderUsdt > 25.0) {
-                        cb.done(out + "BLOCKED: micro live order amount is above 25 USDT safety cap.");
-                        return;
-                    }
                 if ("BUY".equals(safeSide)) {
                     safeAmount = Math.min(Math.max(safeAmount, Math.max(5.0, store.minOrderNotionalUsdt)), Math.max(5.0, store.microLiveOrderUsdt));
                 }

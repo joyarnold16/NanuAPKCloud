@@ -1,4 +1,4 @@
-name: Build Nanu AI Trading Bot V6.0 Fixed APK
+name: Build Nanu AI Trading Bot V6.0 APK
 
 on:
   workflow_dispatch:
@@ -29,11 +29,11 @@ jobs:
         with:
           gradle-version: '8.10.2'
       - name: Build debug APK
-        run: gradle --no-daemon clean assembleRelease --stacktrace
+        run: gradle --no-daemon clean assembleDebug --stacktrace
       - name: Prepare APK
         run: |
-          cp app/build/outputs/apk/release/app-release.apk nanu-ai-trading-bot-v6-0-fixed.apk
-          ls -lh nanu-ai-trading-bot-v6-0-fixed.apk
+          cp app/build/outputs/apk/debug/app-debug.apk nanu-ai-trading-bot-v6-0-debug.apk
+          ls -lh nanu-ai-trading-bot-v6-0-debug.apk
       - name: Delete old V6.0 release if exists
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,7 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create nanu-ai-trading-bot-v6-0 nanu-ai-trading-bot-v6-0-fixed.apk \
-            --title "Nanu AI Trading Bot V6.0 Fixed" \
+          gh release create nanu-ai-trading-bot-v6-0 nanu-ai-trading-bot-v6-0-debug.apk \
+            --title "Nanu AI Trading Bot V6.0" \
             --notes "Nanu v6.0 Controlled Live Scalping System: Binance Compliance Guard, manual confirmed micro BUY/SELL, test-order mode by default, real micro arming gate, full-auto proof lock, Error Doctor, safe backup export, Telegram status, Profit Guard and Live Face Engine." \
             --latest

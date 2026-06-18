@@ -61,13 +61,6 @@ public class OrderSafetyEngine {
         ok &= check(out, "Compliance Guard ON", store.complianceGuardEnabled);
         ok &= check(out, "Binance rate-limit lock clear", !store.binanceRateLimitLock);
         ok &= check(out, "Manual first-order confirmation required", store.firstLiveOrderManualConfirm);
-        ok &= check(out, "API key present", store.apiKey != null && !store.apiKey.trim().isEmpty());
-        ok &= check(out, "API secret present", store.apiSecret != null && !store.apiSecret.trim().isEmpty());
-        ok &= check(out, "Micro order amount <= 25 USDT", store.microLiveOrderUsdt <= 25.0);
-        ok &= check(out, "Stop loss in safe range", store.stopLoss >= 0.1 && store.stopLoss <= 3.0);
-        ok &= check(out, "Take profit in safe range", store.takeProfit >= 0.1 && store.takeProfit <= 5.0);
-        ok &= check(out, "Slippage limit <= 0.50%", store.slippageLimitPct > 0 && store.slippageLimitPct <= 0.50);
-        ok &= check(out, "Real order requires ARM or Test Order ON", store.liveOrderTestMode || store.liveRealOrderArmed);
 
         out.append("\nAction decision: ").append(ok ? "DRY-RUN PASS ✅" : "BLOCKED ⚠️").append("\n");
         if (ok) {
