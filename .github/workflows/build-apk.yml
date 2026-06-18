@@ -34,11 +34,6 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk nanu-ai-trading-bot-v6-0-fixed.apk
           ls -lh nanu-ai-trading-bot-v6-0-fixed.apk
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nanu-fixed-apk
-          path: nanu-ai-trading-bot-v6-0-fixed.apk
 
       - name: Delete old V6.0 release if exists
         env:
