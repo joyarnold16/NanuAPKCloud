@@ -8,17 +8,29 @@ android {
         applicationId 'com.nanu.aitradingbot'
         minSdk 23
         targetSdk 35
-        versionCode 21
-        versionName '6.0-fixed-codex'
+        versionCode 22
+        versionName '6.1-professional'
+    }
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('NANU_RELEASE_KEYSTORE_PATH') ?: "${rootDir}/nanu-release.keystore")
+            storePassword System.getenv('NANU_RELEASE_KEYSTORE_PASSWORD')
+            keyAlias System.getenv('NANU_RELEASE_KEY_ALIAS')
+            keyPassword System.getenv('NANU_RELEASE_KEY_PASSWORD')
+        }
     }
     buildTypes {
         debug {
             debuggable true
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
         }
         release {
             debuggable false
-            minifyEnabled false
-            signingConfig signingConfigs.debug
+            minifyEnabled true
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            signingConfig signingConfigs.release
         }
     }
 }

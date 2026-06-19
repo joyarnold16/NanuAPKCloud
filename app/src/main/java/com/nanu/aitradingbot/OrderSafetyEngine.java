@@ -26,14 +26,14 @@ public class OrderSafetyEngine {
         p.roundedQty = roundQty(p.symbol, p.rawQty);
 
         StringBuilder out = new StringBuilder();
-        out.append("Nanu Order Safety Engine v6.0\n\n");
+        out.append("Nanu Order Safety Engine v6.1\n\n");
         out.append("CONTROLLED LIVE DRY-RUN\n");
         out.append("This preview sends no order. It must pass before manual micro order buttons can run.\n\n");
         out.append("Mode: ").append(store.mode.toUpperCase(Locale.US)).append('\n');
         out.append("Symbol: ").append(p.symbol).append('\n');
         out.append("Side: ").append(p.side).append('\n');
         out.append("Preview amount: ").append(fmt(p.quoteAmount)).append(" USDT\n");
-        out.append("Estimated price: ").append(priceFmt(p.price)).append('\n');
+        out.append("Estimated UI price: ").append(priceFmt(p.price)).append(" (final order validates live Binance rules)\n");
         out.append("Raw quantity: ").append(qtyFmt(p.rawQty)).append('\n');
         out.append("Rounded quantity: ").append(qtyFmt(p.roundedQty)).append('\n');
         out.append("Stop-loss: ").append(fmt(store.stopLoss)).append("%\n");
@@ -45,6 +45,8 @@ public class OrderSafetyEngine {
         ok &= check(out, "Live unlock gate passed", store.liveUnlocked);
         ok &= check(out, "API Doctor private OK", store.apiDoctorOkForCurrentMode());
         ok &= check(out, "Spot trading permission OK", store.apiTradingOkForCurrentMode());
+        ok &= check(out, "Spot portfolio synced", store.portfolioSyncOk && System.currentTimeMillis() - store.lastPortfolioSyncMs <= 10 * 60 * 1000L);
+        if (!Double.isNaN(store.spotFreeUsdt)) ok &= check(out, "Free USDT covers preview amount", store.spotFreeUsdt >= p.quoteAmount);
         ok &= check(out, "Withdrawals confirmed OFF", store.withdrawalPermissionConfirmedOff);
         ok &= check(out, "Telegram Doctor PASS", store.telegramDoctorOk);
         ok &= check(out, "Profit Guard ON", store.profitGuardEnabled);

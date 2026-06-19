@@ -1,4 +1,4 @@
-name: Build Nanu AI Trading Bot V6.0 Fixed APK
+name: Build Nanu AI Trading Bot Professional APK
 
 on:
   workflow_dispatch:
@@ -8,44 +8,81 @@ permissions:
 
 jobs:
   build-apk:
-    name: Build Android APK
+    name: Build signed release APK
     runs-on: ubuntu-latest
+    env:
+      NANU_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/nanu-release.keystore
+      NANU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.NANU_RELEASE_KEYSTORE_PASSWORD }}
+      NANU_RELEASE_KEY_ALIAS: ${{ secrets.NANU_RELEASE_KEY_ALIAS }}
+      NANU_RELEASE_KEY_PASSWORD: ${{ secrets.NANU_RELEASE_KEY_PASSWORD }}
+      RELEASE_TAG: nanu-ai-trading-bot-v6-1-professional
+      APK_NAME: nanu-ai-trading-bot-v6-1-professional.apk
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses || true
+
       - name: Install Android SDK packages
         run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Build debug APK
-        run: gradle --no-daemon clean assembleRelease --stacktrace
-      - name: Prepare APK
-        run: |
-          cp app/build/outputs/apk/release/app-release.apk nanu-ai-trading-bot-v6-0-fixed.apk
-          ls -lh nanu-ai-trading-bot-v6-0-fixed.apk
 
-      - name: Delete old V6.0 release if exists
+      - name: Decode release keystore
+        env:
+          NANU_RELEASE_KEYSTORE_B64: ${{ secrets.NANU_RELEASE_KEYSTORE_B64 }}
+        run: |
+          test -n "$NANU_RELEASE_KEYSTORE_B64" || (echo "Missing NANU_RELEASE_KEYSTORE_B64 secret" && exit 1)
+          test -n "$NANU_RELEASE_KEYSTORE_PASSWORD" || (echo "Missing NANU_RELEASE_KEYSTORE_PASSWORD secret" && exit 1)
+          test -n "$NANU_RELEASE_KEY_ALIAS" || (echo "Missing NANU_RELEASE_KEY_ALIAS secret" && exit 1)
+          test -n "$NANU_RELEASE_KEY_PASSWORD" || (echo "Missing NANU_RELEASE_KEY_PASSWORD secret" && exit 1)
+          printf '%s' "$NANU_RELEASE_KEYSTORE_B64" | base64 -d > "$NANU_RELEASE_KEYSTORE_PATH"
+
+      - name: Build signed release APK
+        run: gradle --no-daemon clean lintRelease assembleRelease --stacktrace
+
+      - name: Prepare APK and release notes
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
+          cat > release-notes.md <<'NOTES'
+          Nanu AI Trading Bot v6.1 Professional
+
+          - Real Binance Spot portfolio equity sync from signed account balances
+          - Encrypted local credential storage with Android Keystore
+          - PIN stored as a one-way PBKDF2 hash
+          - Binance JSON parsing for account data and server time
+          - ExchangeInfo symbol-rule checks before manual micro order submission
+          - Fresh portfolio sync required before live/test order path
+          - Progressive learning memory shown in Brain and Safety Report
+          - Safer signed release workflow with GitHub Secrets
+
+          No trading bot can guarantee profit or zero bugs. Start with test order mode and tiny order sizes.
+          NOTES
+          ls -lh "$APK_NAME"
+
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete nanu-ai-trading-bot-v6-0 --cleanup-tag -y || true
-          git push origin :refs/tags/nanu-ai-trading-bot-v6-0 || true
-      - name: Create V6.0 release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create nanu-ai-trading-bot-v6-0 nanu-ai-trading-bot-v6-0-fixed.apk \
-            --title "Nanu AI Trading Bot V6.0 Fixed" \
-            --notes "Nanu v6.0 Controlled Live Scalping System: Binance Compliance Guard, manual confirmed micro BUY/SELL, test-order mode by default, real micro arming gate, full-auto proof lock, Error Doctor, safe backup export, Telegram status, Profit Guard and Live Face Engine." \
-            --latest
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK_NAME" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$APK_NAME" \
+              --title "Nanu AI Trading Bot v6.1 Professional" \
+              --notes-file release-notes.md \
+              --latest
+          fi

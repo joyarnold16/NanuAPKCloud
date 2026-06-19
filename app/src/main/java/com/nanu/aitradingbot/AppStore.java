@@ -11,6 +11,7 @@ import java.util.Locale;
 public class AppStore {
     private static AppStore instance;
     private final SharedPreferences sp;
+    private final SecurePrefs securePrefs;
     private final Context appContext;
     public final NanuEngine engine;
     public String mode = "paper";
@@ -20,7 +21,7 @@ public class AppStore {
     public String apiSecret = "";
     public String telegramToken = "";
     public String telegramChatId = "";
-    // v6.0 Telegram Control + Safety Dashboard
+    // v6.1 Telegram Control + Safety Dashboard
     public boolean telegramAlertsEnabled = true;
     public boolean telegramQuietMode = false;
     public boolean telegramAlertStartStop = true;
@@ -32,10 +33,21 @@ public class AppStore {
     public boolean telegramAlertDaily = true;
     public boolean appPinEnabled = false;
     public String appPin = "";
+    public String appPinHash = "";
     public double lastUsdtFree = Double.NaN;
     public double lastUsdtLocked = Double.NaN;
     public double lastBtcFree = Double.NaN;
     public String lastBalanceSnapshot = "Balance not synced yet.";
+    public double spotEquityUsdt = Double.NaN;
+    public double spotFreeUsdt = Double.NaN;
+    public double spotLockedUsdt = Double.NaN;
+    public double liveEquityBaselineUsdt = Double.NaN;
+    public int spotAssetCount = 0;
+    public long lastPortfolioSyncMs = 0L;
+    public boolean portfolioSyncOk = false;
+    public String lastPortfolioSyncStatus = "Portfolio not synced yet.";
+    public String topPortfolioAssets = "No assets synced yet.";
+    public String portfolioWarnings = "";
     public int dryRunPreviewsToday = 0;
     public String lastSafetyReport = "No safety report exported yet.";
     public double riskPerTrade = 1.0;
@@ -45,7 +57,7 @@ public class AppStore {
     public double trailingStop = 0.35;
     public int maxOpenTrades = 3;
 
-    // v6.0 Controlled Live Dry-Run + Order Safety Engine
+    // v6.1 Controlled Live Dry-Run + Order Safety Engine
     public boolean liveDryRunEnabled = true;
     public boolean firstLiveOrderManualConfirm = true;
     public double liveDryRunOrderUsdt = 10.0;
@@ -87,7 +99,7 @@ public class AppStore {
     public boolean profitTargetAlreadyHit = false;
     public boolean duplicateProfitAlreadyHit = false;
 
-    // v6.0 Controlled Live Scalping System
+    // v6.1 Controlled Live Scalping System
     public boolean complianceGuardEnabled = true;
     public boolean semiAutoApprovalRequired = true;
     public boolean fullAutoLocked = true;
@@ -105,6 +117,11 @@ public class AppStore {
     public String lastComplianceReport = "No compliance report generated yet.";
     public String lastBackupText = "No backup exported yet.";
     public String lastBinanceErrorDoctor = "No Binance error yet.";
+    public int brainLearningCycles = 0;
+    public double brainAdaptiveBias = 0.0;
+    public long lastBrainLearnMs = 0L;
+    public String lastBrainInsight = "Learning memory is ready.";
+    public String brainMemoryLog = "";
 
     public final List<String> watchlist = new ArrayList<>();
 
@@ -116,6 +133,7 @@ public class AppStore {
     private AppStore(Context c) {
         appContext = c.getApplicationContext();
         sp = c.getSharedPreferences("nanu_v52", Context.MODE_PRIVATE);
+        securePrefs = new SecurePrefs(sp);
         engine = new NanuEngine(this);
         load();
     }
@@ -124,10 +142,10 @@ public class AppStore {
         mode = sp.getString("mode", "paper");
         liveUnlocked = sp.getBoolean("liveUnlocked", false);
         autoCoinMode = sp.getBoolean("autoCoinMode", true);
-        apiKey = sp.getString("apiKey", "");
-        apiSecret = sp.getString("apiSecret", "");
-        telegramToken = sp.getString("telegramToken", "");
-        telegramChatId = sp.getString("telegramChatId", "");
+        apiKey = securePrefs.getSecret("apiKey", "");
+        apiSecret = securePrefs.getSecret("apiSecret", "");
+        telegramToken = securePrefs.getSecret("telegramToken", "");
+        telegramChatId = securePrefs.getSecret("telegramChatId", "");
         telegramAlertsEnabled = sp.getBoolean("telegramAlertsEnabled", true);
         telegramQuietMode = sp.getBoolean("telegramQuietMode", false);
         telegramAlertStartStop = sp.getBoolean("telegramAlertStartStop", true);
@@ -138,11 +156,28 @@ public class AppStore {
         telegramAlertLive = sp.getBoolean("telegramAlertLive", true);
         telegramAlertDaily = sp.getBoolean("telegramAlertDaily", true);
         appPinEnabled = sp.getBoolean("appPinEnabled", false);
-        appPin = sp.getString("appPin", "");
+        appPinHash = sp.getString("appPinHash", "");
+        String legacyPin = sp.getString("appPin", "");
+        if ((appPinHash == null || appPinHash.isEmpty()) && legacyPin != null && !legacyPin.isEmpty()) {
+            appPinHash = SecurePrefs.createPinHash(legacyPin);
+            sp.edit().putString("appPinHash", appPinHash).remove("appPin").apply();
+        }
+        if (appPinEnabled && (appPinHash == null || appPinHash.isEmpty())) appPinEnabled = false;
+        appPin = "";
         lastUsdtFree = Double.longBitsToDouble(sp.getLong("lastUsdtFree", Double.doubleToRawLongBits(Double.NaN)));
         lastUsdtLocked = Double.longBitsToDouble(sp.getLong("lastUsdtLocked", Double.doubleToRawLongBits(Double.NaN)));
         lastBtcFree = Double.longBitsToDouble(sp.getLong("lastBtcFree", Double.doubleToRawLongBits(Double.NaN)));
         lastBalanceSnapshot = sp.getString("lastBalanceSnapshot", "Balance not synced yet.");
+        spotEquityUsdt = Double.longBitsToDouble(sp.getLong("spotEquityUsdt", Double.doubleToRawLongBits(Double.NaN)));
+        spotFreeUsdt = Double.longBitsToDouble(sp.getLong("spotFreeUsdt", Double.doubleToRawLongBits(Double.NaN)));
+        spotLockedUsdt = Double.longBitsToDouble(sp.getLong("spotLockedUsdt", Double.doubleToRawLongBits(Double.NaN)));
+        liveEquityBaselineUsdt = Double.longBitsToDouble(sp.getLong("liveEquityBaselineUsdt", Double.doubleToRawLongBits(Double.NaN)));
+        spotAssetCount = sp.getInt("spotAssetCount", 0);
+        lastPortfolioSyncMs = sp.getLong("lastPortfolioSyncMs", 0L);
+        portfolioSyncOk = sp.getBoolean("portfolioSyncOk", false);
+        lastPortfolioSyncStatus = sp.getString("lastPortfolioSyncStatus", "Portfolio not synced yet.");
+        topPortfolioAssets = sp.getString("topPortfolioAssets", "No assets synced yet.");
+        portfolioWarnings = sp.getString("portfolioWarnings", "");
         dryRunPreviewsToday = sp.getInt("dryRunPreviewsToday", 0);
         lastSafetyReport = sp.getString("lastSafetyReport", "No safety report exported yet.");
         riskPerTrade = Double.longBitsToDouble(sp.getLong("riskPerTrade", Double.doubleToRawLongBits(1.0)));
@@ -208,6 +243,11 @@ public class AppStore {
         lastComplianceReport = sp.getString("lastComplianceReport", "No compliance report generated yet.");
         lastBackupText = sp.getString("lastBackupText", "No backup exported yet.");
         lastBinanceErrorDoctor = sp.getString("lastBinanceErrorDoctor", "No Binance error yet.");
+        brainLearningCycles = sp.getInt("brainLearningCycles", 0);
+        brainAdaptiveBias = Double.longBitsToDouble(sp.getLong("brainAdaptiveBias", Double.doubleToRawLongBits(0.0)));
+        lastBrainLearnMs = sp.getLong("lastBrainLearnMs", 0L);
+        lastBrainInsight = sp.getString("lastBrainInsight", "Learning memory is ready.");
+        brainMemoryLog = sp.getString("brainMemoryLog", "");
 
         watchlist.clear();
         String saved = sp.getString("watchlist", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT");
@@ -215,14 +255,18 @@ public class AppStore {
     }
 
     public void save() {
+        securePrefs.putSecret("apiKey", apiKey);
+        securePrefs.putSecret("apiSecret", apiSecret);
+        securePrefs.putSecret("telegramToken", telegramToken);
+        securePrefs.putSecret("telegramChatId", telegramChatId);
         sp.edit()
                 .putString("mode", mode)
                 .putBoolean("liveUnlocked", liveUnlocked)
                 .putBoolean("autoCoinMode", autoCoinMode)
-                .putString("apiKey", apiKey)
-                .putString("apiSecret", apiSecret)
-                .putString("telegramToken", telegramToken)
-                .putString("telegramChatId", telegramChatId)
+                .remove("apiKey")
+                .remove("apiSecret")
+                .remove("telegramToken")
+                .remove("telegramChatId")
                 .putBoolean("telegramAlertsEnabled", telegramAlertsEnabled)
                 .putBoolean("telegramQuietMode", telegramQuietMode)
                 .putBoolean("telegramAlertStartStop", telegramAlertStartStop)
@@ -233,11 +277,22 @@ public class AppStore {
                 .putBoolean("telegramAlertLive", telegramAlertLive)
                 .putBoolean("telegramAlertDaily", telegramAlertDaily)
                 .putBoolean("appPinEnabled", appPinEnabled)
-                .putString("appPin", appPin)
+                .putString("appPinHash", appPinHash == null ? "" : appPinHash)
+                .remove("appPin")
                 .putLong("lastUsdtFree", Double.doubleToRawLongBits(lastUsdtFree))
                 .putLong("lastUsdtLocked", Double.doubleToRawLongBits(lastUsdtLocked))
                 .putLong("lastBtcFree", Double.doubleToRawLongBits(lastBtcFree))
                 .putString("lastBalanceSnapshot", lastBalanceSnapshot)
+                .putLong("spotEquityUsdt", Double.doubleToRawLongBits(spotEquityUsdt))
+                .putLong("spotFreeUsdt", Double.doubleToRawLongBits(spotFreeUsdt))
+                .putLong("spotLockedUsdt", Double.doubleToRawLongBits(spotLockedUsdt))
+                .putLong("liveEquityBaselineUsdt", Double.doubleToRawLongBits(liveEquityBaselineUsdt))
+                .putInt("spotAssetCount", spotAssetCount)
+                .putLong("lastPortfolioSyncMs", lastPortfolioSyncMs)
+                .putBoolean("portfolioSyncOk", portfolioSyncOk)
+                .putString("lastPortfolioSyncStatus", lastPortfolioSyncStatus)
+                .putString("topPortfolioAssets", topPortfolioAssets)
+                .putString("portfolioWarnings", portfolioWarnings)
                 .putInt("dryRunPreviewsToday", dryRunPreviewsToday)
                 .putString("lastSafetyReport", lastSafetyReport)
                 .putLong("riskPerTrade", Double.doubleToRawLongBits(riskPerTrade))
@@ -299,6 +354,11 @@ public class AppStore {
                 .putString("lastComplianceReport", lastComplianceReport)
                 .putString("lastBackupText", lastBackupText)
                 .putString("lastBinanceErrorDoctor", lastBinanceErrorDoctor)
+                .putInt("brainLearningCycles", brainLearningCycles)
+                .putLong("brainAdaptiveBias", Double.doubleToRawLongBits(brainAdaptiveBias))
+                .putLong("lastBrainLearnMs", lastBrainLearnMs)
+                .putString("lastBrainInsight", lastBrainInsight)
+                .putString("brainMemoryLog", brainMemoryLog)
                 .putString("watchlist", join(watchlist))
                 .apply();
     }
@@ -340,6 +400,57 @@ public class AppStore {
 
     public boolean apiTradingOkForCurrentMode() {
         return mode != null && mode.equals(lastApiMode) && lastApiPrivateOk && lastApiCanTrade;
+    }
+
+    public void setAppPin(String pin) {
+        String safe = pin == null ? "" : pin.trim();
+        if (safe.isEmpty()) {
+            appPinEnabled = false;
+            appPinHash = "";
+        } else {
+            appPinHash = SecurePrefs.createPinHash(safe);
+            appPinEnabled = !appPinHash.isEmpty();
+        }
+        appPin = "";
+        save();
+    }
+
+    public boolean verifyAppPin(String pin) {
+        if (!appPinEnabled) return true;
+        if (appPinHash == null || appPinHash.isEmpty()) return false;
+        return SecurePrefs.verifyPin(pin == null ? "" : pin.trim(), appPinHash);
+    }
+
+    public String portfolioAgeLabel() {
+        if (lastPortfolioSyncMs <= 0) return "never";
+        long age = Math.max(0L, System.currentTimeMillis() - lastPortfolioSyncMs);
+        long seconds = age / 1000L;
+        if (seconds < 60) return seconds + "s ago";
+        long minutes = seconds / 60L;
+        if (minutes < 60) return minutes + "m ago";
+        long hours = minutes / 60L;
+        if (hours < 48) return hours + "h ago";
+        return (hours / 24L) + "d ago";
+    }
+
+    public String portfolioEquityLabel() {
+        if (!portfolioSyncOk || Double.isNaN(spotEquityUsdt)) return "Spot equity not synced";
+        return String.format(Locale.US, "%.2f USDT", spotEquityUsdt);
+    }
+
+    public void recordBrainObservation(String source, double pnl, boolean portfolioBacked) {
+        long now = System.currentTimeMillis();
+        if (now - lastBrainLearnMs < 60000L) return;
+        lastBrainLearnMs = now;
+        brainLearningCycles++;
+        double signal = Math.max(-1.0, Math.min(1.0, pnl / 100.0));
+        brainAdaptiveBias = Math.max(-10.0, Math.min(10.0, brainAdaptiveBias * 0.92 + signal));
+        String stance = brainAdaptiveBias > 1.5 ? "favors momentum but keeps micro sizing" : (brainAdaptiveBias < -1.5 ? "defensive bias; reduce frequency and wait for cleaner signals" : "neutral; keep confirmation gates strict");
+        lastBrainInsight = "Cycle " + brainLearningCycles + ": " + (portfolioBacked ? "portfolio-backed" : "paper") + " observation from " + source + " -> " + stance + ".";
+        String line = String.format(Locale.US, "%d|%s|pnl=%+.2f|bias=%.2f|%s", now, source == null ? "engine" : source, pnl, brainAdaptiveBias, portfolioBacked ? "portfolio" : "paper");
+        brainMemoryLog = line + (brainMemoryLog == null || brainMemoryLog.isEmpty() ? "" : "\n" + brainMemoryLog);
+        if (brainMemoryLog.length() > 4000) brainMemoryLog = brainMemoryLog.substring(0, 4000);
+        save();
     }
 
     public void triggerAlert(String title, String message, boolean critical) {
@@ -398,7 +509,7 @@ public class AppStore {
         binanceRateLimitLock = false;
         lastBinanceStatusCode = 0;
         lastBinanceErrorDoctor = "Safety state reset" + (reason == null || reason.isEmpty() ? "." : (": " + reason));
-        resetOrderSafetyState(reason == null ? "v6.0 safety reset" : reason);
+        resetOrderSafetyState(reason == null ? "v6.1 safety reset" : reason);
         save();
     }
 

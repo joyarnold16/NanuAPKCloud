@@ -34,7 +34,7 @@ public class NanuEngine {
     public NanuEngine(AppStore s) {
         store = s;
         seed();
-        addJournal("Nanu v6.0 Controlled Live Scalping System ready in Paper Mode.");
+        addJournal("Nanu v6.1 Professional Controlled Live Scalping System ready in Paper Mode.");
     }
 
     public void start() {
@@ -75,6 +75,20 @@ public class NanuEngine {
         if (!force && now - lastTick < 1800) return;
         lastTick = now;
         if (!running || panic) { buildMood(); return; }
+        if ("live".equals(store.mode) && store.portfolioSyncOk && !Double.isNaN(store.spotEquityUsdt)) {
+            if (Double.isNaN(store.liveEquityBaselineUsdt)) {
+                store.liveEquityBaselineUsdt = store.spotEquityUsdt;
+                store.save();
+            }
+            equity = store.spotEquityUsdt;
+            todayPnl = equity - store.liveEquityBaselineUsdt;
+            realizedPnl = todayPnl;
+            openPnl = todayPnl;
+            winRate = Math.max(18, Math.min(91, 50 + todayPnl / Math.max(1.0, equity) * 100));
+            store.recordBrainObservation("live-portfolio", todayPnl, true);
+            buildMood(); buildBrain(); checkProfitGuards();
+            return;
+        }
         if (store.autoCoinMode && store.watchlist.size() < 4) store.autoSelectCoins();
         if (trades.isEmpty()) seed();
         for (Trade t : trades) {
@@ -92,6 +106,7 @@ public class NanuEngine {
         equity = 1000 + todayPnl;
         winRate = Math.max(18, Math.min(91, 72 + todayPnl / 12));
         if (rand.nextInt(6) == 0) addJournal((todayPnl >= 0 ? "Trailing stop checked" : "Risk shield monitoring") + " • " + (trades.isEmpty() ? "watchlist" : trades.get(0).symbol));
+        store.recordBrainObservation("paper-engine", todayPnl, false);
         buildMood(); buildBrain(); checkProfitGuards();
     }
 
@@ -158,14 +173,19 @@ public class NanuEngine {
     private void buildBrain() {
         brain.clear();
         brain.add("Market Regime: " + (Math.abs(todayPnl) < 20 ? "Calm / low volatility" : (todayPnl > 0 ? "Trending with positive momentum" : "Risky / defensive")));
-        brain.add("Signal Confidence: " + moodConfidence + "/100 based on EMA, RSI, MACD and volume mood.");
+        brain.add("Signal Confidence: " + moodConfidence + "/100 based on EMA, RSI, MACD, portfolio freshness and risk gates.");
+        if ("live".equals(store.mode)) {
+            brain.add("Live Equity Source: " + (store.portfolioSyncOk ? ("Binance Spot portfolio, synced " + store.portfolioAgeLabel()) : "not synced; live action should stay blocked until API Doctor/portfolio sync passes."));
+        }
         brain.add("Risk Shield: " + (panic ? "PANIC active" : "Daily loss, open-trade limits, cooldown and live dry-run gates monitored."));
+        brain.add("Adaptive Memory: " + store.lastBrainInsight);
         brain.add("Profit Guard: " + (store.profitGuardEnabled ? ("armed at " + String.format(Locale.US, "%.2f", store.profitTargetUsdt) + " USDT") : "off") + " • Duplicate P&L guard " + (store.duplicateProfitGuardEnabled ? ("on / " + store.duplicateProfitRepeatCount + " repeats") : "off"));
         brain.add("Order Safety: " + (store.liveDryRunEnabled ? "Controlled dry-run ON; manual micro order layer protected by confirmation and compliance guard." : "Dry-run OFF; do not use live until reviewed."));
         if (store.autoCoinMode) brain.add("Auto Mode: Nanu prefers high-volume pairs with tight spread and clean candle movement.");
         else brain.add("Manual Mode: User-selected watchlist is active.");
         if (!trades.isEmpty()) brain.add(trades.get(0).symbol + " thought: " + trades.get(0).reason);
         brain.add(todayPnl >= 0 ? "Learning Memory: winning conditions are being logged for pattern review." : "Learning Memory: loss pattern watch is active; cooldown may be needed.");
+        if (store.portfolioSyncOk) brain.add("Portfolio Memory: " + store.topPortfolioAssets);
     }
 
     public void addJournal(String item) {
