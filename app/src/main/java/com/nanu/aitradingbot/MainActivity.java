@@ -59,7 +59,9 @@ public class MainActivity extends Activity {
     final int MUTED = Color.rgb(143, 164, 180);
 
     @Override protected void onCreate(Bundle b) {
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
         super.onCreate(b);
+        try { if (getActionBar() != null) getActionBar().hide(); } catch (Exception ignored) {}
         Window w = getWindow();
         w.setStatusBarColor(BG);
         w.setNavigationBarColor(BG);
@@ -126,16 +128,16 @@ public class MainActivity extends Activity {
     }
 
     void buildHeader() {
-        LinearLayout row = row(); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, 0, 0, dp(12));
-        ImageView avatar = nanuAvatar(dp(58));
-        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(58), dp(58)); avp.rightMargin = dp(12); row.addView(avatar, avp);
+        LinearLayout row = row(); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, 0, 0, dp(10));
+        ImageView avatar = nanuAvatar(dp(46));
+        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(46), dp(46)); avp.rightMargin = dp(10); row.addView(avatar, avp);
         LinearLayout titles = col();
-        TextView title = tv("NANU", 34, WHITE, true); title.setLetterSpacing(.04f); titles.addView(title);
-        TextView sub = tv("AI TRADING BOT", 15, CYAN, true); sub.setLetterSpacing(.22f); titles.addView(sub);
+        TextView title = tv("NANU", 26, WHITE, true); title.setLetterSpacing(.02f); title.setSingleLine(true); titles.addView(title);
+        TextView sub = tv("AI TRADING BOT", 12, CYAN, true); sub.setLetterSpacing(.12f); sub.setSingleLine(true); titles.addView(sub);
         row.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView status = pill(store.engine.running ? "ACTIVE" : "IDLE", store.engine.running ? GREEN : CYAN, 12); status.setMinWidth(dp(78)); row.addView(status);
-        TextView settings = pill("⚙", CYAN, 21); settings.setPadding(dp(12), dp(9), dp(12), dp(9)); settings.setOnClickListener(v -> openSecurity());
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(52), dp(52)); sp.leftMargin = dp(8); row.addView(settings, sp);
+        TextView status = pill(store.engine.running ? "ACTIVE" : "IDLE", store.engine.running ? GREEN : CYAN, 11); status.setMinWidth(dp(64)); row.addView(status);
+        TextView settings = pill("⚙", CYAN, 19); settings.setPadding(dp(10), dp(7), dp(10), dp(7)); settings.setOnClickListener(v -> openSecurity());
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(46), dp(46)); sp.leftMargin = dp(6); row.addView(settings, sp);
         root.addView(row);
     }
 
