@@ -2,6 +2,11 @@ name: Build Nanu AI Trading Bot Professional APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-apk.yml
 
 permissions:
   contents: write
