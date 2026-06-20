@@ -19,14 +19,14 @@ public class OrderSafetyEngine {
         Preview p = new Preview();
         p.symbol = chooseSymbol(store);
         p.side = "BUY";
-        p.price = priceFor(p.symbol);
+        p.price = liveOrFallbackPrice(store, p.symbol);
         p.quoteAmount = Math.max(5.0, store.liveDryRunOrderUsdt);
         p.minNotional = Math.max(5.0, store.minOrderNotionalUsdt);
         p.rawQty = p.quoteAmount / Math.max(0.00000001, p.price);
         p.roundedQty = roundQty(p.symbol, p.rawQty);
 
         StringBuilder out = new StringBuilder();
-        out.append("Nanu Order Safety Engine v6.1\n\n");
+        out.append("Nanu Order Safety Engine v6.2\n\n");
         out.append("CONTROLLED LIVE DRY-RUN\n");
         out.append("This preview sends no order. It must pass before manual micro order buttons can run.\n\n");
         out.append("Mode: ").append(store.mode.toUpperCase(Locale.US)).append('\n');
@@ -99,8 +99,17 @@ public class OrderSafetyEngine {
     }
 
     private static String chooseSymbol(AppStore store) {
+        if (store.scalperSymbol != null && !store.scalperSymbol.trim().isEmpty()) return store.scalperSymbol.trim().toUpperCase(Locale.US);
         if (store.watchlist != null && !store.watchlist.isEmpty()) return store.watchlist.get(0);
         return "BTCUSDT";
+    }
+
+    private static double liveOrFallbackPrice(AppStore store, String symbol) {
+        if (store.lastScalperPrice > 0 && !Double.isNaN(store.lastScalperPrice)
+                && symbol != null && symbol.equalsIgnoreCase(store.scalperSymbol)) {
+            return store.lastScalperPrice;
+        }
+        return priceFor(symbol);
     }
 
     private static double priceFor(String s) {

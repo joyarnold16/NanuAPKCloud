@@ -1,17 +1,26 @@
 package com.nanu.aitradingbot;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class NanuEngine {
     public static class Trade {
         public String symbol, side, reason;
-        public double entry, mark, pnl, pct, tp, sl;
+        public double entry, mark, pnl, pct, tp, sl, quantity;
+        // Retained for UI compatibility. Spot positions always use 1x.
         public int leverage;
-        Trade(String s, String side, double e, double m, double p, double pc, double tp, double sl, int lev, String reason) {
-            this.symbol = s; this.side = side; this.entry = e; this.mark = m; this.pnl = p; this.pct = pc; this.tp = tp; this.sl = sl; this.leverage = lev; this.reason = reason;
+
+        Trade(String symbol, double entry, double quantity, double tp, double sl, String reason) {
+            this.symbol = symbol;
+            this.side = "SPOT PAPER BUY";
+            this.entry = entry;
+            this.mark = entry;
+            this.quantity = quantity;
+            this.tp = tp;
+            this.sl = sl;
+            this.reason = reason;
+            this.leverage = 1;
         }
     }
 
@@ -22,37 +31,40 @@ public class NanuEngine {
     public double todayPnl = 0;
     public double realizedPnl = 0;
     public double openPnl = 0;
-    public double winRate = 72.0;
-    public int moodConfidence = 51;
-    public String marketMood = "CALM";
+    public double winRate = 0;
+    public int moodConfidence = 0;
+    public String marketMood = "WAITING";
     public long lastTick = 0;
-    public final List<Trade> trades = new ArrayList<>();
-    public final List<String> journal = new ArrayList<>();
-    public final List<String> brain = new ArrayList<>();
-    private final Random rand = new Random(5);
+    public final List<Trade> trades = new CopyOnWriteArrayList<>();
+    public final List<String> journal = new CopyOnWriteArrayList<>();
+    public final List<String> brain = new CopyOnWriteArrayList<>();
 
-    public NanuEngine(AppStore s) {
-        store = s;
-        seed();
-        addJournal("Nanu v6.1 Professional Controlled Live Scalping System ready in Paper Mode.");
+    private long lastScalperDispatchMs = 0L;
+    private String lastHandledAction = "";
+    private int paperWins = 0;
+    private int paperLosses = 0;
+
+    public NanuEngine(AppStore store) {
+        this.store = store;
+        buildMood();
+        buildBrain();
+        addJournal("Nanu v6.2 ready. Live candle scanner is OFF until Start is pressed.");
     }
 
     public void start() {
-        if (panic) panic = false;
+        panic = false;
         running = true;
         store.resetGuardSession();
-        addJournal("Bot started in " + store.mode.toUpperCase(Locale.US) + " mode.");
-        buildBrain();
-        if ("live".equals(store.mode) && store.liveUnlocked && store.liveDryRunEnabled) {
-            addJournal("LIVE CONTROL active: full auto locked; manual micro orders require preview + typed confirmation.");
-        }
+        addJournal("Scalper started in " + store.mode.toUpperCase(Locale.US) + " mode. Real automatic orders remain disabled.");
         tick(true);
     }
 
     public void stop() {
         running = false;
-        addJournal("Bot stopped by user.");
-        store.resetOrderSafetyState("Stop pressed");
+        addJournal("Scalper stopped. No new scans or paper entries will be created.");
+        store.resetOrderSafetyState("Stop button");
+        buildMood();
+        buildBrain();
     }
 
     public void panicClose() {
@@ -60,21 +72,114 @@ public class NanuEngine {
         panic = true;
         trades.clear();
         openPnl = 0;
-        addJournal("PANIC CLOSE: all internal open trades cleared.");
+        addJournal("PANIC: scanner stopped and paper positions cleared. Check Binance manually; this cannot cancel exchange orders.");
         store.resetOrderSafetyState("Panic pressed");
+        buildMood();
+        buildBrain();
     }
 
     public void resetPaper() {
-        running = false; panic = false; equity = 1000; todayPnl = 0; realizedPnl = 0; openPnl = 0; winRate = 72; trades.clear(); store.resetGuardSession(); seed();
+        running = false;
+        panic = false;
+        equity = 1000;
+        todayPnl = 0;
+        realizedPnl = 0;
+        openPnl = 0;
+        winRate = 0;
+        paperWins = 0;
+        paperLosses = 0;
+        trades.clear();
+        store.resetGuardSession();
         store.resetOrderSafetyState("Paper wallet reset");
-        addJournal("Paper wallet reset to 1000 USDT.");
+        addJournal("Paper wallet reset to 1000 USDT. No simulated trades are preloaded.");
+        buildMood();
+        buildBrain();
     }
 
     public void tick(boolean force) {
         long now = System.currentTimeMillis();
-        if (!force && now - lastTick < 1800) return;
+        if (!force && now - lastTick < 1800L) return;
         lastTick = now;
-        if (!running || panic) { buildMood(); return; }
+        if (!running || panic) {
+            buildMood();
+            buildBrain();
+            return;
+        }
+
+        long scanEveryMs = Math.max(30, store.scalperScanSeconds) * 1000L;
+        if (store.scalperEnabled && (force || now - lastScalperDispatchMs >= scanEveryMs)) {
+            lastScalperDispatchMs = now;
+            BinanceClient.scanScalper(store, (signal, report) -> {
+                if (signal != null) onScalperSignal(signal);
+                else addJournal("Market scan failed: " + report);
+            });
+        }
+
+        refreshMetrics();
+        buildMood();
+        buildBrain();
+        checkGuards();
+    }
+
+    private synchronized void onScalperSignal(ScalpingStrategy.Signal signal) {
+        if (!running || panic) return;
+        boolean changed = !signal.action.name().equals(lastHandledAction);
+        lastHandledAction = signal.action.name();
+
+        if ("paper".equals(store.mode) && store.scalperPaperAutoTrade) {
+            updatePaperPosition(signal);
+        } else if (changed && (signal.action == ScalpingStrategy.Action.BUY || signal.action == ScalpingStrategy.Action.EXIT)) {
+            String message = signal.action + " signal for " + store.scalperSymbol + " at " + String.format(Locale.US, "%.8f", signal.price)
+                    + ". No automatic Binance order was sent.";
+            addJournal(message);
+            store.triggerAlert("Nanu Spot Signal", message, false, "dryrun");
+        }
+
+        if (changed) addJournal("Live candle signal: " + signal.action + " " + store.scalperSymbol + " (" + signal.confidence + "/100).");
+        refreshMetrics();
+        buildMood();
+        buildBrain();
+        checkGuards();
+    }
+
+    private void updatePaperPosition(ScalpingStrategy.Signal signal) {
+        if (signal.price <= 0 || Double.isNaN(signal.price)) return;
+        Trade open = trades.isEmpty() ? null : trades.get(0);
+        if (open != null) {
+            mark(open, signal.price);
+            boolean hitStop = open.mark <= open.sl;
+            boolean hitTarget = open.mark >= open.tp;
+            boolean exitSignal = signal.action == ScalpingStrategy.Action.EXIT;
+            if (hitStop || hitTarget || exitSignal) {
+                realizedPnl += open.pnl;
+                if (open.pnl >= 0) paperWins++; else paperLosses++;
+                String reason = hitStop ? "paper stop reference" : (hitTarget ? "paper target reference" : "strategy exit signal");
+                addJournal("Paper position closed: " + open.symbol + " " + fmt(open.pnl) + " USDT via " + reason + ".");
+                trades.clear();
+            }
+            return;
+        }
+
+        if (signal.action != ScalpingStrategy.Action.BUY) return;
+        double amount = Math.max(5.0, store.scalperTradeAmountUsdt);
+        double quantity = amount / signal.price;
+        Trade created = new Trade(
+                store.scalperSymbol,
+                signal.price,
+                quantity,
+                signal.price * (1.0 + Math.max(0.1, store.takeProfit) / 100.0),
+                signal.price * (1.0 - Math.max(0.1, store.stopLoss) / 100.0),
+                signal.reason
+        );
+        trades.add(created);
+        addJournal("Paper position opened: " + created.symbol + " using " + String.format(Locale.US, "%.2f", amount) + " USDT from a live candle signal.");
+    }
+
+    private void refreshMetrics() {
+        openPnl = 0;
+        if (!trades.isEmpty() && !Double.isNaN(store.lastScalperPrice) && store.lastScalperPrice > 0) mark(trades.get(0), store.lastScalperPrice);
+        for (Trade trade : trades) openPnl += trade.pnl;
+
         if ("live".equals(store.mode) && store.portfolioSyncOk && !Double.isNaN(store.spotEquityUsdt)) {
             if (Double.isNaN(store.liveEquityBaselineUsdt)) {
                 store.liveEquityBaselineUsdt = store.spotEquityUsdt;
@@ -84,115 +189,80 @@ public class NanuEngine {
             todayPnl = equity - store.liveEquityBaselineUsdt;
             realizedPnl = todayPnl;
             openPnl = todayPnl;
-            winRate = Math.max(18, Math.min(91, 50 + todayPnl / Math.max(1.0, equity) * 100));
-            store.recordBrainObservation("live-portfolio", todayPnl, true);
-            buildMood(); buildBrain(); checkProfitGuards();
-            return;
+        } else {
+            todayPnl = realizedPnl + openPnl;
+            equity = 1000.0 + todayPnl;
         }
-        if (store.autoCoinMode && store.watchlist.size() < 4) store.autoSelectCoins();
-        if (trades.isEmpty()) seed();
-        for (Trade t : trades) {
-            double wave = (rand.nextDouble() - 0.42) * 8.0;
-            if (todayPnl > 60) wave -= 1.2;
-            if (todayPnl < -35) wave += 1.4;
-            t.pnl += wave;
-            t.pct = t.pnl / Math.max(50, t.entry) * 100 * 8;
-            t.mark = t.entry * (1 + t.pct / 100 / Math.max(1, t.leverage));
-        }
-        openPnl = 0;
-        for (Trade t : trades) openPnl += t.pnl;
-        todayPnl = openPnl + (rand.nextDouble() - 0.48) * 1.8;
-        realizedPnl = todayPnl; // paper engine uses today P&L as realized/net simulation until live order history is connected
-        equity = 1000 + todayPnl;
-        winRate = Math.max(18, Math.min(91, 72 + todayPnl / 12));
-        if (rand.nextInt(6) == 0) addJournal((todayPnl >= 0 ? "Trailing stop checked" : "Risk shield monitoring") + " • " + (trades.isEmpty() ? "watchlist" : trades.get(0).symbol));
-        store.recordBrainObservation("paper-engine", todayPnl, false);
-        buildMood(); buildBrain(); checkProfitGuards();
+        int completed = paperWins + paperLosses;
+        winRate = completed == 0 ? 0 : paperWins * 100.0 / completed;
     }
 
-    private void seed() {
-        trades.clear();
-        String[] fallback = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"};
-        for (int i = 0; i < Math.min(store.watchlist.size() > 0 ? store.watchlist.size() : 4, 4); i++) {
-            String sym = store.watchlist.size() > i ? store.watchlist.get(i) : fallback[i];
-            double base = priceFor(sym);
-            double mark = base * (1 + (i + 1) * 0.0015);
-            trades.add(new Trade(sym, "LONG", base, mark, (i == 0 ? 14 : 5) + i * 1.2, 0.5 + i * .16, base * 1.012, base * 0.993, i < 2 ? 20 : 15,
-                    "EMA aligned, RSI healthy, MACD confirmation pending."));
-        }
-        buildMood(); buildBrain();
+    private void mark(Trade trade, double price) {
+        trade.mark = price;
+        trade.pnl = (trade.mark - trade.entry) * trade.quantity;
+        trade.pct = (trade.mark - trade.entry) / Math.max(0.00000001, trade.entry) * 100.0;
     }
 
-    private void checkProfitGuards() {
+    private void checkGuards() {
         if (!running || panic) return;
-        if (store.profitGuardEnabled && !store.profitTargetAlreadyHit && realizedPnl >= store.profitTargetUsdt) {
-            store.profitTargetAlreadyHit = true;
-            store.save();
-            String msg = String.format(Locale.US, "Profit target reached: %+.2f USDT / target %.2f USDT. Bot stopped safely.", realizedPnl, store.profitTargetUsdt);
-            store.autoStopForGuard("Profit target reached", msg);
+        double guardBase = "live".equals(store.mode) && !Double.isNaN(store.liveEquityBaselineUsdt)
+                ? store.liveEquityBaselineUsdt : 1000.0;
+        double maxLossUsdt = Math.max(0.0, guardBase * Math.max(0.0, store.dailyLossLimit) / 100.0);
+        if (maxLossUsdt > 0 && todayPnl <= -maxLossUsdt) {
+            store.autoStopForGuard("Daily loss limit reached", String.format(Locale.US, "Daily loss limit reached: %+.2f USDT (%.2f%% limit). Scanner stopped; inspect Binance before any new order.", todayPnl, store.dailyLossLimit));
             return;
         }
-        if (store.duplicateProfitGuardEnabled && !store.duplicateProfitAlreadyHit) {
-            double rounded = Math.round(realizedPnl * 100.0) / 100.0;
-            if (!Double.isNaN(store.lastRoundedProfit) && Math.abs(rounded - store.lastRoundedProfit) < 0.01) {
-                store.sameProfitRepeats++;
-            } else {
-                store.lastRoundedProfit = rounded;
-                store.sameProfitRepeats = 1;
-            }
-            store.save();
-            if (store.sameProfitRepeats >= Math.max(2, store.duplicateProfitRepeatCount)) {
-                store.duplicateProfitAlreadyHit = true;
-                store.save();
-                String msg = String.format(Locale.US, "Repeated same profit value detected %.2f USDT for %d checks. Bot stopped to prevent loop/API stale data.", rounded, store.sameProfitRepeats);
-                store.autoStopForGuard("Repeated profit pattern", msg);
-            }
+        if (store.profitGuardEnabled && todayPnl >= store.profitTargetUsdt) {
+            store.autoStopForGuard("Profit target reached", String.format(Locale.US, "Profit target reached: %+.2f USDT. Scanner stopped safely.", todayPnl));
         }
-    }
-
-    private double priceFor(String s) {
-        if (s.startsWith("BTC")) return 67842.10;
-        if (s.startsWith("ETH")) return 3742.80;
-        if (s.startsWith("SOL")) return 164.28;
-        if (s.startsWith("BNB")) return 596.51;
-        if (s.startsWith("XRP")) return 0.62;
-        if (s.startsWith("DOGE")) return 0.13;
-        if (s.startsWith("ADA")) return 0.43;
-        return 100.00 + rand.nextInt(200);
     }
 
     private void buildMood() {
-        if (panic) { marketMood = "PANIC"; moodConfidence = 0; return; }
-        if (todayPnl > 120) { marketMood = "BIG PROFIT"; moodConfidence = 92; }
-        else if (todayPnl > 15) { marketMood = "PROFIT"; moodConfidence = 72; }
-        else if (todayPnl < -100) { marketMood = "HEAVY LOSS"; moodConfidence = 12; }
-        else if (todayPnl < -15) { marketMood = "LOSS"; moodConfidence = 28; }
-        else { marketMood = "CALM"; moodConfidence = 51; }
+        if (panic) {
+            marketMood = "PANIC";
+            moodConfidence = 0;
+        } else if (!running) {
+            marketMood = "IDLE";
+            moodConfidence = 0;
+        } else if ("BUY".equals(store.lastScalperSignal)) {
+            marketMood = "BULLISH SETUP";
+            moodConfidence = store.lastScalperConfidence;
+        } else if ("EXIT".equals(store.lastScalperSignal)) {
+            marketMood = "EXIT / DEFENSIVE";
+            moodConfidence = store.lastScalperConfidence;
+        } else {
+            marketMood = "WAITING";
+            moodConfidence = store.lastScalperConfidence;
+        }
     }
 
     private void buildBrain() {
         brain.clear();
-        brain.add("Market Regime: " + (Math.abs(todayPnl) < 20 ? "Calm / low volatility" : (todayPnl > 0 ? "Trending with positive momentum" : "Risky / defensive")));
-        brain.add("Signal Confidence: " + moodConfidence + "/100 based on EMA, RSI, MACD, portfolio freshness and risk gates.");
-        if ("live".equals(store.mode)) {
-            brain.add("Live Equity Source: " + (store.portfolioSyncOk ? ("Binance Spot portfolio, synced " + store.portfolioAgeLabel()) : "not synced; live action should stay blocked until API Doctor/portfolio sync passes."));
-        }
-        brain.add("Risk Shield: " + (panic ? "PANIC active" : "Daily loss, open-trade limits, cooldown and live dry-run gates monitored."));
-        brain.add("Adaptive Memory: " + store.lastBrainInsight);
-        brain.add("Profit Guard: " + (store.profitGuardEnabled ? ("armed at " + String.format(Locale.US, "%.2f", store.profitTargetUsdt) + " USDT") : "off") + " • Duplicate P&L guard " + (store.duplicateProfitGuardEnabled ? ("on / " + store.duplicateProfitRepeatCount + " repeats") : "off"));
-        brain.add("Order Safety: " + (store.liveDryRunEnabled ? "Controlled dry-run ON; manual micro order layer protected by confirmation and compliance guard." : "Dry-run OFF; do not use live until reviewed."));
-        if (store.autoCoinMode) brain.add("Auto Mode: Nanu prefers high-volume pairs with tight spread and clean candle movement.");
-        else brain.add("Manual Mode: User-selected watchlist is active.");
-        if (!trades.isEmpty()) brain.add(trades.get(0).symbol + " thought: " + trades.get(0).reason);
-        brain.add(todayPnl >= 0 ? "Learning Memory: winning conditions are being logged for pattern review." : "Learning Memory: loss pattern watch is active; cooldown may be needed.");
-        if (store.portfolioSyncOk) brain.add("Portfolio Memory: " + store.topPortfolioAssets);
+        brain.add("Live-data scanner: " + (store.scalperEnabled ? "ON" : "OFF") + " • " + store.scalperSymbol + " • 1m closed candles • every " + Math.max(30, store.scalperScanSeconds) + "s.");
+        brain.add("Latest signal: " + store.lastScalperSignal + " • confidence " + store.lastScalperConfidence + "/100 • checked " + store.scalperAgeLabel() + ".");
+        brain.add("Strategy: EMA 9/21 trend filter plus RSI 14 momentum band. It is deterministic, not predictive machine learning.");
+        brain.add("Execution: " + ("paper".equals(store.mode) && store.scalperPaperAutoTrade ? "automatic PAPER positions only" : "signals only; no automatic Binance orders") + ".");
+        brain.add("Risk: per-paper-trade " + String.format(Locale.US, "%.2f", store.scalperTradeAmountUsdt) + " USDT • stop reference " + String.format(Locale.US, "%.2f", store.stopLoss) + "% • target reference " + String.format(Locale.US, "%.2f", store.takeProfit) + "%.");
+        if ("live".equals(store.mode)) brain.add("Live equity: " + (store.portfolioSyncOk ? store.portfolioEquityLabel() : "not synced; do not place a real order"));
+        brain.add("Real automatic trading is disabled. Manual real micro orders remain protected by Test Order, API Doctor, and typed confirmation.");
+        if (store.lastScalperError != null && !store.lastScalperError.isEmpty()) brain.add(store.lastScalperError);
     }
 
-    public void addJournal(String item) {
+    public synchronized void addJournal(String item) {
         String time = new java.text.SimpleDateFormat("HH:mm:ss", Locale.US).format(new java.util.Date());
         journal.add(0, time + "  " + item);
-        while (journal.size() > 30) journal.remove(journal.size() - 1);
+        while (journal.size() > 40) journal.remove(journal.size() - 1);
     }
 
-    public String fmt(double v) { return String.format(Locale.US, "%+.2f", v); }
+    public String fmt(double value) {
+        return String.format(Locale.US, "%+.2f", value);
+    }
+
+    public int paperCompletedTrades() {
+        return paperWins + paperLosses;
+    }
+
+    public int paperWins() {
+        return paperWins;
+    }
 }

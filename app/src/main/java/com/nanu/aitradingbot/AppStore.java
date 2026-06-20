@@ -123,6 +123,20 @@ public class AppStore {
     public String lastBrainInsight = "Learning memory is ready.";
     public String brainMemoryLog = "";
 
+    // v6.2 Live-data Spot scalping assistant. Real automatic execution is deliberately disabled.
+    public boolean scalperEnabled = true;
+    public boolean scalperPaperAutoTrade = true;
+    public String scalperSymbol = "BTCUSDT";
+    public int scalperScanSeconds = 60;
+    public double scalperTradeAmountUsdt = 5.0;
+    public int scalperMarketChecks = 0;
+    public long lastScalperCheckMs = 0L;
+    public double lastScalperPrice = Double.NaN;
+    public String lastScalperSignal = "WAITING";
+    public int lastScalperConfidence = 0;
+    public String lastScalperReport = "No live market scan yet.";
+    public String lastScalperError = "";
+
     public final List<String> watchlist = new ArrayList<>();
 
     public static synchronized AppStore get(Context c) {
@@ -228,7 +242,8 @@ public class AppStore {
 
         complianceGuardEnabled = sp.getBoolean("complianceGuardEnabled", true);
         semiAutoApprovalRequired = sp.getBoolean("semiAutoApprovalRequired", true);
-        fullAutoLocked = sp.getBoolean("fullAutoLocked", true);
+        // v6.2 never permits automatic real exchange execution, including for users upgrading from older builds.
+        fullAutoLocked = true;
         telegramCommandControl = sp.getBoolean("telegramCommandControl", true);
         liveRealOrderArmed = sp.getBoolean("liveRealOrderArmed", false);
         liveOrderTestMode = sp.getBoolean("liveOrderTestMode", true);
@@ -248,6 +263,19 @@ public class AppStore {
         lastBrainLearnMs = sp.getLong("lastBrainLearnMs", 0L);
         lastBrainInsight = sp.getString("lastBrainInsight", "Learning memory is ready.");
         brainMemoryLog = sp.getString("brainMemoryLog", "");
+        scalperEnabled = sp.getBoolean("scalperEnabled", true);
+        scalperPaperAutoTrade = sp.getBoolean("scalperPaperAutoTrade", true);
+        scalperSymbol = normalizeCoin(sp.getString("scalperSymbol", "BTCUSDT"));
+        if (scalperSymbol.isEmpty()) scalperSymbol = "BTCUSDT";
+        scalperScanSeconds = Math.max(30, sp.getInt("scalperScanSeconds", 60));
+        scalperTradeAmountUsdt = Double.longBitsToDouble(sp.getLong("scalperTradeAmountUsdt", Double.doubleToRawLongBits(5.0)));
+        scalperMarketChecks = sp.getInt("scalperMarketChecks", 0);
+        lastScalperCheckMs = sp.getLong("lastScalperCheckMs", 0L);
+        lastScalperPrice = Double.longBitsToDouble(sp.getLong("lastScalperPrice", Double.doubleToRawLongBits(Double.NaN)));
+        lastScalperSignal = sp.getString("lastScalperSignal", "WAITING");
+        lastScalperConfidence = sp.getInt("lastScalperConfidence", 0);
+        lastScalperReport = sp.getString("lastScalperReport", "No live market scan yet.");
+        lastScalperError = sp.getString("lastScalperError", "");
 
         watchlist.clear();
         String saved = sp.getString("watchlist", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT");
@@ -359,6 +387,18 @@ public class AppStore {
                 .putLong("lastBrainLearnMs", lastBrainLearnMs)
                 .putString("lastBrainInsight", lastBrainInsight)
                 .putString("brainMemoryLog", brainMemoryLog)
+                .putBoolean("scalperEnabled", scalperEnabled)
+                .putBoolean("scalperPaperAutoTrade", scalperPaperAutoTrade)
+                .putString("scalperSymbol", scalperSymbol)
+                .putInt("scalperScanSeconds", scalperScanSeconds)
+                .putLong("scalperTradeAmountUsdt", Double.doubleToRawLongBits(scalperTradeAmountUsdt))
+                .putInt("scalperMarketChecks", scalperMarketChecks)
+                .putLong("lastScalperCheckMs", lastScalperCheckMs)
+                .putLong("lastScalperPrice", Double.doubleToRawLongBits(lastScalperPrice))
+                .putString("lastScalperSignal", lastScalperSignal)
+                .putInt("lastScalperConfidence", lastScalperConfidence)
+                .putString("lastScalperReport", lastScalperReport)
+                .putString("lastScalperError", lastScalperError)
                 .putString("watchlist", join(watchlist))
                 .apply();
     }
@@ -438,6 +478,13 @@ public class AppStore {
         return String.format(Locale.US, "%.2f USDT", spotEquityUsdt);
     }
 
+    public String scalperAgeLabel() {
+        if (lastScalperCheckMs <= 0) return "never";
+        long seconds = Math.max(0L, System.currentTimeMillis() - lastScalperCheckMs) / 1000L;
+        if (seconds < 60) return seconds + "s ago";
+        return (seconds / 60L) + "m ago";
+    }
+
     public void recordBrainObservation(String source, double pnl, boolean portfolioBacked) {
         long now = System.currentTimeMillis();
         if (now - lastBrainLearnMs < 60000L) return;
@@ -509,7 +556,7 @@ public class AppStore {
         binanceRateLimitLock = false;
         lastBinanceStatusCode = 0;
         lastBinanceErrorDoctor = "Safety state reset" + (reason == null || reason.isEmpty() ? "." : (": " + reason));
-        resetOrderSafetyState(reason == null ? "v6.1 safety reset" : reason);
+        resetOrderSafetyState(reason == null ? "v6.2 safety reset" : reason);
         save();
     }
 

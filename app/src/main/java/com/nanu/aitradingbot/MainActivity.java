@@ -59,7 +59,9 @@ public class MainActivity extends Activity {
     final int MUTED = Color.rgb(143, 164, 180);
 
     @Override protected void onCreate(Bundle b) {
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
         super.onCreate(b);
+        try { if (getActionBar() != null) getActionBar().hide(); } catch (Exception ignored) {}
         Window w = getWindow();
         w.setStatusBarColor(BG);
         w.setNavigationBarColor(BG);
@@ -103,10 +105,12 @@ public class MainActivity extends Activity {
             scroll.setBackgroundColor(BG);
             scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
             scroll.setVerticalScrollBarEnabled(false);
+            scroll.setClipToPadding(true);
+            scroll.setPadding(0, statusBarHeight() + dp(8), 0, 0);
 
             root = new LinearLayout(this);
             root.setOrientation(LinearLayout.VERTICAL);
-            root.setPadding(dp(16), statusBarHeight() + dp(14), dp(16), dp(24));
+            root.setPadding(dp(16), dp(8), dp(16), dp(24));
             scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
             setContentView(scroll);
         } else {
@@ -126,16 +130,16 @@ public class MainActivity extends Activity {
     }
 
     void buildHeader() {
-        LinearLayout row = row(); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, 0, 0, dp(12));
-        ImageView avatar = nanuAvatar(dp(58));
-        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(58), dp(58)); avp.rightMargin = dp(12); row.addView(avatar, avp);
+        LinearLayout row = row(); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, 0, 0, dp(10));
+        ImageView avatar = nanuAvatar(dp(46));
+        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(46), dp(46)); avp.rightMargin = dp(10); row.addView(avatar, avp);
         LinearLayout titles = col();
-        TextView title = tv("NANU", 34, WHITE, true); title.setLetterSpacing(.04f); titles.addView(title);
-        TextView sub = tv("AI TRADING BOT", 15, CYAN, true); sub.setLetterSpacing(.22f); titles.addView(sub);
+        TextView title = tv("NANU", 26, WHITE, true); title.setLetterSpacing(.02f); title.setSingleLine(true); titles.addView(title);
+        TextView sub = tv("AI TRADING BOT", 12, CYAN, true); sub.setLetterSpacing(.12f); sub.setSingleLine(true); titles.addView(sub);
         row.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView status = pill(store.engine.running ? "ACTIVE" : "IDLE", store.engine.running ? GREEN : CYAN, 12); status.setMinWidth(dp(78)); row.addView(status);
-        TextView settings = pill("⚙", CYAN, 21); settings.setPadding(dp(12), dp(9), dp(12), dp(9)); settings.setOnClickListener(v -> openSecurity());
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(52), dp(52)); sp.leftMargin = dp(8); row.addView(settings, sp);
+        TextView status = pill(store.engine.running ? "ACTIVE" : "IDLE", store.engine.running ? GREEN : CYAN, 11); status.setMinWidth(dp(64)); row.addView(status);
+        TextView settings = pill("⚙", CYAN, 19); settings.setPadding(dp(10), dp(7), dp(10), dp(7)); settings.setOnClickListener(v -> openSecurity());
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(46), dp(46)); sp.leftMargin = dp(6); row.addView(settings, sp);
         root.addView(row);
     }
 
@@ -246,6 +250,7 @@ public class MainActivity extends Activity {
     void buildBridge() {
         buildSafetyDashboardCard();
         buildPortfolioCard();
+        buildScalperCard();
         LinearLayout metrics1 = row(); metrics1.setBaselineAligned(false);
         double shownEquity = "live".equals(store.mode) && store.portfolioSyncOk && !Double.isNaN(store.spotEquityUsdt) ? store.spotEquityUsdt : store.engine.equity;
         addMetric(metrics1, "EQUITY", String.format(Locale.US, "%.2f", shownEquity), "USDT", shownEquity >= 0 ? GREEN : RED);
@@ -253,7 +258,7 @@ public class MainActivity extends Activity {
         root.addView(metrics1); addGap(10);
         LinearLayout metrics2 = row(); metrics2.setBaselineAligned(false);
         addMetric(metrics2, "OPEN P&L", formatMoney(store.engine.openPnl), "USDT", store.engine.openPnl >= 0 ? GREEN : RED);
-        addMetric(metrics2, "WIN RATE", String.format(Locale.US, "%.1f%%", store.engine.winRate), "(" + (int)(store.engine.winRate / 100 * 70) + " / 70)", store.engine.winRate > 50 ? GREEN : RED);
+        addMetric(metrics2, "PAPER WIN RATE", String.format(Locale.US, "%.1f%%", store.engine.winRate), "(" + store.engine.paperWins() + " / " + store.engine.paperCompletedTrades() + ")", store.engine.winRate > 50 ? GREEN : RED);
         root.addView(metrics2); addGap(12);
 
         LinearLayout control = cardBox();
@@ -268,7 +273,7 @@ public class MainActivity extends Activity {
         control.addView(buttons); addGap(control, 10);
         control.addView(actionButton("Panic Close", RED, v -> panic()), new LinearLayout.LayoutParams(-1, dp(56)));
         addGap(control, 10);
-        TextView mode = tv("Mode: " + store.mode.toUpperCase(Locale.US) + "  •  Exchange: Binance Spot  •  Coin mode: " + (store.autoCoinMode ? "Auto" : "Manual"), 13, MUTED, false); control.addView(mode);
+        TextView mode = tv("Mode: " + store.mode.toUpperCase(Locale.US) + "  •  Exchange: Binance Spot  •  Active pair: " + store.scalperSymbol, 13, MUTED, false); control.addView(mode);
         TextView hint = tv("Change Paper / Demo / Testnet / Live inside Security.", 12, AMBER, false); control.addView(hint);
         root.addView(control); addGap(12);
 
@@ -295,28 +300,80 @@ public class MainActivity extends Activity {
         root.addView(box); addGap(12);
     }
 
+    void buildScalperCard() {
+        LinearLayout box = cardBox();
+        LinearLayout head = row(); head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(section("LIVE SPOT SCALPER"), new LinearLayout.LayoutParams(0, -2, 1));
+        int signalColor = "BUY".equals(store.lastScalperSignal) ? GREEN : ("EXIT".equals(store.lastScalperSignal) ? AMBER : CYAN);
+        head.addView(tv(store.lastScalperSignal, 12, signalColor, true));
+        box.addView(head); addGap(box, 8);
+        box.addView(tv(store.scalperSymbol + " • 1m closed candles • EMA 9/21 + RSI 14 • checked " + store.scalperAgeLabel(), 12, MUTED, false));
+        box.addView(tv("Price " + moneyOrDash(store.lastScalperPrice) + " • confidence " + store.lastScalperConfidence + "/100 • market checks " + store.scalperMarketChecks, 13, signalColor, true));
+        box.addView(tv("Execution: " + ("paper".equals(store.mode) && store.scalperPaperAutoTrade ? "automatic PAPER positions" : "signals only") + ". Automatic real Binance orders are disabled.", 12, AMBER, false));
+        if (store.lastScalperError != null && !store.lastScalperError.isEmpty()) box.addView(tv(store.lastScalperError, 11, RED, false));
+        addGap(box, 8);
+        LinearLayout controls = row();
+        controls.addView(actionButton("Scan Live Now", CYAN, v -> scanScalperNow()), new LinearLayout.LayoutParams(0, dp(50), 1));
+        LinearLayout.LayoutParams reportLp = new LinearLayout.LayoutParams(0, dp(50), 1); reportLp.leftMargin = dp(10);
+        controls.addView(actionButton("Signal Report", CYAN, v -> alert("Nanu Live Spot Signal", store.lastScalperReport)), reportLp);
+        box.addView(controls); addGap(box, 8);
+        LinearLayout settings = row();
+        settings.addView(actionButton("Pair: " + store.scalperSymbol, CYAN, v -> input("Active Scalper Pair", "Example: BTCUSDT", store.scalperSymbol, false, value -> {
+            String pair = store.normalizeCoin(value);
+            if (pair.isEmpty()) { toast("Enter a USDT Spot pair"); return; }
+            store.scalperSymbol = pair; store.save(); render(true);
+        })), new LinearLayout.LayoutParams(0, dp(48), 1));
+        LinearLayout.LayoutParams amountLp = new LinearLayout.LayoutParams(0, dp(48), 1); amountLp.leftMargin = dp(10);
+        settings.addView(actionButton("Paper: " + String.format(Locale.US, "%.2f", store.scalperTradeAmountUsdt), GREEN, v -> input("Paper Trade Amount", "Minimum 5 USDT", String.format(Locale.US, "%.2f", store.scalperTradeAmountUsdt), false, value -> {
+            try { store.scalperTradeAmountUsdt = Math.max(5.0, Math.min(100.0, Double.parseDouble(value.trim()))); store.save(); render(true); }
+            catch (Exception e) { toast("Enter a valid USDT amount"); }
+        })), amountLp);
+        box.addView(settings); addGap(box, 8);
+        LinearLayout behavior = row();
+        behavior.addView(actionButton("Paper Auto: " + (store.scalperPaperAutoTrade ? "ON" : "OFF"), store.scalperPaperAutoTrade ? GREEN : AMBER, v -> {
+            store.scalperPaperAutoTrade = !store.scalperPaperAutoTrade; store.save(); render(true);
+        }), new LinearLayout.LayoutParams(0, dp(48), 1));
+        LinearLayout.LayoutParams intervalLp = new LinearLayout.LayoutParams(0, dp(48), 1); intervalLp.leftMargin = dp(10);
+        behavior.addView(actionButton("Scan: " + store.scalperScanSeconds + " sec", CYAN, v -> input("Scan Interval", "Minimum 30 seconds", String.valueOf(store.scalperScanSeconds), false, value -> {
+            try { store.scalperScanSeconds = Math.max(30, Math.min(300, Integer.parseInt(value.trim()))); store.save(); render(true); }
+            catch (Exception e) { toast("Enter 30 to 300 seconds"); }
+        })), intervalLp);
+        box.addView(behavior);
+        root.addView(box); addGap(12);
+    }
+
+    void scanScalperNow() {
+        toast("Reading closed Binance candles...");
+        BinanceClient.scanScalper(store, (signal, report) -> runOnUiThread(() -> {
+            if (signal == null) alert("Market Scan Failed", report);
+            else alert("Nanu Live Spot Signal", report);
+            render(false);
+        }));
+    }
+
     void buildScanner() {
         LinearLayout box = cardBox();
         box.addView(screenTitle("SCANNER"));
-        box.addView(tv("Manual watchlist or Auto Scalping coin selection. Nanu ranks coins by liquidity, volatility, spread, trend, and indicator alignment.", 13, MUTED, false));
+        box.addView(tv("The active scalper reads live closed Binance candles for one selected USDT Spot pair. The watchlist is for paper review; it does not claim liquidity ranking or profit prediction.", 13, MUTED, false));
         addGap(box, 12);
-        LinearLayout modeRow = row(); modeRow.addView(actionButton("Manual Coin Mode", CYAN, v -> { store.autoCoinMode = false; store.save(); toast("Manual coin mode"); render(true); }), new LinearLayout.LayoutParams(0, dp(54), 1));
-        LinearLayout.LayoutParams ar = new LinearLayout.LayoutParams(0, dp(54), 1); ar.leftMargin = dp(10); modeRow.addView(actionButton("Auto Scalping Mode", GREEN, v -> { store.autoCoinMode = true; store.autoSelectCoins(); toast("Auto selector active"); render(true); }), ar); box.addView(modeRow);
+        LinearLayout modeRow = row(); modeRow.addView(actionButton("Use BTCUSDT", CYAN, v -> { store.scalperSymbol = "BTCUSDT"; store.save(); render(true); }), new LinearLayout.LayoutParams(0, dp(54), 1));
+        LinearLayout.LayoutParams ar = new LinearLayout.LayoutParams(0, dp(54), 1); ar.leftMargin = dp(10); modeRow.addView(actionButton("Use ETHUSDT", CYAN, v -> { store.scalperSymbol = "ETHUSDT"; store.save(); render(true); }), ar); box.addView(modeRow);
         addGap(box, 12);
         box.addView(actionButton("Add Coin / Token", CYAN, v -> input("Add Coin", "Example: XRP or XRPUSDT", "", false, s -> { store.addCoin(s); store.engine.addJournal("Coin added: " + store.normalizeCoin(s)); render(true); })), new LinearLayout.LayoutParams(-1, dp(54)));
         addGap(box, 10);
         for (String coin : store.watchlist) {
             LinearLayout row = cardMini(); row.setGravity(Gravity.CENTER_VERTICAL); row.addView(tv(coin, 17, WHITE, true), new LinearLayout.LayoutParams(0, -2, 1));
-            row.addView(tv(store.autoCoinMode ? "AUTO" : "MANUAL", 12, store.autoCoinMode ? GREEN : CYAN, true));
+            TextView use = pill("Use", CYAN, 12); use.setOnClickListener(v -> { store.scalperSymbol = coin; store.save(); render(true); });
+            LinearLayout.LayoutParams up = new LinearLayout.LayoutParams(-2, -2); up.leftMargin = dp(8); row.addView(use, up);
             TextView remove = pill("Remove", RED, 12); remove.setOnClickListener(v -> { store.removeCoin(coin); render(true); });
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-2, -2); rp.leftMargin = dp(8); row.addView(remove, rp); box.addView(row); addGap(box, 8);
         }
-        root.addView(box); addGap(12); buildSignalCards(true);
+        root.addView(box); addGap(12); buildScalperCard(); buildSignalCards(true);
     }
 
     void buildBrain() {
-        LinearLayout box = cardBox(); box.addView(screenTitle("BRAIN / ML DECISION ROOM"));
-        box.addView(tv("Professional reasoning layer for scalping decisions. This is not profit guarantee; it is trade explanation, risk review, and learning memory.", 13, MUTED, false)); addGap(box, 12);
+        LinearLayout box = cardBox(); box.addView(screenTitle("SCALPING STRATEGY"));
+        box.addView(tv("Deterministic live-candle signals, risk review, and paper results. This is not predictive machine learning and it does not guarantee profit.", 13, MUTED, false)); addGap(box, 12);
         LinearLayout brainMetrics = row(); brainMetrics.setBaselineAligned(false);
         addMetric(brainMetrics, "LEARNING", String.valueOf(store.brainLearningCycles), "cycles", CYAN);
         addMetric(brainMetrics, "BIAS", String.format(Locale.US, "%.2f", store.brainAdaptiveBias), "adaptive", store.brainAdaptiveBias >= 0 ? GREEN : AMBER);
@@ -330,9 +387,9 @@ public class MainActivity extends Activity {
             box.addView(memory); addGap(box, 8);
         }
         LinearLayout matrix = cardMini(); matrix.setOrientation(LinearLayout.VERTICAL);
-        matrix.addView(section("Indicator Matrix"));
-        matrix.addView(tv("EMA: aligned  •  RSI: healthy  •  MACD: confirmation watch  •  Volume: acceptable", 13, MUTED, false));
-        matrix.addView(tv("Risk approval: max trades, daily loss, panic state, and live lock all checked before action.", 13, MUTED, false));
+        matrix.addView(section("Live Indicator Matrix"));
+        matrix.addView(tv("Pair " + store.scalperSymbol + " • signal " + store.lastScalperSignal + " • confidence " + store.lastScalperConfidence + "/100 • live checks " + store.scalperMarketChecks, 13, MUTED, false));
+        matrix.addView(tv("Risk approval: paper auto only; real Binance orders require Test Order and a manual typed confirmation.", 13, MUTED, false));
         box.addView(matrix); root.addView(box);
     }
 
@@ -349,7 +406,7 @@ public class MainActivity extends Activity {
         box.addView(tv("Trading mode, API Doctor, trusted IP helper, key permissions, Telegram Doctor, final live checklist and safety lock.", 13, MUTED, false)); addGap(box, 14);
         box.addView(section("TRADING MODE")); addGap(box, 8);
         LinearLayout m1 = row(); m1.addView(modeButton("PAPER", "Safe simulation", "paper"), new LinearLayout.LayoutParams(0, dp(76), 1)); LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(0, dp(76), 1); mlp.leftMargin = dp(10); m1.addView(modeButton("DEMO", "Exchange practice", "demo"), mlp); box.addView(m1); addGap(box, 10);
-        LinearLayout m2 = row(); m2.addView(modeButton("TESTNET", "API order test", "testnet"), new LinearLayout.LayoutParams(0, dp(76), 1)); LinearLayout.LayoutParams mlp2 = new LinearLayout.LayoutParams(0, dp(76), 1); mlp2.leftMargin = dp(10); m2.addView(modeButton("LIVE", "Locked checklist", "live"), mlp2); box.addView(m2);
+        LinearLayout m2 = row(); m2.addView(modeButton("TESTNET", "API Doctor", "testnet"), new LinearLayout.LayoutParams(0, dp(76), 1)); LinearLayout.LayoutParams mlp2 = new LinearLayout.LayoutParams(0, dp(76), 1); mlp2.leftMargin = dp(10); m2.addView(modeButton("LIVE", "Locked checklist", "live"), mlp2); box.addView(m2);
         box.addView(tv("Live requires API key + API health check + risk limits + typing UNLOCK LIVE.", 12, AMBER, false)); addGap(box, 18);
 
         box.addView(section("BINANCE API")); addGap(box, 8);
@@ -369,7 +426,7 @@ public class MainActivity extends Activity {
         box.addView(tv("Use this only after checking Binance API Management and confirming Enable Withdrawals is OFF for this API key.", 11, AMBER, false));
         addGap(box, 8);
         box.addView(actionButton("Unlock LIVE Control Gate", RED, v -> unlockLive()), new LinearLayout.LayoutParams(-1, dp(54)));
-        box.addView(tv("LIVE can be selected for API Doctor. v6.1 allows manual confirmed micro orders only after all gates pass.", 12, AMBER, false));
+        box.addView(tv("LIVE can be selected for API Doctor. v6.2 allows manual confirmed micro orders only after all gates pass.", 12, AMBER, false));
         addGap(box, 18);
 
         box.addView(section("RISK SHIELD")); addGap(box, 8);
@@ -380,8 +437,6 @@ public class MainActivity extends Activity {
         box.addView(actionButton("Reset Paper Wallet", AMBER, v -> { store.engine.resetPaper(); render(true); }), new LinearLayout.LayoutParams(-1, dp(52))); addGap(box, 18);
 
         buildProfitGuardSettings(box);
-        addGap(box, 10);
-        buildFaceTestControls(box);
 
         box.addView(section("TELEGRAM / ALERTS")); addGap(box, 8);
         box.addView(tv("Paste Telegram bot token + chat ID, then run Telegram Doctor. Nanu sends alerts on Start, Stop, Panic, Profit Guard and API warnings.", 12, MUTED, false)); addGap(box, 8);
@@ -400,24 +455,6 @@ public class MainActivity extends Activity {
         addGap(box, 10);
         box.addView(actionButton("Export Safety Report", CYAN, v -> alert("Nanu Safety Report", safetyReport())), new LinearLayout.LayoutParams(-1, dp(52)));
         root.addView(box);
-    }
-
-
-    void buildFaceTestControls(LinearLayout box) {
-        box.addView(section("NANU FACE TEST")); addGap(box, 8);
-        box.addView(tv("Use this to check the live face expression on the Bridge screen. It changes by P&L and Panic state.", 11, MUTED, false)); addGap(box, 8);
-        LinearLayout r1 = row();
-        r1.addView(actionButton("Calm Face", CYAN, v -> { store.engine.panic=false; store.engine.todayPnl=0; store.engine.marketMood="CALM"; store.engine.moodConfidence=51; activeTab=0; render(true); }), new LinearLayout.LayoutParams(0, dp(48), 1));
-        LinearLayout.LayoutParams lp1 = new LinearLayout.LayoutParams(0, dp(48), 1); lp1.leftMargin=dp(8);
-        r1.addView(actionButton("Profit Smile", GREEN, v -> { store.engine.panic=false; store.engine.todayPnl=55; store.engine.marketMood="PROFIT"; store.engine.moodConfidence=72; activeTab=0; render(true); }), lp1);
-        box.addView(r1); addGap(box, 8);
-        LinearLayout r2 = row();
-        r2.addView(actionButton("Big Smile", GREEN, v -> { store.engine.panic=false; store.engine.todayPnl=155; store.engine.marketMood="BIG PROFIT"; store.engine.moodConfidence=92; activeTab=0; render(true); }), new LinearLayout.LayoutParams(0, dp(48), 1));
-        LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(0, dp(48), 1); lp2.leftMargin=dp(8);
-        r2.addView(actionButton("Sad / Loss", AMBER, v -> { store.engine.panic=false; store.engine.todayPnl=-45; store.engine.marketMood="LOSS"; store.engine.moodConfidence=28; activeTab=0; render(true); }), lp2);
-        box.addView(r2); addGap(box, 8);
-        box.addView(actionButton("Panic / Danger Face", RED, v -> { store.engine.panic=true; store.engine.todayPnl=-120; store.engine.marketMood="PANIC"; store.engine.moodConfidence=0; activeTab=0; render(true); }), new LinearLayout.LayoutParams(-1, dp(48)));
-        addGap(box, 14);
     }
 
     void buildTelegramControls(LinearLayout box) {
@@ -504,7 +541,7 @@ public class MainActivity extends Activity {
         list.addView(checkLine("Order amount >= min notional", store.liveDryRunOrderUsdt >= store.minOrderNotionalUsdt));
         list.addView(checkLine("Max trades/day guard set", store.maxLiveTradesPerDay > 0));
         list.addView(checkLine("Order cooldown set", store.orderCooldownSeconds >= 10));
-        list.addView(tv("v6.1 allows dry-run plus manual confirmed micro orders. Full auto remains locked behind proof testing.", 11, AMBER, false));
+        list.addView(tv("v6.2 allows live-data paper scalping plus manual confirmed micro orders. Automatic real trading is disabled.", 11, AMBER, false));
         box.addView(list);
     }
 
@@ -517,12 +554,12 @@ public class MainActivity extends Activity {
     }
 
     String apiModeGuide() {
-        return "Paper:\nNo API key. Safe internal simulation.\n\n" +
+        return "Paper:\nNo API key. Live candle data may drive internal paper positions only.\n\n" +
                 "Demo:\nUse Binance Demo Trading API key only. Do not paste live key.\n\n" +
-                "Testnet:\nUse Binance Spot Testnet API key only. Do not paste live key.\n\n" +
-                "Live:\nUse real Binance API key. Add trusted IP first, enable Spot & Margin & Stock Trading only, keep Withdrawals OFF.\n\n" +
+                "Testnet:\nUse Binance Spot Testnet API key only for API Doctor. Do not paste a live key.\n\n" +
+                "Live:\nUse a dedicated real Binance API key. Enable Spot trading only, keep Withdrawals OFF, and restrict the key to a trusted IP where practical.\n\n" +
                 "Trusted IP meaning:\nThe IP must be the public IP of the device/server that sends API requests. If your mobile internet IP changes, update Binance trusted IP again.\n\n" +
-                "Professional setup later:\nPhone app as control panel + VPS/static IP as trading engine.\n\nLive unlock checklist:\nAPI Doctor PASS + Telegram Doctor PASS + Profit Guard ON + Panic tested + manual withdrawal OFF confirmation.\n\nv6.1 adds Spot equity sync, controlled live scalping, dry-run preview, manual confirmed micro orders, compliance guard, rate-limit lock, journal and backup tools.";
+                "Professional setup later:\nPhone app as control panel + VPS/static IP as trading engine.\n\nLive unlock checklist:\nAPI Doctor PASS + Telegram Doctor PASS + Profit Guard ON + Panic tested + manual withdrawal OFF confirmation.\n\nv6.2 adds live candle signals and automatic paper positions. Automatic real trading remains disabled.";
     }
 
 
@@ -532,7 +569,7 @@ public class MainActivity extends Activity {
         head.addView(section("ORDER SAFETY ENGINE"), new LinearLayout.LayoutParams(0, -2, 1));
         head.addView(tv(store.liveDryRunEnabled ? "DRY-RUN" : "OFF", 13, store.liveDryRunEnabled ? GREEN : AMBER, true));
         box.addView(head); addGap(box, 8);
-        box.addView(tv("v6.1 previews live orders, checks safety rules, and can send manual confirmed micro Binance orders only when armed.", 12, MUTED, false));
+        box.addView(tv("v6.2 previews live orders, checks safety rules, and can send manual confirmed micro Binance orders only when armed.", 12, MUTED, false));
         box.addView(tv("Preview amount: " + String.format(Locale.US, "%.2f", store.liveDryRunOrderUsdt) + " USDT  •  Min notional: " + String.format(Locale.US, "%.2f", store.minOrderNotionalUsdt) + " USDT", 12, MUTED, false));
         box.addView(tv("Cooldown: " + store.orderCooldownSeconds + " sec  •  Max live trades/day: " + store.maxLiveTradesPerDay + "  •  Dry-run passes: " + store.liveDryRunPassCount, 12, MUTED, false));
         box.addView(tv("Open dry-run trades: " + store.liveDryRunOpenTrades + " / " + Math.max(1, store.maxOpenTrades) + "  •  Preview state can be reset safely", 12, store.liveDryRunOpenTrades == 0 ? GREEN : AMBER, true));
@@ -570,11 +607,12 @@ public class MainActivity extends Activity {
         r3.addView(actionButton("Run Dry-Run Preview", GREEN, v -> runDryRunPreview()), r3lp);
         box.addView(r3); addGap(box, 8);
         LinearLayout r4 = row();
-        r4.addView(actionButton("Open Limit: " + Math.max(1, store.maxOpenTrades), CYAN, v -> input("Max Open Trades", "Use 1 for safest dry-run", String.valueOf(store.maxOpenTrades), false, val -> { try { store.maxOpenTrades = Math.max(1, Math.min(10, Integer.parseInt(val.trim()))); store.liveUnlocked=false; store.save(); render(true); } catch(Exception e) { toast("Enter valid count"); } })), new LinearLayout.LayoutParams(0, dp(52), 1));
-        LinearLayout.LayoutParams r4lp = new LinearLayout.LayoutParams(0, dp(52), 1); r4lp.leftMargin = dp(10);
-        r4.addView(actionButton("Reset Safety State", AMBER, v -> { store.resetOrderSafetyState("Manual reset from Security"); toast("Order Safety state reset"); render(true); }), r4lp);
+        r4.addView(actionButton("Daily Loss: " + String.format(Locale.US, "%.2f", store.dailyLossLimit) + "%", CYAN, v -> input("Daily Loss Limit Percent", "Example: 1 or 2", String.format(Locale.US, "%.2f", store.dailyLossLimit), false, val -> { try { store.dailyLossLimit = Math.max(0.1, Math.min(10.0, Double.parseDouble(val.trim()))); store.liveUnlocked=false; store.save(); render(true); } catch(Exception e) { toast("Enter 0.1 to 10 percent"); } })), new LinearLayout.LayoutParams(0, dp(52), 1));
+        LinearLayout.LayoutParams openLimitLp = new LinearLayout.LayoutParams(0, dp(52), 1); openLimitLp.leftMargin = dp(10);
+        r4.addView(actionButton("Open Limit: " + Math.max(1, store.maxOpenTrades), CYAN, v -> input("Max Open Trades", "Use 1 for safest dry-run", String.valueOf(store.maxOpenTrades), false, val -> { try { store.maxOpenTrades = Math.max(1, Math.min(10, Integer.parseInt(val.trim()))); store.liveUnlocked=false; store.save(); render(true); } catch(Exception e) { toast("Enter valid count"); } })), openLimitLp);
         box.addView(r4); addGap(box, 8);
-        box.addView(tv("Manual confirmation remains required. Keep Binance Test Order ON first. Real order mode requires ARM REAL MICRO and resets after every real order.", 11, AMBER, false)); addGap(box, 18);
+        box.addView(actionButton("Reset Safety State", AMBER, v -> { store.resetOrderSafetyState("Manual reset from Security"); toast("Order Safety state reset"); render(true); }), new LinearLayout.LayoutParams(-1, dp(52))); addGap(box, 8);
+        box.addView(tv("Manual confirmation remains required. Keep Binance Test Order ON first. Real order mode requires ARM REAL MICRO and resets after every real order. Strategy stop/target references are not exchange stop orders.", 11, AMBER, false)); addGap(box, 18);
     }
 
     void runDryRunPreview() {
@@ -596,11 +634,11 @@ public class MainActivity extends Activity {
     void buildV60LiveScalpingCard() {
         LinearLayout box = cardBox();
         LinearLayout head = row(); head.setGravity(Gravity.CENTER_VERTICAL);
-        head.addView(section("v6.1 CONTROLLED LIVE SCALPING"), new LinearLayout.LayoutParams(0, -2, 1));
+        head.addView(section("v6.2 CONTROLLED LIVE SCALPING"), new LinearLayout.LayoutParams(0, -2, 1));
         String state = store.liveOrderTestMode ? "TEST ORDER" : (store.liveRealOrderArmed ? "REAL ARMED" : "REAL LOCKED");
         head.addView(tv(state, 12, store.liveOrderTestMode ? CYAN : (store.liveRealOrderArmed ? RED : AMBER), true));
         box.addView(head); addGap(box, 8);
-        box.addView(tv("Manual micro order only. No 100% profit promise. No order spam. Full auto locked until proof gate passes.", 12, AMBER, false));
+        box.addView(tv("Manual micro order only. No profit promise and no order spam. Automatic real Binance execution is disabled in this build.", 12, AMBER, false));
         box.addView(tv("Micro BUY: " + String.format(Locale.US, "%.2f USDT", store.microLiveOrderUsdt) + "  •  Test order: " + (store.liveOrderTestMode ? "ON" : "OFF") + "  •  Real armed: " + (store.liveRealOrderArmed ? "YES" : "NO"), 12, MUTED, false));
         box.addView(tv("Compliance: " + (store.complianceGuardEnabled ? "ON" : "OFF") + "  •  Rate lock: " + (store.binanceRateLimitLock ? "ACTIVE" : "Clear") + "  •  Full auto: " + (store.fullAutoLocked ? "LOCKED" : "UNLOCKED"), 12, store.binanceRateLimitLock ? RED : GREEN, true));
         if (store.lastBinanceStatusCode != 0) box.addView(tv("Last Binance HTTP: " + store.lastBinanceStatusCode + " • " + store.lastBinanceErrorDoctor, 11, store.lastBinanceStatusCode >= 400 ? RED : GREEN, false));
@@ -620,8 +658,8 @@ public class MainActivity extends Activity {
     }
 
     void buildV60Settings(LinearLayout box) {
-        box.addView(section("v6.1 CONTROLLED LIVE SCALPING")); addGap(box, 8);
-        box.addView(tv("Manual confirmed micro order, compliance guard, semi-auto approval, full-auto proof gate, backup/restore and Error Doctor.", 12, MUTED, false)); addGap(box, 8);
+        box.addView(section("v6.2 CONTROLLED LIVE SCALPING")); addGap(box, 8);
+        box.addView(tv("Manual confirmed micro order, compliance guard, paper scalper controls, backup/restore and Error Doctor. Automatic real trading is disabled.", 12, MUTED, false)); addGap(box, 8);
         LinearLayout r1 = row();
         r1.addView(actionButton("Compliance Guard: " + (store.complianceGuardEnabled ? "ON" : "OFF"), store.complianceGuardEnabled ? GREEN : RED, v -> { store.complianceGuardEnabled = !store.complianceGuardEnabled; store.liveRealOrderArmed = false; store.save(); render(true); }), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams r1lp = new LinearLayout.LayoutParams(0, dp(52), 1); r1lp.leftMargin = dp(10);
@@ -637,7 +675,7 @@ public class MainActivity extends Activity {
         LinearLayout r3 = row();
         r3.addView(actionButton("Semi-Auto Approval: " + (store.semiAutoApprovalRequired ? "ON" : "OFF"), store.semiAutoApprovalRequired ? GREEN : AMBER, v -> { store.semiAutoApprovalRequired=!store.semiAutoApprovalRequired; store.save(); render(true); }), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams r3lp = new LinearLayout.LayoutParams(0, dp(52), 1); r3lp.leftMargin = dp(10);
-        r3.addView(actionButton("Full Auto: " + (store.fullAutoLocked ? "LOCKED" : "UNLOCKED"), store.fullAutoLocked ? AMBER : RED, v -> tryFullAutoUnlock()), r3lp);
+        r3.addView(actionButton("Real Auto: Disabled", AMBER, v -> tryFullAutoUnlock()), r3lp);
         box.addView(r3); addGap(box, 8);
 
         LinearLayout r4 = row();
@@ -651,7 +689,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams r5lp = new LinearLayout.LayoutParams(0, dp(52), 1); r5lp.leftMargin = dp(10);
         r5.addView(actionButton("Error Doctor", store.binanceRateLimitLock ? RED : CYAN, v -> alert("Nanu Error Doctor", errorDoctorReport())), r5lp);
         box.addView(r5); addGap(box, 8);
-        box.addView(tv("Telegram safe commands supported as templates: /status, /pause, /resume, /panic, /report, /balance. Real BUY/SELL from Telegram stays disabled in v6.1.", 11, AMBER, false)); addGap(box, 18);
+        box.addView(tv("Telegram safe commands supported as templates: /status, /pause, /resume, /panic, /report, /balance. Real BUY/SELL from Telegram stays disabled in v6.2.", 11, AMBER, false)); addGap(box, 18);
     }
 
     void toggleTestOrderMode() {
@@ -730,22 +768,14 @@ public class MainActivity extends Activity {
     }
 
     void tryFullAutoUnlock() {
-        if (store.fullAutoLocked) {
-            StringBuilder m = new StringBuilder();
-            if (store.liveDryRunPassCount < store.dryRunProofRequired) m.append("• Need ").append(store.dryRunProofRequired).append(" dry-run PASS signals. Current: ").append(store.liveDryRunPassCount).append("\n");
-            if (store.consecutiveLosses > 0) m.append("• Consecutive loss counter must be 0. Current: ").append(store.consecutiveLosses).append("\n");
-            if (store.binanceRateLimitLock) m.append("• Rate-limit lock must be clear.\n");
-            if (!store.telegramDoctorOk) m.append("• Telegram Doctor must pass.\n");
-            if (m.length() > 0) { alert("Full Auto Locked", "Full auto remains locked for safety.\n\n" + m.toString()); return; }
-            input("Unlock Full Auto Gate", "Type UNLOCK FULL AUTO", "", false, s -> { if ("UNLOCK FULL AUTO".equals(s.trim())) { store.fullAutoLocked=false; store.save(); toast("Full auto gate unlocked, but Nanu still uses risk governor"); } else toast("Full auto remains locked"); render(true); });
-        } else {
-            store.fullAutoLocked=true; store.save(); toast("Full auto locked"); render(true);
-        }
+        store.fullAutoLocked = true;
+        store.save();
+        alert("Automatic Real Trading Disabled", "Nanu v6.2 can scan live candles and automatically run paper positions. It does not automatically submit real Binance orders.\n\nThis avoids an unprotected mobile-only strategy placing trades while the app is offline, the phone is killed, or an exchange exit order has not been verified. Use Binance Test Order and manual micro orders until a server-side execution system and exchange-side exit protection are implemented.");
     }
 
     String complianceReport() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Nanu v6.1 Binance Compliance Guard\n\n");
+        sb.append("Nanu v6.2 Binance Compliance Guard\n\n");
         sb.append("Normal low-frequency scalping assistant: allowed only through official Binance API.\n");
         sb.append("Forbidden behavior blocked by design:\n");
         sb.append("• no order spam\n• no wash trading\n• no fake volume\n• no spoofing/cancel spam\n• no withdrawal permission\n• no bypassing API limits\n\n");
@@ -757,14 +787,14 @@ public class MainActivity extends Activity {
         sb.append("Binance test order mode: ").append(store.liveOrderTestMode).append("\n");
         sb.append("Rate-limit lock: ").append(store.binanceRateLimitLock).append("\n");
         sb.append("Last Binance HTTP: ").append(store.lastBinanceStatusCode).append("\n");
-        sb.append("Full auto proof gate: ").append(store.liveDryRunPassCount).append(" / ").append(store.dryRunProofRequired).append(" dry-run passes\n\n");
+        sb.append("Live candle checks: ").append(store.scalperMarketChecks).append(" • automatic real orders: disabled\n\n");
         sb.append("Reminder: Nanu cannot guarantee profit and cannot guarantee zero bugs. Keep trade size small.");
         String r = sb.toString(); store.lastComplianceReport = r; store.save(); return r;
     }
 
     String errorDoctorReport() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Nanu v6.1 Error Doctor\n\n");
+        sb.append("Nanu v6.2 Error Doctor\n\n");
         sb.append("Last Binance HTTP: ").append(store.lastBinanceStatusCode == 0 ? "None" : String.valueOf(store.lastBinanceStatusCode)).append("\n");
         sb.append("Diagnosis: ").append(store.lastBinanceErrorDoctor).append("\n\n");
         sb.append(BinanceClient.explainBinanceCode(store.lastBinanceStatusCode, store.lastBinanceErrorDoctor)).append("\n\n");
@@ -774,7 +804,7 @@ public class MainActivity extends Activity {
 
     String exportBackupText() {
         StringBuilder sb = new StringBuilder();
-        sb.append("NANU v6.1 SAFE BACKUP - NO SECRETS\n");
+        sb.append("NANU v6.2 SAFE BACKUP - NO SECRETS\n");
         sb.append("mode=").append(store.mode).append('\n');
         sb.append("watchlist=").append(store.watchlist).append('\n');
         sb.append("profitGuardEnabled=").append(store.profitGuardEnabled).append('\n');
@@ -794,7 +824,7 @@ public class MainActivity extends Activity {
     }
 
     String telegramStatusText() {
-        return "Nanu v6.1 Status\nMode: " + store.mode.toUpperCase(Locale.US) + "\nRunning: " + store.engine.running + "\nSpot equity: " + store.portfolioEquityLabel() + "\nPortfolio sync: " + store.portfolioAgeLabel() + "\nP&L: " + formatMoney(store.engine.todayPnl) + " USDT\nLive gate: " + store.liveUnlocked + "\nTest order mode: " + store.liveOrderTestMode + "\nReal armed: " + store.liveRealOrderArmed + "\nRate lock: " + store.binanceRateLimitLock;
+        return "Nanu v6.2 Status\nMode: " + store.mode.toUpperCase(Locale.US) + "\nRunning: " + store.engine.running + "\nScalper: " + store.scalperSymbol + " / " + store.lastScalperSignal + "\nSpot equity: " + store.portfolioEquityLabel() + "\nPortfolio sync: " + store.portfolioAgeLabel() + "\nP&L: " + formatMoney(store.engine.todayPnl) + " USDT\nLive gate: " + store.liveUnlocked + "\nTest order mode: " + store.liveOrderTestMode + "\nReal armed: " + store.liveRealOrderArmed + "\nRate lock: " + store.binanceRateLimitLock;
     }
 
     void buildProfitGuardCard() {
@@ -854,12 +884,13 @@ public class MainActivity extends Activity {
 
     void buildSignalCards(boolean showReason) {
         LinearLayout box = cardBox();
-        LinearLayout head = row(); head.setGravity(Gravity.CENTER_VERTICAL); head.addView(section("SIGNAL BRIDGE"), new LinearLayout.LayoutParams(0, -2, 1)); head.addView(tv(store.engine.trades.size() + " Active", 13, GREEN, true)); box.addView(head); addGap(box, 8);
+        LinearLayout head = row(); head.setGravity(Gravity.CENTER_VERTICAL); head.addView(section("PAPER POSITIONS"), new LinearLayout.LayoutParams(0, -2, 1)); head.addView(tv(store.engine.trades.size() + " Open", 13, GREEN, true)); box.addView(head); addGap(box, 8);
+        if (store.engine.trades.isEmpty()) box.addView(tv("No paper position open. The app waits for a live-candle signal; no Binance position is implied.", 12, MUTED, false));
         for (NanuEngine.Trade t : store.engine.trades) {
             LinearLayout item = cardMini(); item.setOrientation(LinearLayout.VERTICAL);
             LinearLayout top = row(); top.setGravity(Gravity.CENTER_VERTICAL);
             top.addView(coinBadge(t.symbol), new LinearLayout.LayoutParams(dp(48), dp(48)));
-            LinearLayout info = col(); info.addView(tv(t.symbol + "   " + t.side, 17, WHITE, true)); info.addView(tv("Isolated • " + t.leverage + "x", 12, MUTED, false)); top.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
+            LinearLayout info = col(); info.addView(tv(t.symbol + "   " + t.side, 17, WHITE, true)); info.addView(tv("Internal paper position • no leverage", 12, MUTED, false)); top.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
             LinearLayout pl = col(); pl.setGravity(Gravity.RIGHT); pl.addView(tv("P&L", 11, MUTED, true)); pl.addView(tv(formatMoney(t.pnl) + " USDT", 15, t.pnl >= 0 ? GREEN : RED, true)); pl.addView(tv(percent(t.pct), 13, t.pnl >= 0 ? GREEN : RED, true)); top.addView(pl); item.addView(top);
             item.addView(tv(String.format(Locale.US, "Entry %.2f   Mark %.2f   TP/SL %.2f / %.2f", t.entry, t.mark, t.tp, t.sl), 12, MUTED, false));
             if (showReason) item.addView(tv(t.reason, 12, MUTED, false));
@@ -876,10 +907,10 @@ public class MainActivity extends Activity {
     }
 
     void startBot() {
-        if ("live".equals(store.mode) && !store.liveUnlocked) { toast("Live dry-run gate locked. Use Unlock LIVE after all checks pass."); activeTab=4; render(true); return; }
-        if ("live".equals(store.mode) && !store.apiTradingOkForCurrentMode()) { toast("Live auto trading blocked: run API Doctor in LIVE mode first."); activeTab=4; render(true); return; }
+        if ("live".equals(store.mode) && !store.liveUnlocked) { toast("Live signal scanner locked. Use Unlock LIVE after all checks pass."); activeTab=4; render(true); return; }
+        if ("live".equals(store.mode) && !store.apiTradingOkForCurrentMode()) { toast("Live signal scanner blocked: run API Doctor in LIVE mode first."); activeTab=4; render(true); return; }
         store.engine.start();
-        store.triggerAlert("Nanu Started", "Bot started in " + store.mode.toUpperCase(Locale.US) + ("live".equals(store.mode) ? " controlled live mode. Full auto locked; manual micro orders require confirmation." : " mode."), false, "startstop");
+        store.triggerAlert("Nanu Started", "Live candle scanner started in " + store.mode.toUpperCase(Locale.US) + ". Automatic real orders are disabled; manual micro orders require confirmation.", false, "startstop");
         try { Intent i = new Intent(this, NanuBotService.class); if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i); } catch (Exception ignored) {}
         toast("Nanu started"); render(false);
     }
@@ -909,7 +940,7 @@ public class MainActivity extends Activity {
             alert("Live Dry-Run Unlock Blocked", "Nanu will not unlock the live control gate yet. Fix these items first:\n\n" + missing + "\nThis is intentional safety protection for your Binance account.");
             return;
         }
-        input("Unlock LIVE Control Gate", "Type UNLOCK LIVE", "", false, s -> { if ("UNLOCK LIVE".equals(s.trim())) { store.liveUnlocked=true; store.mode="live"; store.save(); store.triggerAlert("Nanu Live Dry-Run Unlocked", "LIVE control gate unlocked. Full auto is still locked; manual micro orders require separate confirmation.", true, "live"); toast("Live control gate unlocked"); syncPortfolio(true); } else toast("Live not unlocked"); render(true); });
+        input("Unlock LIVE Control Gate", "Type UNLOCK LIVE", "", false, s -> { if ("UNLOCK LIVE".equals(s.trim())) { store.liveUnlocked=true; store.mode="live"; store.save(); store.triggerAlert("Nanu Live Signal Control Unlocked", "LIVE signal scanner unlocked. Automatic real orders remain disabled; manual micro orders require separate confirmation.", true, "live"); toast("Live scanner unlocked"); syncPortfolio(true); } else toast("Live not unlocked"); render(true); });
     }
 
     String liveMissingItems() {
@@ -922,7 +953,7 @@ public class MainActivity extends Activity {
         if (!store.profitGuardEnabled) m.append("• Enable Profit Guard.\n");
         if (store.dailyLossLimit <= 0) m.append("• Set Daily Loss Limit.\n");
         if (!store.panicButtonTested) m.append("• Test Panic button once in paper/safe state.\n");
-        if (!store.liveDryRunEnabled) m.append("• Keep Controlled Live Dry-Run ON for v6.1.\n");
+        if (!store.liveDryRunEnabled) m.append("• Keep Controlled Live Dry-Run ON for v6.2.\n");
         if (store.liveDryRunOrderUsdt < store.minOrderNotionalUsdt) m.append("• Dry-run order amount must be above minimum notional.\n");
         if (store.orderCooldownSeconds < 10) m.append("• Order cooldown must be at least 10 seconds.\n");
         if (store.maxLiveTradesPerDay <= 0) m.append("• Max live trades/day must be set.\n");
@@ -968,7 +999,7 @@ public class MainActivity extends Activity {
     String safetyReport() {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("NANU AI TRADING BOT v6.1 Professional\n");
+        sb.append("NANU AI TRADING BOT v6.2 Professional\n");
         sb.append("Safety Report\n");
         sb.append("Generated: ").append(System.currentTimeMillis()).append("\n\n");
 
@@ -1048,7 +1079,7 @@ public class MainActivity extends Activity {
         sb.append("Adaptive bias: ").append(String.format(Locale.US, "%.2f", store.brainAdaptiveBias)).append("\n");
         sb.append("Last insight: ").append(store.lastBrainInsight).append("\n\n");
 
-        sb.append("=== v6.1 CONTROLLED LIVE ===\n");
+        sb.append("=== v6.2 CONTROLLED LIVE ===\n");
         sb.append("Compliance Guard: ").append(store.complianceGuardEnabled).append("\n");
         sb.append("Binance Test Order Mode: ").append(store.liveOrderTestMode).append("\n");
         sb.append("Real Micro Order Armed: ").append(store.liveRealOrderArmed).append("\n");
@@ -1074,7 +1105,7 @@ public class MainActivity extends Activity {
         return report;
     }
 
-    String developerReport() { return "Nanu AI Trading Bot v6.1 Professional\nMode: " + store.mode + "\nRunning: " + store.engine.running + "\nPanic: " + store.engine.panic + "\nCoin mode: " + (store.autoCoinMode?"Auto":"Manual") + "\nWatchlist: " + store.watchlist + "\nPaper UI trades: " + store.engine.trades.size() + "\nOpen dry-run trades: " + store.liveDryRunOpenTrades + "/" + Math.max(1, store.maxOpenTrades) + "\nLive unlocked: " + store.liveUnlocked + "\nSpot equity: " + store.portfolioEquityLabel() + "\nProfit Guard: " + store.profitGuardEnabled + " / target " + store.profitTargetUsdt + " USDT" + "\nDuplicate Guard: " + store.duplicateProfitGuardEnabled + " / repeats " + store.sameProfitRepeats + "/" + store.duplicateProfitRepeatCount + "\nAPI last mode: " + store.lastApiMode + "\nAPI HTTP: " + store.lastApiHttpCode + "\nAPI private OK: " + store.lastApiPrivateOk + "\nAPI can trade: " + store.lastApiCanTrade + "\nAccount withdraw ability: " + store.lastApiAccountCanWithdraw + "\nManual withdrawals OFF confirmed: " + store.withdrawalPermissionConfirmedOff + "\nTelegram Doctor: " + store.telegramDoctorOk + "\nPanic tested: " + store.panicButtonTested + "\nPublic IP: " + store.lastPublicIp + "\nAPI diagnosis: " + store.lastApiDiagnosis; }
+    String developerReport() { return "Nanu AI Trading Bot v6.2 Professional\nMode: " + store.mode + "\nRunning: " + store.engine.running + "\nPanic: " + store.engine.panic + "\nActive scalper pair: " + store.scalperSymbol + "\nLatest signal: " + store.lastScalperSignal + " / " + store.lastScalperConfidence + "\nMarket checks: " + store.scalperMarketChecks + "\nPaper trades: " + store.engine.trades.size() + " open, " + store.engine.paperCompletedTrades() + " completed\nAutomatic real orders: disabled\nOpen dry-run trades: " + store.liveDryRunOpenTrades + "/" + Math.max(1, store.maxOpenTrades) + "\nLive unlocked: " + store.liveUnlocked + "\nSpot equity: " + store.portfolioEquityLabel() + "\nProfit Guard: " + store.profitGuardEnabled + " / target " + store.profitTargetUsdt + " USDT" + "\nAPI last mode: " + store.lastApiMode + "\nAPI HTTP: " + store.lastApiHttpCode + "\nAPI private OK: " + store.lastApiPrivateOk + "\nAPI can trade: " + store.lastApiCanTrade + "\nAccount withdraw ability: " + store.lastApiAccountCanWithdraw + "\nManual withdrawals OFF confirmed: " + store.withdrawalPermissionConfirmedOff + "\nTelegram Doctor: " + store.telegramDoctorOk + "\nPanic tested: " + store.panicButtonTested + "\nPublic IP: " + store.lastPublicIp + "\nAPI diagnosis: " + store.lastApiDiagnosis; }
 
     TextView tv(String s, int sp, int color, boolean bold) { TextView t = new TextView(this); t.setText(s); t.setTextSize(sp); t.setTextColor(color); t.setIncludeFontPadding(true); t.setLineSpacing(dp(2), 1.0f); if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); return t; }
     TextView label(String s) { return tv(s, 12, MUTED, true); }
@@ -1101,16 +1132,55 @@ public class MainActivity extends Activity {
     String formatMoney(double v) { return String.format(Locale.US, "%+.2f", v); }
     String percent(double v) { return String.format(Locale.US, "%+.2f%%", v); }
     String moneyOrDash(double v) { return Double.isNaN(v) || Double.isInfinite(v) ? "--" : String.format(Locale.US, "%.4f", v); }
-    void input(String title, String hint, String old, boolean secret, InputCb cb) { EditText e = new EditText(this); e.setHint(hint); e.setText(old); e.setSingleLine(false); e.setInputType(secret ? (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD) : InputType.TYPE_CLASS_TEXT); new AlertDialog.Builder(this).setTitle(title).setView(e).setNegativeButton("Cancel", null).setPositiveButton("Save", (d,w) -> cb.ok(e.getText().toString())).show(); }
+    void input(String title, String hint, String old, boolean secret, InputCb cb) {
+        EditText e = new EditText(this);
+        e.setHint(hint);
+        e.setText(old);
+        e.setSingleLine(false);
+        e.setTextColor(WHITE);
+        e.setHintTextColor(MUTED);
+        e.setInputType(secret ? (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD) : InputType.TYPE_CLASS_TEXT);
+        LinearLayout box = dialogBox(title);
+        box.addView(e, new LinearLayout.LayoutParams(-1, -2));
+        AlertDialog d = new AlertDialog.Builder(this).setView(box).setNegativeButton("Cancel", null).setPositiveButton("Save", (dialog,w) -> cb.ok(e.getText().toString())).create();
+        d.setOnShowListener(dialog -> styleDialog(d));
+        d.show();
+        styleDialog(d);
+    }
     interface InputCb { void ok(String s); }
     void alert(String title, String msg) {
-        TextView body = tv(msg, 14, WHITE, false);
-        body.setPadding(dp(18), dp(8), dp(18), dp(8));
+        LinearLayout box = dialogBox(title);
+        TextView body = tv(msg == null ? "" : msg, 14, WHITE, false);
+        body.setTextIsSelectable(true);
+        body.setLineSpacing(dp(2), 1.0f);
+        body.setPadding(0, dp(8), 0, dp(8));
         ScrollView sv = new ScrollView(this);
-        sv.addView(body);
-        new AlertDialog.Builder(this).setTitle(title).setView(sv).setPositiveButton("OK", null).show();
+        sv.setFillViewport(false);
+        sv.addView(body, new ScrollView.LayoutParams(-1, -2));
+        box.addView(sv, new LinearLayout.LayoutParams(-1, -2));
+        AlertDialog d = new AlertDialog.Builder(this).setView(box).setPositiveButton("OK", null).create();
+        d.setOnShowListener(dialog -> styleDialog(d));
+        d.show();
+        styleDialog(d);
+    }
+    LinearLayout dialogBox(String title) {
+        LinearLayout box = col();
+        box.setPadding(dp(22), dp(18), dp(22), dp(10));
+        box.setBackground(bg(CARD, CYAN, 22));
+        TextView t = tv(title == null ? "Nanu" : title, 22, WHITE, true);
+        t.setPadding(0, 0, 0, dp(8));
+        box.addView(t, new LinearLayout.LayoutParams(-1, -2));
+        return box;
+    }
+    void styleDialog(AlertDialog d) {
+        if (d == null || d.getWindow() == null) return;
+        d.getWindow().setBackgroundDrawable(bg(Color.TRANSPARENT, Color.TRANSPARENT, 24));
+        Button ok = d.getButton(AlertDialog.BUTTON_POSITIVE);
+        Button cancel = d.getButton(AlertDialog.BUTTON_NEGATIVE);
+        if (ok != null) { ok.setTextColor(CYAN); ok.setTypeface(Typeface.DEFAULT, Typeface.BOLD); }
+        if (cancel != null) { cancel.setTextColor(AMBER); cancel.setTypeface(Typeface.DEFAULT, Typeface.BOLD); }
     }
     void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
-    void footer() { addGap(14); TextView f = tv("Nanu AI Trading Bot v6.1 Professional • Spot Equity Sync • Manual Micro Orders • Compliance Guard", 11, MUTED, false); f.setGravity(Gravity.CENTER); root.addView(f); }
+    void footer() { addGap(14); TextView f = tv("Nanu AI Trading Bot v6.2 Professional • Live Candle Signals • Paper Scalper • Manual Spot Orders", 11, MUTED, false); f.setGravity(Gravity.CENTER); root.addView(f); }
     public static class SpaceView extends View { public SpaceView(android.content.Context c) { super(c); } }
 }

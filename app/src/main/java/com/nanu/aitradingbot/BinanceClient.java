@@ -24,7 +24,9 @@ import java.util.concurrent.Executors;
 
 public class BinanceClient {
     public interface Callback { void done(String result); }
+    public interface ScalperCallback { void done(ScalpingStrategy.Signal signal, String report); }
     private static final ExecutorService exec = Executors.newSingleThreadExecutor();
+    private static volatile boolean scalperRequestInFlight = false;
 
     private static class BinanceHttpException extends Exception {
         final int code;
@@ -179,6 +181,69 @@ public class BinanceClient {
         });
     }
 
+    /**
+     * Reads public closed candles and evaluates a local strategy. This method never signs or sends an order.
+     */
+    public static void scanScalper(AppStore store, ScalperCallback cb) {
+        synchronized (BinanceClient.class) {
+            if (scalperRequestInFlight) {
+                if (cb != null) cb.done(null, "A live market scan is already running. Wait for it to finish before starting another.");
+                return;
+            }
+            scalperRequestInFlight = true;
+        }
+        exec.execute(() -> {
+            ScalpingStrategy.Signal signal = null;
+            String report;
+            try {
+                String symbol = store.normalizeCoin(store.scalperSymbol);
+                if (symbol.isEmpty()) symbol = "BTCUSDT";
+                HttpURLConnection c = (HttpURLConnection)new URL("https://api.binance.com/api/v3/klines?symbol=" + enc(symbol) + "&interval=1m&limit=80").openConnection();
+                c.setRequestMethod("GET");
+                c.setConnectTimeout(12000);
+                c.setReadTimeout(12000);
+                int code = c.getResponseCode();
+                String body = read(c);
+                if (code < 200 || code >= 300) throw new BinanceHttpException(code, body);
+
+                JSONArray rows = new JSONArray(body);
+                List<ScalpingStrategy.Candle> candles = new ArrayList<>();
+                // The final kline is still forming. The strategy uses only closed candles.
+                for (int i = 0; i < Math.max(0, rows.length() - 1); i++) {
+                    JSONArray row = rows.optJSONArray(i);
+                    if (row == null || row.length() < 7) continue;
+                    double high = parseDouble(row.optString(2, "NaN"));
+                    double low = parseDouble(row.optString(3, "NaN"));
+                    double close = parseDouble(row.optString(4, "NaN"));
+                    long closeTime = row.optLong(6, 0L);
+                    if (high > 0 && low > 0 && close > 0) candles.add(new ScalpingStrategy.Candle(closeTime, high, low, close));
+                }
+                signal = ScalpingStrategy.evaluate(candles);
+                store.scalperSymbol = symbol;
+                store.lastScalperCheckMs = System.currentTimeMillis();
+                store.lastScalperPrice = signal.price;
+                store.lastScalperSignal = signal.action.name();
+                store.lastScalperConfidence = signal.confidence;
+                store.lastScalperReport = signal.report(symbol, store.stopLoss, store.takeProfit);
+                store.lastScalperError = "";
+                store.scalperMarketChecks++;
+                store.save();
+                report = store.lastScalperReport;
+            } catch (Exception e) {
+                String detail = e instanceof BinanceHttpException
+                        ? "HTTP " + ((BinanceHttpException)e).code + ": " + readableError(((BinanceHttpException)e).body)
+                        : e.getClass().getSimpleName() + ": " + e.getMessage();
+                store.lastScalperError = "Live market scan failed: " + detail;
+                store.lastScalperReport = store.lastScalperError;
+                store.save();
+                report = store.lastScalperReport;
+            } finally {
+                synchronized (BinanceClient.class) { scalperRequestInFlight = false; }
+            }
+            if (cb != null) cb.done(signal, report);
+        });
+    }
+
     public static void placeMarketOrder(AppStore store, String symbol, String side, double amount, Callback cb) {
         exec.execute(() -> {
             StringBuilder out = new StringBuilder();
@@ -187,7 +252,7 @@ public class BinanceClient {
                 String safeSide = "SELL".equalsIgnoreCase(side) ? "SELL" : "BUY";
                 boolean testOnly = store.liveOrderTestMode;
 
-                out.append("Nanu v6.1 Professional Manual Confirmed Micro Order\n\n");
+                out.append("Nanu v6.2 Professional Manual Confirmed Micro Order\n\n");
                 out.append("Mode: ").append(store.mode.toUpperCase(Locale.US)).append('\n');
                 out.append("Symbol: ").append(safeSymbol).append('\n');
                 out.append("Side: ").append(safeSide).append('\n');

@@ -15,8 +15,8 @@ jobs:
       NANU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.NANU_RELEASE_KEYSTORE_PASSWORD }}
       NANU_RELEASE_KEY_ALIAS: ${{ secrets.NANU_RELEASE_KEY_ALIAS }}
       NANU_RELEASE_KEY_PASSWORD: ${{ secrets.NANU_RELEASE_KEY_PASSWORD }}
-      RELEASE_TAG: nanu-ai-trading-bot-v6-1-professional
-      APK_NAME: nanu-ai-trading-bot-v6-1-professional.apk
+      RELEASE_TAG: nanu-ai-trading-bot-v6-2-professional
+      APK_NAME: nanu-ai-trading-bot-v6-2-professional.apk
 
     steps:
       - name: Checkout source
@@ -52,15 +52,19 @@ jobs:
           test -n "$NANU_RELEASE_KEY_PASSWORD" || (echo "Missing NANU_RELEASE_KEY_PASSWORD secret" && exit 1)
           printf '%s' "$NANU_RELEASE_KEYSTORE_B64" | base64 -d > "$NANU_RELEASE_KEYSTORE_PATH"
 
-      - name: Build signed release APK
-        run: gradle --no-daemon clean lintRelease assembleRelease --stacktrace
+      - name: Test, lint, and build signed release APK
+        run: gradle --no-daemon clean testReleaseUnitTest lintRelease assembleRelease --stacktrace
 
       - name: Prepare APK and release notes
         run: |
           cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
           cat > release-notes.md <<'NOTES'
-          Nanu AI Trading Bot v6.1 Professional
+          Nanu AI Trading Bot v6.2 Professional
 
+          - Live Binance public-candle scanner for the selected Spot pair
+          - Deterministic EMA 9/21 and RSI 14 signal strategy using closed 1-minute candles
+          - Automatic paper positions with configurable paper trade amount and scan interval
+          - No fabricated random paper trades and no automatic real Binance orders
           - Real Binance Spot portfolio equity sync from signed account balances
           - Encrypted local credential storage with Android Keystore
           - PIN stored as a one-way PBKDF2 hash
@@ -70,7 +74,7 @@ jobs:
           - Progressive learning memory shown in Brain and Safety Report
           - Safer signed release workflow with GitHub Secrets
 
-          No trading bot can guarantee profit or zero bugs. Start with test order mode and tiny order sizes.
+          No trading bot can guarantee profit or zero bugs. Start with paper signals, then Test Order mode and tiny manual order sizes.
           NOTES
           ls -lh "$APK_NAME"
 
@@ -82,7 +86,7 @@ jobs:
             gh release upload "$RELEASE_TAG" "$APK_NAME" --clobber
           else
             gh release create "$RELEASE_TAG" "$APK_NAME" \
-              --title "Nanu AI Trading Bot v6.1 Professional" \
+              --title "Nanu AI Trading Bot v6.2 Professional" \
               --notes-file release-notes.md \
               --latest
           fi
