@@ -1,0 +1,5 @@
+# Replace bot.example.com with your own DNS name after it points to this VPS.
+# Caddy obtains TLS automatically. Keep the Node port private on 127.0.0.1.
+bot.example.com {
+  reverse_proxy 127.0.0.1:8080
+}
