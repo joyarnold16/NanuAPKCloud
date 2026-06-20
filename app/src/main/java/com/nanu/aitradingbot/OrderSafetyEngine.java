@@ -16,6 +16,7 @@ public class OrderSafetyEngine {
     }
 
     public static Preview buildDryRunPreview(AppStore store) {
+        store.ensureDailySafetyWindow();
         Preview p = new Preview();
         p.symbol = chooseSymbol(store);
         p.side = "BUY";
@@ -26,9 +27,9 @@ public class OrderSafetyEngine {
         p.roundedQty = roundQty(p.symbol, p.rawQty);
 
         StringBuilder out = new StringBuilder();
-        out.append("Nanu Order Safety Engine v6.2\n\n");
+        out.append("Nanu Order Safety Engine Tablet Edition\n\n");
         out.append("CONTROLLED LIVE DRY-RUN\n");
-        out.append("This preview sends no order. It must pass before manual micro order buttons can run.\n\n");
+        out.append("This preview sends no order. It must pass before a manual protected Spot BUY can run.\n\n");
         out.append("Mode: ").append(store.mode.toUpperCase(Locale.US)).append('\n');
         out.append("Symbol: ").append(p.symbol).append('\n');
         out.append("Side: ").append(p.side).append('\n');
@@ -62,10 +63,11 @@ public class OrderSafetyEngine {
         ok &= check(out, "Dry-run mode is ON", store.liveDryRunEnabled);
         ok &= check(out, "Compliance Guard ON", store.complianceGuardEnabled);
         ok &= check(out, "Binance rate-limit lock clear", !store.binanceRateLimitLock);
+        ok &= check(out, "No unresolved Binance protection check", !store.hasPendingProtectionCheck());
         ok &= check(out, "Manual first-order confirmation required", store.firstLiveOrderManualConfirm);
         ok &= check(out, "API key present", store.apiKey != null && !store.apiKey.trim().isEmpty());
         ok &= check(out, "API secret present", store.apiSecret != null && !store.apiSecret.trim().isEmpty());
-        ok &= check(out, "Micro order amount <= 25 USDT", store.microLiveOrderUsdt <= 25.0);
+        ok &= check(out, "BUY amount is within manual order limit", store.microLiveOrderUsdt <= store.manualOrderLimitUsdt);
         ok &= check(out, "Stop loss in safe range", store.stopLoss >= 0.1 && store.stopLoss <= 3.0);
         ok &= check(out, "Take profit in safe range", store.takeProfit >= 0.1 && store.takeProfit <= 5.0);
         ok &= check(out, "Slippage limit <= 0.50%", store.slippageLimitPct > 0 && store.slippageLimitPct <= 0.50);
@@ -73,7 +75,7 @@ public class OrderSafetyEngine {
 
         out.append("\nAction decision: ").append(ok ? "DRY-RUN PASS ✅" : "BLOCKED ⚠️").append("\n");
         if (ok) {
-            out.append("Nanu is allowed to continue to manual confirmation. Test order mode is recommended before any real micro order.\n");
+            out.append("Nanu is allowed to continue to manual confirmation. Test order mode is recommended before any real Spot BUY.\n");
             store.orderCooldownUntilMs = now + Math.max(10, store.orderCooldownSeconds) * 1000L;
             store.liveDryRunPassCount++;
             store.engine.addJournal("Live dry-run preview PASS: " + p.symbol + " " + fmt(p.quoteAmount) + " USDT.");
@@ -81,7 +83,7 @@ public class OrderSafetyEngine {
             out.append("Fix blocked items before manual micro order.\n");
             store.engine.addJournal("Live dry-run preview BLOCKED: safety checklist not complete.");
         }
-        out.append("\nSafety note: preview itself never places an order. Manual confirmed micro order requires a separate confirmation screen.");
+        out.append("\nSafety note: preview itself never places an order. A manual confirmed BUY requires a separate confirmation screen and requests Binance OCO exit protection after a real fill.");
 
         p.pass = ok;
         p.report = out.toString();
@@ -99,8 +101,8 @@ public class OrderSafetyEngine {
     }
 
     private static String chooseSymbol(AppStore store) {
-        if (store.scalperSymbol != null && !store.scalperSymbol.trim().isEmpty()) return store.scalperSymbol.trim().toUpperCase(Locale.US);
-        if (store.watchlist != null && !store.watchlist.isEmpty()) return store.watchlist.get(0);
+        if (store.scalperSymbol != null && BinanceClient.isTabletPair(store.scalperSymbol)) return store.scalperSymbol.trim().toUpperCase(Locale.US);
+        if (store.watchlist != null && !store.watchlist.isEmpty() && BinanceClient.isTabletPair(store.watchlist.get(0))) return store.watchlist.get(0);
         return "BTCUSDT";
     }
 

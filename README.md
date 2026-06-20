@@ -1,68 +1,56 @@
-# Nanu AI Trading Bot v6.3 Spot Executor
+# Nanu AI Trading Bot v6.4 Tablet Edition
 
-Nanu v6.3 is an Android control console plus a separate private VPS service for Binance Spot automation. The Android app does not hold the Binance secret for automatic trading. The VPS does.
+Nanu is an Android Binance Spot assistant designed to run directly on a private tablet. It does not require a VPS, executor URL, or executor control token.
 
-No strategy can guarantee profit, avoid every loss, or make a live account safe without careful verification.
+No strategy can guarantee profit, avoid every loss, or make real-money trading risk-free.
 
-## What v6.3 implements
+## What it does
 
-- Binance Spot only: no Futures and no leverage
-- Four approved pairs only: `BTCUSDT`, `ETHUSDT`, `BNBUSDT`, `SOLUSDT`
-- Maximum four new entries per UTC day and one open position at a time
-- Custom quote amount, bounded to at least 5 USDT
-- Closed 1-minute candles with EMA 9/21, RSI 14, ATR, volume, and trend filters
-- A bounded learning bias based on recorded closed trades; it cannot override the risk limits
-- Daily loss stop, Binance exchange filters, notional/lot/tick rounding, rate-limit lock, and persistent journal
-- Real market buy is followed by a Binance SELL OCO target and stop order. If protection cannot be placed, the server attempts an emergency sell and stops.
-- Recovery logic for a restarted server with a persisted pending market order
-- HTTPS-only app controls protected by a separate random control token
+- Binance Spot only; no Futures and no leverage
+- Direct encrypted on-device storage for the Binance API key and secret
+- Direct Spot equity and balance sync from the Binance account endpoint
+- Four approved pairs only: `BTCUSDT`, `ETHUSDT`, `BNBUSDT`, and `SOLUSDT`
+- Closed one-minute candle scanner using EMA 9/21, RSI 14, volatility, and volume checks
+- Automatic paper positions only; it does not place unattended real orders
+- Configurable manual BUY amount and a separate local manual order limit
+- Maximum four real BUY entries per day, with a cooldown and one-time real-order arm
+- Binance Test Order mode for validating an order request without creating a fill
+- After a confirmed real BUY fill, requests a Binance OCO sell list with a take-profit and stop-loss exit
+- If the OCO request fails, attempts an emergency market sell and reports the result prominently
+- App-wide PIN lock, Telegram/phone alerts, safety checklist, API Doctor, and an exportable non-secret safety report
 
-## Deliberate safety boundaries
+## Real-money boundaries
 
-- Automatic live execution defaults to off, even if the server is configured for `live` mode.
-- The phone cannot turn on `NANU_AUTO_LIVE_ENABLED`; that requires an explicit server environment change.
-- The app cannot enter Binance API credentials for the VPS flow. Keep the Binance API key and secret only in `server/.env`.
-- Create a dedicated Binance API key with Spot trading only, withdrawals disabled, and an IP restriction matching the VPS public IP.
-- Binance API keys, Binance secrets, the VPS `.env`, keystores, and control tokens must never be committed or uploaded to GitHub Actions secrets.
+1. The scanner may trade only the internal paper wallet automatically.
+2. A real BUY needs LIVE mode, a successful API Doctor, fresh balance sync, the safety checklist, a dry-run, a typed arm phrase, and a typed confirmation.
+3. A manually confirmed SELL is treated as an exit path and is not blocked by the daily BUY cap or entry cooldown.
+4. Always verify a real BUY, the OCO list, and any emergency sell in Binance order history and Open Orders.
 
-## Server deployment
+## Binance API key setup
 
-The server needs a small Linux VPS with Docker, a domain name, and HTTPS. The included Compose file listens only on `127.0.0.1:8080`; expose it to the app through a TLS reverse proxy such as Caddy.
+Create a dedicated Binance API key for this tablet:
 
-```bash
-cd server
-cp .env.example .env
-chmod 600 .env
-openssl rand -base64 48 | tr -d '\n'
-# Put that value in NANU_CONTROL_TOKEN in .env, then set NANU_MODE=paper.
-docker compose up -d --build
-docker compose logs -f
-```
+- Enable Spot trading only.
+- Keep withdrawals disabled.
+- Do not enable Futures, margin, transfers, or any permission you do not need.
+- Use IP restrictions only when the tablet has a stable public IP. Mobile IP addresses often change.
+- Start in Binance Test Order mode. Then use the smallest amount the pair permits.
 
-Use `server/Caddyfile.example` after your DNS record points at the VPS. Do not publish the Node port directly to the internet.
-
-Required progression:
-
-1. Start in `NANU_MODE=paper`; connect the APK and verify the status, amount, pairs, daily cap, start/stop, and pause controls.
-2. Set `NANU_MODE=test`; use the restricted key and verify Binance Test Order behavior and the server journal. This validates request signing without spending funds.
-3. Review Binance order history and server logs. Then set `NANU_MODE=live` while leaving `NANU_AUTO_LIVE_ENABLED=false`.
-4. Only after those checks, set `NANU_AUTO_LIVE_ENABLED=true`, restart the container, sync the app, and begin with the smallest amount the pair permits.
-
-See [server deployment notes](server/README.md) for the exact environment fields and control endpoints.
+The app cannot prove the API-key withdrawal permission from the account response. You must check it in Binance API Management and confirm it in the app.
 
 ## Android APK build
 
-Workflow: `Build Nanu AI Trading Bot Professional APK`
+GitHub workflow: `Build Nanu AI Trading Bot Professional APK`
 
-Release tag: `nanu-ai-trading-bot-v6-3-spot-executor`
+Release tag: `nanu-ai-trading-bot-v6-4-tablet-edition`
 
-APK: `nanu-ai-trading-bot-v6-3-spot-executor.apk`
+APK: `nanu-ai-trading-bot-v6-4-tablet-edition.apk`
 
-Required GitHub Actions secrets for APK signing only:
+Required GitHub Actions signing secrets:
 
 - `NANU_RELEASE_KEYSTORE_B64`
 - `NANU_RELEASE_KEYSTORE_PASSWORD`
 - `NANU_RELEASE_KEY_ALIAS`
 - `NANU_RELEASE_KEY_PASSWORD`
 
-The workflow runs Node executor tests, Android unit tests, lint, and the signed release build.
+The workflow runs regression tests, Android unit tests, lint, and a signed release build.

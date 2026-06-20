@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
@@ -63,9 +64,12 @@ public class AppStore {
     public double liveDryRunOrderUsdt = 10.0;
     public double minOrderNotionalUsdt = 5.0;
     public double slippageLimitPct = 0.25;
-    public int maxLiveTradesPerDay = 3;
+    public int maxLiveTradesPerDay = 4;
     public int orderCooldownSeconds = 60;
     public int liveTradesToday = 0;
+    public String liveSafetyDay = "";
+    public String pendingProtectionSymbol = "";
+    public long pendingProtectionStartedMs = 0L;
     public int liveDryRunOpenTrades = 0;
     public long orderCooldownUntilMs = 0L;
     public int liveDryRunPassCount = 0;
@@ -107,6 +111,7 @@ public class AppStore {
     public boolean liveRealOrderArmed = false;
     public boolean liveOrderTestMode = true;
     public double microLiveOrderUsdt = 5.0;
+    public double manualOrderLimitUsdt = 50.0;
     public int maxConsecutiveLosses = 2;
     public int consecutiveLosses = 0;
     public int dryRunProofRequired = 50;
@@ -136,31 +141,6 @@ public class AppStore {
     public int lastScalperConfidence = 0;
     public String lastScalperReport = "No live market scan yet.";
     public String lastScalperError = "";
-
-    // v6.3 VPS executor. Binance credentials belong only on the server; the app stores an encrypted control token.
-    public String executorUrl = "";
-    public String executorControlToken = "";
-    public boolean executorConnected = false;
-    public boolean executorRunning = false;
-    public boolean executorPanic = false;
-    public boolean executorAutoLiveEnabled = false;
-    public String executorMode = "PAPER";
-    public String executorStatus = "VPS executor not connected.";
-    public String executorLastError = "";
-    public long executorLastSyncMs = 0L;
-    public long executorLastHeartbeatMs = 0L;
-    public int executorDailyEntries = 0;
-    public int executorMaxTradesPerDay = 4;
-    public double executorDailyPnlUsdt = 0.0;
-    public double executorTradeQuoteUsdt = 5.0;
-    public double executorStopLossPct = 1.0;
-    public double executorTakeProfitPct = 1.5;
-    public double executorDailyLossPct = 2.0;
-    public int executorMinConfidence = 68;
-    public int executorScanSeconds = 60;
-    public String executorPairs = "BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT";
-    public String executorPositions = "No protected position reported by the executor.";
-    public String executorRecentTrade = "No executor trade recorded.";
 
     public final List<String> watchlist = new ArrayList<>();
 
@@ -231,9 +211,12 @@ public class AppStore {
         liveDryRunOrderUsdt = Double.longBitsToDouble(sp.getLong("liveDryRunOrderUsdt", Double.doubleToRawLongBits(10.0)));
         minOrderNotionalUsdt = Double.longBitsToDouble(sp.getLong("minOrderNotionalUsdt", Double.doubleToRawLongBits(5.0)));
         slippageLimitPct = Double.longBitsToDouble(sp.getLong("slippageLimitPct", Double.doubleToRawLongBits(0.25)));
-        maxLiveTradesPerDay = sp.getInt("maxLiveTradesPerDay", 3);
+        maxLiveTradesPerDay = Math.max(1, Math.min(4, sp.getInt("maxLiveTradesPerDay", 4)));
         orderCooldownSeconds = sp.getInt("orderCooldownSeconds", 60);
         liveTradesToday = sp.getInt("liveTradesToday", 0);
+        liveSafetyDay = sp.getString("liveSafetyDay", "");
+        pendingProtectionSymbol = sp.getString("pendingProtectionSymbol", "");
+        pendingProtectionStartedMs = sp.getLong("pendingProtectionStartedMs", 0L);
         liveDryRunOpenTrades = sp.getInt("liveDryRunOpenTrades", 0);
         orderCooldownUntilMs = sp.getLong("orderCooldownUntilMs", 0L);
         liveDryRunPassCount = sp.getInt("liveDryRunPassCount", 0);
@@ -273,6 +256,9 @@ public class AppStore {
         liveRealOrderArmed = sp.getBoolean("liveRealOrderArmed", false);
         liveOrderTestMode = sp.getBoolean("liveOrderTestMode", true);
         microLiveOrderUsdt = Double.longBitsToDouble(sp.getLong("microLiveOrderUsdt", Double.doubleToRawLongBits(5.0)));
+        manualOrderLimitUsdt = Double.longBitsToDouble(sp.getLong("manualOrderLimitUsdt", Double.doubleToRawLongBits(50.0)));
+        manualOrderLimitUsdt = Math.max(5.0, Math.min(1000.0, manualOrderLimitUsdt));
+        microLiveOrderUsdt = Math.max(5.0, Math.min(manualOrderLimitUsdt, microLiveOrderUsdt));
         maxConsecutiveLosses = sp.getInt("maxConsecutiveLosses", 2);
         consecutiveLosses = sp.getInt("consecutiveLosses", 0);
         dryRunProofRequired = sp.getInt("dryRunProofRequired", 50);
@@ -291,7 +277,7 @@ public class AppStore {
         scalperEnabled = sp.getBoolean("scalperEnabled", true);
         scalperPaperAutoTrade = sp.getBoolean("scalperPaperAutoTrade", true);
         scalperSymbol = normalizeCoin(sp.getString("scalperSymbol", "BTCUSDT"));
-        if (scalperSymbol.isEmpty()) scalperSymbol = "BTCUSDT";
+        if (!BinanceClient.isTabletPair(scalperSymbol)) scalperSymbol = "BTCUSDT";
         scalperScanSeconds = Math.max(30, sp.getInt("scalperScanSeconds", 60));
         scalperTradeAmountUsdt = Double.longBitsToDouble(sp.getLong("scalperTradeAmountUsdt", Double.doubleToRawLongBits(5.0)));
         scalperMarketChecks = sp.getInt("scalperMarketChecks", 0);
@@ -301,33 +287,9 @@ public class AppStore {
         lastScalperConfidence = sp.getInt("lastScalperConfidence", 0);
         lastScalperReport = sp.getString("lastScalperReport", "No live market scan yet.");
         lastScalperError = sp.getString("lastScalperError", "");
-        executorUrl = sp.getString("executorUrl", "");
-        executorControlToken = securePrefs.getSecret("executorControlToken", "");
-        executorConnected = sp.getBoolean("executorConnected", false);
-        executorRunning = sp.getBoolean("executorRunning", false);
-        executorPanic = sp.getBoolean("executorPanic", false);
-        executorAutoLiveEnabled = sp.getBoolean("executorAutoLiveEnabled", false);
-        executorMode = sp.getString("executorMode", "PAPER");
-        executorStatus = sp.getString("executorStatus", "VPS executor not connected.");
-        executorLastError = sp.getString("executorLastError", "");
-        executorLastSyncMs = sp.getLong("executorLastSyncMs", 0L);
-        executorLastHeartbeatMs = sp.getLong("executorLastHeartbeatMs", 0L);
-        executorDailyEntries = sp.getInt("executorDailyEntries", 0);
-        executorMaxTradesPerDay = sp.getInt("executorMaxTradesPerDay", 4);
-        executorDailyPnlUsdt = Double.longBitsToDouble(sp.getLong("executorDailyPnlUsdt", Double.doubleToRawLongBits(0.0)));
-        executorTradeQuoteUsdt = Double.longBitsToDouble(sp.getLong("executorTradeQuoteUsdt", Double.doubleToRawLongBits(5.0)));
-        executorStopLossPct = Double.longBitsToDouble(sp.getLong("executorStopLossPct", Double.doubleToRawLongBits(1.0)));
-        executorTakeProfitPct = Double.longBitsToDouble(sp.getLong("executorTakeProfitPct", Double.doubleToRawLongBits(1.5)));
-        executorDailyLossPct = Double.longBitsToDouble(sp.getLong("executorDailyLossPct", Double.doubleToRawLongBits(2.0)));
-        executorMinConfidence = sp.getInt("executorMinConfidence", 68);
-        executorScanSeconds = sp.getInt("executorScanSeconds", 60);
-        executorPairs = sp.getString("executorPairs", "BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT");
-        executorPositions = sp.getString("executorPositions", "No protected position reported by the executor.");
-        executorRecentTrade = sp.getString("executorRecentTrade", "No executor trade recorded.");
-
         watchlist.clear();
-        String saved = sp.getString("watchlist", "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT");
-        for (String s : saved.split(",")) if (!s.trim().isEmpty()) watchlist.add(normalizeCoin(s));
+        watchlist.addAll(Arrays.asList("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"));
+        ensureDailySafetyWindow();
     }
 
     public void save() {
@@ -335,7 +297,8 @@ public class AppStore {
         securePrefs.putSecret("apiSecret", apiSecret);
         securePrefs.putSecret("telegramToken", telegramToken);
         securePrefs.putSecret("telegramChatId", telegramChatId);
-        securePrefs.putSecret("executorControlToken", executorControlToken);
+        // Tablet Edition does not use a remote executor. Clear any old control token during upgrade.
+        securePrefs.putSecret("executorControlToken", "");
         sp.edit()
                 .putString("mode", mode)
                 .putBoolean("liveUnlocked", liveUnlocked)
@@ -345,6 +308,28 @@ public class AppStore {
                 .remove("telegramToken")
                 .remove("telegramChatId")
                 .remove("executorControlToken")
+                .remove("executorUrl")
+                .remove("executorConnected")
+                .remove("executorRunning")
+                .remove("executorPanic")
+                .remove("executorAutoLiveEnabled")
+                .remove("executorMode")
+                .remove("executorStatus")
+                .remove("executorLastError")
+                .remove("executorLastSyncMs")
+                .remove("executorLastHeartbeatMs")
+                .remove("executorDailyEntries")
+                .remove("executorMaxTradesPerDay")
+                .remove("executorDailyPnlUsdt")
+                .remove("executorTradeQuoteUsdt")
+                .remove("executorStopLossPct")
+                .remove("executorTakeProfitPct")
+                .remove("executorDailyLossPct")
+                .remove("executorMinConfidence")
+                .remove("executorScanSeconds")
+                .remove("executorPairs")
+                .remove("executorPositions")
+                .remove("executorRecentTrade")
                 .putBoolean("telegramAlertsEnabled", telegramAlertsEnabled)
                 .putBoolean("telegramQuietMode", telegramQuietMode)
                 .putBoolean("telegramAlertStartStop", telegramAlertStartStop)
@@ -387,6 +372,9 @@ public class AppStore {
                 .putInt("maxLiveTradesPerDay", maxLiveTradesPerDay)
                 .putInt("orderCooldownSeconds", orderCooldownSeconds)
                 .putInt("liveTradesToday", liveTradesToday)
+                .putString("liveSafetyDay", liveSafetyDay)
+                .putString("pendingProtectionSymbol", pendingProtectionSymbol == null ? "" : pendingProtectionSymbol)
+                .putLong("pendingProtectionStartedMs", pendingProtectionStartedMs)
                 .putInt("liveDryRunOpenTrades", liveDryRunOpenTrades)
                 .putLong("orderCooldownUntilMs", orderCooldownUntilMs)
                 .putInt("liveDryRunPassCount", liveDryRunPassCount)
@@ -422,6 +410,7 @@ public class AppStore {
                 .putBoolean("liveRealOrderArmed", liveRealOrderArmed)
                 .putBoolean("liveOrderTestMode", liveOrderTestMode)
                 .putLong("microLiveOrderUsdt", Double.doubleToRawLongBits(microLiveOrderUsdt))
+                .putLong("manualOrderLimitUsdt", Double.doubleToRawLongBits(manualOrderLimitUsdt))
                 .putInt("maxConsecutiveLosses", maxConsecutiveLosses)
                 .putInt("consecutiveLosses", consecutiveLosses)
                 .putInt("dryRunProofRequired", dryRunProofRequired)
@@ -449,28 +438,6 @@ public class AppStore {
                 .putInt("lastScalperConfidence", lastScalperConfidence)
                 .putString("lastScalperReport", lastScalperReport)
                 .putString("lastScalperError", lastScalperError)
-                .putString("executorUrl", executorUrl)
-                .putBoolean("executorConnected", executorConnected)
-                .putBoolean("executorRunning", executorRunning)
-                .putBoolean("executorPanic", executorPanic)
-                .putBoolean("executorAutoLiveEnabled", executorAutoLiveEnabled)
-                .putString("executorMode", executorMode)
-                .putString("executorStatus", executorStatus)
-                .putString("executorLastError", executorLastError)
-                .putLong("executorLastSyncMs", executorLastSyncMs)
-                .putLong("executorLastHeartbeatMs", executorLastHeartbeatMs)
-                .putInt("executorDailyEntries", executorDailyEntries)
-                .putInt("executorMaxTradesPerDay", executorMaxTradesPerDay)
-                .putLong("executorDailyPnlUsdt", Double.doubleToRawLongBits(executorDailyPnlUsdt))
-                .putLong("executorTradeQuoteUsdt", Double.doubleToRawLongBits(executorTradeQuoteUsdt))
-                .putLong("executorStopLossPct", Double.doubleToRawLongBits(executorStopLossPct))
-                .putLong("executorTakeProfitPct", Double.doubleToRawLongBits(executorTakeProfitPct))
-                .putLong("executorDailyLossPct", Double.doubleToRawLongBits(executorDailyLossPct))
-                .putInt("executorMinConfidence", executorMinConfidence)
-                .putInt("executorScanSeconds", executorScanSeconds)
-                .putString("executorPairs", executorPairs)
-                .putString("executorPositions", executorPositions)
-                .putString("executorRecentTrade", executorRecentTrade)
                 .putString("watchlist", join(watchlist))
                 .apply();
     }
@@ -514,6 +481,43 @@ public class AppStore {
         return mode != null && mode.equals(lastApiMode) && lastApiPrivateOk && lastApiCanTrade;
     }
 
+    public void ensureDailySafetyWindow() {
+        String today = localDay();
+        if (today.equals(liveSafetyDay)) return;
+        liveSafetyDay = today;
+        liveTradesToday = 0;
+        dryRunPreviewsToday = 0;
+        liveDryRunPassCount = 0;
+        orderCooldownUntilMs = 0L;
+        liveEquityBaselineUsdt = Double.NaN;
+        if (engine != null) engine.addJournal("New local safety day: entry count and live P&L baseline reset.");
+        save();
+    }
+
+    public boolean hasPendingProtectionCheck() {
+        return pendingProtectionSymbol != null && !pendingProtectionSymbol.trim().isEmpty();
+    }
+
+    public void beginProtectionCheck(String symbol) {
+        pendingProtectionSymbol = symbol == null ? "" : symbol.trim().toUpperCase(Locale.US);
+        pendingProtectionStartedMs = System.currentTimeMillis();
+        save();
+    }
+
+    public void clearProtectionCheck(String reason) {
+        if (hasPendingProtectionCheck() && engine != null) {
+            engine.addJournal("Protection check cleared for " + pendingProtectionSymbol + ": " + (reason == null ? "manual review" : reason));
+        }
+        pendingProtectionSymbol = "";
+        pendingProtectionStartedMs = 0L;
+        save();
+    }
+
+    private static String localDay() {
+        Calendar c = Calendar.getInstance();
+        return String.format(Locale.US, "%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH));
+    }
+
     public void setAppPin(String pin) {
         String safe = pin == null ? "" : pin.trim();
         if (safe.isEmpty()) {
@@ -555,20 +559,6 @@ public class AppStore {
         long seconds = Math.max(0L, System.currentTimeMillis() - lastScalperCheckMs) / 1000L;
         if (seconds < 60) return seconds + "s ago";
         return (seconds / 60L) + "m ago";
-    }
-
-    public boolean executorConfigured() {
-        return executorUrl != null && executorUrl.startsWith("https://")
-                && executorControlToken != null && executorControlToken.length() >= 32;
-    }
-
-    public String executorAgeLabel() {
-        if (executorLastSyncMs <= 0) return "never";
-        long seconds = Math.max(0L, System.currentTimeMillis() - executorLastSyncMs) / 1000L;
-        if (seconds < 60) return seconds + "s ago";
-        long minutes = seconds / 60L;
-        if (minutes < 60) return minutes + "m ago";
-        return (minutes / 60L) + "h ago";
     }
 
     public void recordBrainObservation(String source, double pnl, boolean portfolioBacked) {
@@ -648,7 +638,7 @@ public class AppStore {
 
     public void addCoin(String raw) {
         String coin = normalizeCoin(raw);
-        if (!coin.isEmpty() && !watchlist.contains(coin)) watchlist.add(coin);
+        if (BinanceClient.isTabletPair(coin) && !watchlist.contains(coin)) watchlist.add(coin);
         save();
     }
 

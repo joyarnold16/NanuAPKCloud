@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -27,6 +28,7 @@ public class BinanceClient {
     public interface ScalperCallback { void done(ScalpingStrategy.Signal signal, String report); }
     private static final ExecutorService exec = Executors.newSingleThreadExecutor();
     private static volatile boolean scalperRequestInFlight = false;
+    private static final String[] TABLET_PAIRS = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"};
 
     private static class BinanceHttpException extends Exception {
         final int code;
@@ -59,6 +61,7 @@ public class BinanceClient {
         double minQty = 0.0;
         double maxQty = Double.NaN;
         double stepSize = 0.0;
+        double tickSize = 0.0;
         double marketMinQty = 0.0;
         double marketMaxQty = Double.NaN;
         double marketStepSize = 0.0;
@@ -198,6 +201,7 @@ public class BinanceClient {
             try {
                 String symbol = store.normalizeCoin(store.scalperSymbol);
                 if (symbol.isEmpty()) symbol = "BTCUSDT";
+                if (!isTabletPair(symbol)) throw new IllegalArgumentException("Tablet Edition supports BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT only.");
                 HttpURLConnection c = (HttpURLConnection)new URL("https://api.binance.com/api/v3/klines?symbol=" + enc(symbol) + "&interval=1m&limit=80").openConnection();
                 c.setRequestMethod("GET");
                 c.setConnectTimeout(12000);
@@ -247,47 +251,59 @@ public class BinanceClient {
     public static void placeMarketOrder(AppStore store, String symbol, String side, double amount, Callback cb) {
         exec.execute(() -> {
             StringBuilder out = new StringBuilder();
+            boolean realBuySubmitted = false;
             try {
+                store.ensureDailySafetyWindow();
                 String safeSymbol = (symbol == null || symbol.trim().isEmpty() ? "BTCUSDT" : symbol.trim().toUpperCase(Locale.US).replaceAll("[^A-Z0-9]", ""));
                 String safeSide = "SELL".equalsIgnoreCase(side) ? "SELL" : "BUY";
                 boolean testOnly = store.liveOrderTestMode;
 
-                out.append("Nanu v6.2 Professional Manual Confirmed Micro Order\n\n");
+                out.append("Nanu Tablet Edition Protected Spot Order\n\n");
                 out.append("Mode: ").append(store.mode.toUpperCase(Locale.US)).append('\n');
                 out.append("Symbol: ").append(safeSymbol).append('\n');
                 out.append("Side: ").append(safeSide).append('\n');
                 out.append("Execution channel: ").append(testOnly ? "BINANCE /order/test (NO REAL FILL)" : "BINANCE REAL MARKET ORDER").append("\n\n");
 
+                if (!isTabletPair(safeSymbol)) { cb.done(out + "BLOCKED: Tablet Edition is limited to BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT."); return; }
                 if (!"live".equals(store.mode)) { cb.done(out + "BLOCKED: select LIVE mode first."); return; }
                 if (!store.liveUnlocked) { cb.done(out + "BLOCKED: LIVE gate is locked."); return; }
-                if (!store.apiTradingOkForCurrentMode()) { cb.done(out + "BLOCKED: API Doctor/spot trading permission not passed for LIVE mode."); return; }
-                if (!store.telegramDoctorOk) { cb.done(out + "BLOCKED: Telegram Doctor must pass before live order."); return; }
-                if (!store.profitGuardEnabled) { cb.done(out + "BLOCKED: Profit Guard must be ON before live order."); return; }
-                if (!store.panicButtonTested) { cb.done(out + "BLOCKED: Panic button must be tested before live order."); return; }
-                if (!store.withdrawalPermissionConfirmedOff) { cb.done(out + "BLOCKED: API-key withdrawals must be manually confirmed OFF."); return; }
-                if (!store.complianceGuardEnabled) { cb.done(out + "BLOCKED: Compliance Guard is OFF."); return; }
-                if (store.binanceRateLimitLock) { cb.done(out + "BLOCKED: Binance rate-limit lock is active. Reset only after waiting and checking Binance."); return; }
-                if (store.engine.panic) { cb.done(out + "BLOCKED: Panic state is active."); return; }
-                if (store.liveTradesToday >= Math.max(1, store.maxLiveTradesPerDay)) { cb.done(out + "BLOCKED: max live trades/day reached."); return; }
-                if (System.currentTimeMillis() < store.orderCooldownUntilMs) { cb.done(out + "BLOCKED: order cooldown is still active."); return; }
-                if (!store.portfolioSyncOk || System.currentTimeMillis() - store.lastPortfolioSyncMs > 10 * 60 * 1000L) { cb.done(out + "BLOCKED: sync Binance Spot portfolio within 10 minutes before live/test order."); return; }
-                long previewAgeMs = System.currentTimeMillis() - store.lastOrderPreviewTime;
-                if (!store.lastOrderSafetyPass || !safeSymbol.equals(store.lastOrderSymbol) || previewAgeMs > 10 * 60 * 1000L) {
-                    cb.done(out + "BLOCKED: run a fresh Live Dry-Run Preview for this symbol within 10 minutes.");
-                    return;
-                }
-                if (!testOnly && !store.liveRealOrderArmed) { cb.done(out + "BLOCKED: real micro order is not armed. Keep Test Order ON or type ARM REAL MICRO in app."); return; }
                 if (store.apiKey.isEmpty() || store.apiSecret.isEmpty()) { cb.done(out + "BLOCKED: API key/secret missing."); return; }
+                if ("BUY".equals(safeSide)) {
+                    if (store.hasPendingProtectionCheck()) { cb.done(out + "BLOCKED: inspect Binance first. A previous " + store.pendingProtectionSymbol + " BUY has an unresolved protection check."); return; }
+                    if (!store.apiTradingOkForCurrentMode()) { cb.done(out + "BLOCKED: API Doctor/spot trading permission not passed for LIVE mode."); return; }
+                    if (!store.telegramDoctorOk) { cb.done(out + "BLOCKED: Telegram Doctor must pass before a live BUY."); return; }
+                    if (!store.profitGuardEnabled) { cb.done(out + "BLOCKED: Profit Guard must be ON before a live BUY."); return; }
+                    if (!store.panicButtonTested) { cb.done(out + "BLOCKED: Panic button must be tested before a live BUY."); return; }
+                    if (!store.withdrawalPermissionConfirmedOff) { cb.done(out + "BLOCKED: API-key withdrawals must be manually confirmed OFF."); return; }
+                    if (!store.complianceGuardEnabled) { cb.done(out + "BLOCKED: Compliance Guard is OFF."); return; }
+                    if (store.binanceRateLimitLock) { cb.done(out + "BLOCKED: Binance rate-limit lock is active. Reset only after waiting and checking Binance."); return; }
+                    if (store.engine.panic) { cb.done(out + "BLOCKED: Panic state is active."); return; }
+                    if (store.liveTradesToday >= Math.max(1, store.maxLiveTradesPerDay)) { cb.done(out + "BLOCKED: max live trades/day reached."); return; }
+                    if (System.currentTimeMillis() < store.orderCooldownUntilMs) { cb.done(out + "BLOCKED: order cooldown is still active."); return; }
+                    if (!store.portfolioSyncOk || System.currentTimeMillis() - store.lastPortfolioSyncMs > 10 * 60 * 1000L) { cb.done(out + "BLOCKED: sync Binance Spot portfolio within 10 minutes before live/test order."); return; }
+                    long previewAgeMs = System.currentTimeMillis() - store.lastOrderPreviewTime;
+                    if (!store.lastOrderSafetyPass || !safeSymbol.equals(store.lastOrderSymbol) || previewAgeMs > 10 * 60 * 1000L) {
+                        cb.done(out + "BLOCKED: run a fresh Live Dry-Run Preview for this symbol within 10 minutes.");
+                        return;
+                    }
+                    if (!testOnly && !store.liveRealOrderArmed) { cb.done(out + "BLOCKED: real BUY is not armed. Keep Test Order ON or type ARM REAL BUY in app."); return; }
+                } else {
+                    out.append("Exit path: daily entry cap, entry cooldown, and BUY-only checklist gates are not applied to a manually confirmed SELL.\n");
+                }
 
                 String base = baseUrl(store.mode);
                 SymbolRules rules = fetchSymbolRules(base, safeSymbol);
                 out.append(rules.report).append("\n");
                 if (!rules.ok) { cb.done(out + "\nBLOCKED: symbol is not tradable right now."); return; }
+                if ("BUY".equals(safeSide) && (!positive(rules.stepSize) || !positive(rules.tickSize))) {
+                    cb.done(out + "\nBLOCKED: Binance returned incomplete lot or price filters. Do not place an unprotected buy.");
+                    return;
+                }
 
                 double safeAmount = Math.max(0.00000001, amount);
                 if ("BUY".equals(safeSide)) {
-                    if (store.microLiveOrderUsdt > 25.0) {
-                        cb.done(out + "BLOCKED: micro live order amount is above 25 USDT safety cap.");
+                    if (safeAmount > store.manualOrderLimitUsdt) {
+                        cb.done(out + "BLOCKED: requested BUY amount exceeds your manual order limit of " + fmt2(store.manualOrderLimitUsdt) + " USDT.");
                         return;
                     }
                     safeAmount = Math.max(0.01, safeAmount);
@@ -321,7 +337,7 @@ public class BinanceClient {
                 long ts = serverTime(base);
                 String params;
                 if ("BUY".equals(safeSide)) {
-                    params = "symbol=" + enc(safeSymbol) + "&side=BUY&type=MARKET&quoteOrderQty=" + enc(String.format(Locale.US, "%.2f", safeAmount)) + "&newOrderRespType=RESULT&timestamp=" + ts + "&recvWindow=5000";
+                    params = "symbol=" + enc(safeSymbol) + "&side=BUY&type=MARKET&quoteOrderQty=" + enc(String.format(Locale.US, "%.2f", safeAmount)) + "&newOrderRespType=" + (testOnly ? "RESULT" : "FULL") + "&newClientOrderId=" + enc(clientId("nanu-buy", safeSymbol)) + "&timestamp=" + ts + "&recvWindow=5000";
                     out.append("Quote amount: ").append(String.format(Locale.US, "%.2f USDT", safeAmount)).append("\n");
                 } else {
                     params = "symbol=" + enc(safeSymbol) + "&side=SELL&type=MARKET&quantity=" + enc(qtyForOrder(safeAmount)) + "&newOrderRespType=RESULT&timestamp=" + ts + "&recvWindow=5000";
@@ -329,6 +345,11 @@ public class BinanceClient {
                 }
                 String sig = hmac(params, store.apiSecret);
                 String endpoint = base + (testOnly ? "/api/v3/order/test" : "/api/v3/order") + "?" + params + "&signature=" + sig;
+
+                if ("BUY".equals(safeSide) && !testOnly) {
+                    // Persist before the request so an app/network interruption cannot silently permit another BUY.
+                    store.beginProtectionCheck(safeSymbol);
+                }
 
                 HttpURLConnection c = (HttpURLConnection)new URL(endpoint).openConnection();
                 c.setRequestMethod("POST");
@@ -349,11 +370,20 @@ public class BinanceClient {
                         out.append("RESULT: TEST ORDER PASSED\nNo real order was created. Binance accepted the order format/signature/symbol rules.\n");
                         store.engine.addJournal("Binance test order PASS: " + safeSide + " " + safeSymbol);
                     } else {
-                        out.append("RESULT: REAL MARKET ORDER SENT\nReview Binance order history immediately.\n");
-                        store.liveTradesToday++;
-                        store.liveRealOrderArmed = false;
-                        store.engine.addJournal("REAL MICRO ORDER SENT: " + safeSide + " " + safeSymbol);
-                        store.triggerAlert("Nanu Real Micro Order", safeSide + " " + safeSymbol + " submitted. Check Binance order history now.", true, "live");
+                        out.append("RESULT: REAL MARKET ORDER ACCEPTED\n");
+                        if ("BUY".equals(safeSide)) {
+                            store.liveTradesToday++;
+                            store.liveRealOrderArmed = false;
+                            realBuySubmitted = true;
+                            String protection = createOcoProtection(store, base, safeSymbol, rules, new JSONObject(body));
+                            out.append(protection);
+                            store.clearProtectionCheck("Binance OCO creation confirmed");
+                            store.engine.addJournal("REAL PROTECTED BUY: " + safeSymbol);
+                            store.triggerAlert("Nanu Protected Spot Buy", safeSymbol + " filled with Binance OCO exit protection. Verify order history.", true, "live");
+                        } else {
+                            store.engine.addJournal("REAL MANUAL SELL: " + safeSymbol);
+                            store.triggerAlert("Nanu Real Spot Sell", safeSymbol + " sell submitted. Check Binance order history.", true, "live");
+                        }
                     }
                     store.orderCooldownUntilMs = System.currentTimeMillis() + Math.max(10, store.orderCooldownSeconds) * 1000L;
                     store.lastBinanceErrorDoctor = "Last Binance order/test response was OK.";
@@ -373,6 +403,9 @@ public class BinanceClient {
                 store.save();
                 cb.done(out.toString());
             } catch (Exception e) {
+                if (realBuySubmitted) {
+                    store.triggerAlert("Nanu Protection Error", "A real " + "buy" + " was submitted but exit protection needs immediate review: " + e.getMessage(), true, "live");
+                }
                 store.lastLiveOrderReport = "Order exception: " + e.getClass().getSimpleName() + ": " + e.getMessage();
                 store.save();
                 cb.done(out + "\nORDER FAILED: " + e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -532,6 +565,8 @@ public class BinanceClient {
                         rules.minQty = parseDouble(f.optString("minQty", "0"));
                         rules.maxQty = parseDouble(f.optString("maxQty", "NaN"));
                         rules.stepSize = parseDouble(f.optString("stepSize", "0"));
+                    } else if ("PRICE_FILTER".equals(type)) {
+                        rules.tickSize = parseDouble(f.optString("tickSize", "0"));
                     } else if ("MARKET_LOT_SIZE".equals(type)) {
                         rules.marketMinQty = parseDouble(f.optString("minQty", "0"));
                         rules.marketMaxQty = parseDouble(f.optString("maxQty", "NaN"));
@@ -555,6 +590,143 @@ public class BinanceClient {
             rules.report = "Symbol rules failed: " + e.getClass().getSimpleName() + ": " + e.getMessage();
         }
         return rules;
+    }
+
+    /**
+     * Creates Binance-side sell protection after a real Spot buy. If the exchange rejects
+     * the OCO, this method immediately attempts a market sell instead of leaving the fill open.
+     */
+    private static String createOcoProtection(AppStore store, String base, String symbol, SymbolRules rules, JSONObject buy) throws Exception {
+        String status = buy.optString("status", "").toUpperCase(Locale.US);
+        double executedQty = parseDouble(buy.optString("executedQty", "0"));
+        double quoteSpent = parseDouble(buy.optString("cummulativeQuoteQty", "0"));
+        if (!"FILLED".equals(status) || !positive(executedQty) || !positive(quoteSpent)) {
+            String emergency = attemptEmergencySell(store, base, symbol, rules, executedQty);
+            throw new IllegalStateException("Buy status was " + (status.isEmpty() ? "unknown" : status) + "; OCO was not placed. " + emergency);
+        }
+
+        // Reserve a little base asset for a possible Binance commission paid in the base coin.
+        double protectedQty = roundDownToStep(executedQty * 0.998d, rules.stepSize);
+        if (!positive(protectedQty) || protectedQty < rules.minQty || (!Double.isNaN(rules.maxQty) && protectedQty > rules.maxQty)) {
+            String emergency = attemptEmergencySell(store, base, symbol, rules, executedQty);
+            throw new IllegalStateException("Filled quantity cannot satisfy Binance OCO lot rules. " + emergency);
+        }
+
+        double entryPrice = quoteSpent / executedQty;
+        double takeProfit = roundDownToStep(entryPrice * (1d + store.takeProfit / 100d), rules.tickSize);
+        double stopPrice = roundDownToStep(entryPrice * (1d - store.stopLoss / 100d), rules.tickSize);
+        // A sell stop-limit must be below its stop trigger so it can fill in a fast move.
+        double stopLimit = roundDownToStep(stopPrice * 0.998d, rules.tickSize);
+        double current = lastPrice(base, symbol);
+        if (!positive(takeProfit) || !positive(stopPrice) || !positive(stopLimit)
+                || !(takeProfit > current && current > stopPrice && stopPrice > stopLimit)
+                || protectedQty * stopLimit < rules.minNotional) {
+            String emergency = attemptEmergencySell(store, base, symbol, rules, executedQty);
+            throw new IllegalStateException("Calculated OCO protection is not valid at the current Binance price. " + emergency);
+        }
+
+        String params = "symbol=" + enc(symbol)
+                + "&side=SELL"
+                + "&quantity=" + enc(qtyForOrder(protectedQty))
+                + "&aboveType=LIMIT_MAKER"
+                + "&abovePrice=" + enc(qtyForOrder(takeProfit))
+                + "&aboveClientOrderId=" + enc(clientId("nanu-tp", symbol))
+                + "&belowType=STOP_LOSS_LIMIT"
+                + "&belowStopPrice=" + enc(qtyForOrder(stopPrice))
+                + "&belowPrice=" + enc(qtyForOrder(stopLimit))
+                + "&belowTimeInForce=GTC"
+                + "&belowClientOrderId=" + enc(clientId("nanu-sl", symbol))
+                + "&listClientOrderId=" + enc(clientId("nanu-oco", symbol))
+                + "&newOrderRespType=RESULT"
+                + "&timestamp=" + serverTime(base)
+                + "&recvWindow=5000";
+        SignedResponse response = signedPost(base, "/api/v3/orderList/oco", params, store.apiKey, store.apiSecret);
+        if (response.code < 200 || response.code >= 300) {
+            String emergency = attemptEmergencySell(store, base, symbol, rules, executedQty);
+            throw new IOException("Binance rejected OCO protection (HTTP " + response.code + "): " + readableError(response.body) + ". " + emergency);
+        }
+        JSONObject orderList = new JSONObject(response.body);
+        long listId = orderList.optLong("orderListId", 0L);
+        return "PROTECTION: OCO CREATED ON BINANCE\n"
+                + "Entry: " + qtyForOrder(entryPrice) + " USDT\n"
+                + "Protected quantity: " + qtyForOrder(protectedQty) + " " + baseAsset(symbol) + "\n"
+                + "Take profit: " + qtyForOrder(takeProfit) + " USDT\n"
+                + "Stop trigger: " + qtyForOrder(stopPrice) + " USDT\n"
+                + "Stop limit: " + qtyForOrder(stopLimit) + " USDT\n"
+                + "Binance OCO list id: " + listId + "\n"
+                + "Verify both exit orders in Binance Open Orders now.\n";
+    }
+
+    private static String attemptEmergencySell(AppStore store, String base, String symbol, SymbolRules rules, double quantity) {
+        try {
+            double step = positive(rules.marketStepSize) ? rules.marketStepSize : rules.stepSize;
+            double sellQuantity = roundDownToStep(quantity * 0.998d, step);
+            double minQty = positive(rules.marketMinQty) ? rules.marketMinQty : rules.minQty;
+            if (!positive(sellQuantity) || sellQuantity < minQty) return "Emergency sell could not be attempted: sell quantity is below Binance minimum.";
+            String params = "symbol=" + enc(symbol)
+                    + "&side=SELL&type=MARKET"
+                    + "&quantity=" + enc(qtyForOrder(sellQuantity))
+                    + "&newOrderRespType=RESULT"
+                    + "&newClientOrderId=" + enc(clientId("nanu-failsafe", symbol))
+                    + "&timestamp=" + serverTime(base)
+                    + "&recvWindow=5000";
+            SignedResponse response = signedPost(base, "/api/v3/order", params, store.apiKey, store.apiSecret);
+            return response.code >= 200 && response.code < 300
+                    ? "Emergency market sell submitted. Verify Binance order history immediately."
+                    : "CRITICAL: OCO and emergency sell both failed (HTTP " + response.code + "). Inspect Binance immediately.";
+        } catch (Exception e) {
+            return "CRITICAL: OCO and emergency sell both failed (" + e.getClass().getSimpleName() + "). Inspect Binance immediately.";
+        }
+    }
+
+    private static double lastPrice(String base, String symbol) throws Exception {
+        HttpURLConnection c = (HttpURLConnection)new URL(base + "/api/v3/ticker/price?symbol=" + enc(symbol)).openConnection();
+        c.setRequestMethod("GET");
+        c.setConnectTimeout(12000);
+        c.setReadTimeout(12000);
+        int code = c.getResponseCode();
+        String body = read(c);
+        if (code < 200 || code >= 300) throw new BinanceHttpException(code, body);
+        double price = parseDouble(new JSONObject(body).optString("price", "0"));
+        if (!positive(price)) throw new IllegalStateException("Binance returned no current price for " + symbol + ".");
+        return price;
+    }
+
+    private static SignedResponse signedPost(String base, String path, String params, String apiKey, String secret) throws Exception {
+        HttpURLConnection c = (HttpURLConnection)new URL(base + path + "?" + params + "&signature=" + hmac(params, secret)).openConnection();
+        c.setRequestMethod("POST");
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(15000);
+        c.setRequestProperty("X-MBX-APIKEY", apiKey);
+        c.setDoOutput(true);
+        c.setFixedLengthStreamingMode(0);
+        try (OutputStream os = c.getOutputStream()) { os.write(new byte[0]); }
+        return new SignedResponse(c.getResponseCode(), read(c));
+    }
+
+    private static class SignedResponse {
+        final int code;
+        final String body;
+        SignedResponse(int code, String body) { this.code = code; this.body = body == null ? "" : body; }
+    }
+
+    private static String clientId(String prefix, String symbol) {
+        String raw = prefix + "-" + symbol + "-" + Long.toString(System.currentTimeMillis(), 36);
+        return raw.length() <= 36 ? raw : raw.substring(0, 36);
+    }
+
+    public static boolean isTabletPair(String symbol) {
+        if (symbol == null) return false;
+        for (String pair : TABLET_PAIRS) if (pair.equalsIgnoreCase(symbol.trim())) return true;
+        return false;
+    }
+
+    private static String baseAsset(String symbol) {
+        return symbol != null && symbol.endsWith("USDT") ? symbol.substring(0, symbol.length() - 4) : symbol;
+    }
+
+    private static boolean positive(double value) {
+        return !Double.isNaN(value) && !Double.isInfinite(value) && value > 0.0d;
     }
 
     private static double priceForAsset(String asset, Map<String, Double> prices) {
