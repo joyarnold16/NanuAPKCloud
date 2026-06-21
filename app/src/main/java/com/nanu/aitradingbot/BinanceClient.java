@@ -26,6 +26,17 @@ import java.util.concurrent.Executors;
 public class BinanceClient {
     public interface Callback { void done(String result); }
     public interface ScalperCallback { void done(ScalpingStrategy.Signal signal, String report); }
+    public interface AutoCallback { void done(AutoResult result); }
+
+    public static final class AutoResult {
+        public final boolean ok;
+        public final String report;
+
+        AutoResult(boolean ok, String report) {
+            this.ok = ok;
+            this.report = report == null ? "" : report;
+        }
+    }
     private static final ExecutorService exec = Executors.newSingleThreadExecutor();
     private static volatile boolean scalperRequestInFlight = false;
     private static final String[] TABLET_PAIRS = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"};
@@ -66,6 +77,16 @@ public class BinanceClient {
         double marketMaxQty = Double.NaN;
         double marketStepSize = 0.0;
         String report = "Symbol rules not loaded.";
+    }
+
+    private static class OcoProtection {
+        String report;
+        long listId;
+        long takeProfitOrderId;
+        long stopOrderId;
+        double entryQuote;
+        double entryPrice;
+        double protectedQuantity;
     }
 
     public static void testApi(AppStore store, Callback cb) {
@@ -248,6 +269,70 @@ public class BinanceClient {
         });
     }
 
+    /** Reads a named approved pair without changing the user's selected dashboard pair. */
+    public static void scanScalperSymbol(AppStore store, String requestedSymbol, boolean updateDashboard, ScalperCallback cb) {
+        synchronized (BinanceClient.class) {
+            if (scalperRequestInFlight) {
+                if (cb != null) cb.done(null, "A live market scan is already running.");
+                return;
+            }
+            scalperRequestInFlight = true;
+        }
+        exec.execute(() -> {
+            ScalpingStrategy.Signal signal = null;
+            String report;
+            try {
+                String symbol = store.normalizeCoin(requestedSymbol);
+                if (!isTabletPair(symbol)) throw new IllegalArgumentException("Automatic execution supports BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT only.");
+                HttpURLConnection c = (HttpURLConnection)new URL("https://api.binance.com/api/v3/klines?symbol=" + enc(symbol) + "&interval=1m&limit=80").openConnection();
+                c.setRequestMethod("GET");
+                c.setConnectTimeout(12000);
+                c.setReadTimeout(12000);
+                int code = c.getResponseCode();
+                String body = read(c);
+                if (code < 200 || code >= 300) throw new BinanceHttpException(code, body);
+
+                JSONArray rows = new JSONArray(body);
+                List<ScalpingStrategy.Candle> candles = new ArrayList<>();
+                for (int i = 0; i < Math.max(0, rows.length() - 1); i++) {
+                    JSONArray row = rows.optJSONArray(i);
+                    if (row == null || row.length() < 7) continue;
+                    double high = parseDouble(row.optString(2, "NaN"));
+                    double low = parseDouble(row.optString(3, "NaN"));
+                    double close = parseDouble(row.optString(4, "NaN"));
+                    long closeTime = row.optLong(6, 0L);
+                    if (high > 0 && low > 0 && close > 0) candles.add(new ScalpingStrategy.Candle(closeTime, high, low, close));
+                }
+                signal = ScalpingStrategy.evaluate(candles);
+                store.scalperMarketChecks++;
+                if (updateDashboard) {
+                    store.scalperSymbol = symbol;
+                    store.lastScalperCheckMs = System.currentTimeMillis();
+                    store.lastScalperPrice = signal.price;
+                    store.lastScalperSignal = signal.action.name();
+                    store.lastScalperConfidence = signal.confidence;
+                    store.lastScalperReport = signal.report(symbol, store.stopLoss, store.takeProfit);
+                    store.lastScalperError = "";
+                }
+                store.save();
+                report = signal.report(symbol, store.stopLoss, store.takeProfit);
+            } catch (Exception e) {
+                String detail = e instanceof BinanceHttpException
+                        ? "HTTP " + ((BinanceHttpException)e).code + ": " + readableError(((BinanceHttpException)e).body)
+                        : e.getClass().getSimpleName() + ": " + e.getMessage();
+                report = "Live market scan failed for " + requestedSymbol + ": " + detail;
+                if (updateDashboard) {
+                    store.lastScalperError = report;
+                    store.lastScalperReport = report;
+                    store.save();
+                }
+            } finally {
+                synchronized (BinanceClient.class) { scalperRequestInFlight = false; }
+            }
+            if (cb != null) cb.done(signal, report);
+        });
+    }
+
     public static void placeMarketOrder(AppStore store, String symbol, String side, double amount, Callback cb) {
         exec.execute(() -> {
             StringBuilder out = new StringBuilder();
@@ -375,8 +460,8 @@ public class BinanceClient {
                             store.liveTradesToday++;
                             store.liveRealOrderArmed = false;
                             realBuySubmitted = true;
-                            String protection = createOcoProtection(store, base, safeSymbol, rules, new JSONObject(body));
-                            out.append(protection);
+                            OcoProtection protection = createOcoProtection(store, base, safeSymbol, rules, new JSONObject(body));
+                            out.append(protection.report);
                             store.clearProtectionCheck("Binance OCO creation confirmed");
                             store.engine.addJournal("REAL PROTECTED BUY: " + safeSymbol);
                             store.triggerAlert("Nanu Protected Spot Buy", safeSymbol + " filled with Binance OCO exit protection. Verify order history.", true, "live");
@@ -411,6 +496,282 @@ public class BinanceClient {
                 cb.done(out + "\nORDER FAILED: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
         });
+    }
+
+    /** Submits one automatic real BUY only after the automatic engine has passed its session gates. */
+    public static void placeAutomaticMarketBuy(AppStore store, String symbol, ScalpingStrategy.Signal signal, AutoCallback cb) {
+        exec.execute(() -> {
+            String safeSymbol = symbol == null ? "" : symbol.trim().toUpperCase(Locale.US);
+            try {
+                store.ensureDailySafetyWindow();
+                if (!store.autoRunning || store.autoPanic || store.engine.panic) {
+                    cb.done(new AutoResult(false, "Automatic executor is not running."));
+                    return;
+                }
+                if (!isTabletPair(safeSymbol)) {
+                    cb.done(new AutoResult(false, "Automatic execution attempted an unsupported pair."));
+                    return;
+                }
+                String blockers = store.autoStartBlockers();
+                if (!blockers.isEmpty()) {
+                    cb.done(new AutoResult(false, "Automatic entry is blocked:\n" + blockers));
+                    return;
+                }
+                if (store.hasAutoPosition() || store.hasAutoPendingOrder()) {
+                    cb.done(new AutoResult(false, "Automatic entry is blocked until the existing Binance position or pending order is reconciled."));
+                    return;
+                }
+
+                String base = baseUrl(store.mode);
+                SymbolRules rules = fetchSymbolRules(base, safeSymbol);
+                if (!rules.ok || !positive(rules.stepSize) || !positive(rules.tickSize)) {
+                    cb.done(new AutoResult(false, "Automatic entry blocked: " + rules.report));
+                    return;
+                }
+                double amount = Math.max(0.01, store.microLiveOrderUsdt);
+                if (amount < rules.minNotional || (!Double.isNaN(rules.maxNotional) && amount > rules.maxNotional)) {
+                    cb.done(new AutoResult(false, "Automatic entry amount does not satisfy current Binance notional rules."));
+                    return;
+                }
+                if (!Double.isNaN(store.spotFreeUsdt) && store.spotFreeUsdt < amount) {
+                    cb.done(new AutoResult(false, "Automatic entry blocked: insufficient free USDT in the last portfolio sync."));
+                    return;
+                }
+
+                String clientOrderId = clientId("nanu-auto", safeSymbol);
+                store.autoPendingClientOrderId = clientOrderId;
+                store.autoPendingSymbol = safeSymbol;
+                store.autoPendingStartedMs = System.currentTimeMillis();
+                store.autoPendingEntryCounted = false;
+                store.beginProtectionCheck(safeSymbol);
+                store.save();
+
+                String params = "symbol=" + enc(safeSymbol)
+                        + "&side=BUY&type=MARKET"
+                        + "&quoteOrderQty=" + enc(String.format(Locale.US, "%.2f", amount))
+                        + "&newOrderRespType=FULL"
+                        + "&newClientOrderId=" + enc(clientOrderId)
+                        + "&timestamp=" + serverTime(base)
+                        + "&recvWindow=5000";
+                SignedResponse response = signedPost(base, "/api/v3/order", params, store.apiKey, store.apiSecret);
+                store.lastBinanceStatusCode = response.code;
+                if (response.code < 200 || response.code >= 300) {
+                    String message = "Binance rejected automatic " + safeSymbol + " BUY (HTTP " + response.code + "): " + readableError(response.body);
+                    store.lockAfterExchangeDanger(response.code, explainBinanceCode(response.code, response.body));
+                    store.lastLiveOrderReport = message;
+                    store.save();
+                    cb.done(new AutoResult(false, message));
+                    return;
+                }
+
+                OcoProtection protection = createOcoProtection(store, base, safeSymbol, rules, new JSONObject(response.body));
+                recordAutomaticProtection(store, safeSymbol, protection);
+                store.liveTradesToday++;
+                store.autoPendingEntryCounted = true;
+                store.clearAutoPendingOrder();
+                store.clearProtectionCheck("Automatic Binance OCO creation confirmed");
+                store.orderCooldownUntilMs = System.currentTimeMillis() + Math.max(10, store.orderCooldownSeconds) * 1000L;
+                store.lastBinanceErrorDoctor = "Automatic entry and exchange-side OCO protection confirmed.";
+                store.lastLiveOrderReport = "AUTOMATIC LIVE ENTRY\n" + protection.report;
+                store.engine.addJournal("AUTO PROTECTED BUY: " + safeSymbol + " " + String.format(Locale.US, "%.2f", amount) + " USDT.");
+                store.triggerAlert("Nanu Automatic Protected Buy", safeSymbol + " entered automatically at " + signal.confidence + "/100 with Binance OCO target and stop protection.", true, "live");
+                try { syncPortfolioInternal(store, base); } catch (Exception ignored) {}
+                store.save();
+                cb.done(new AutoResult(true, "Automatic protected BUY accepted for " + safeSymbol + ". OCO list " + protection.listId + " is being monitored."));
+            } catch (Exception e) {
+                String message = "Automatic order exception: " + e.getClass().getSimpleName() + ": " + e.getMessage();
+                store.lastLiveOrderReport = message;
+                store.save();
+                cb.done(new AutoResult(false, message + " Check Binance order history and Open Orders."));
+            }
+        });
+    }
+
+    /** Recovers a submitted automatic BUY and reconciles its Binance OCO before any new entry. */
+    public static void reconcileAutomaticState(AppStore store, AutoCallback cb) {
+        exec.execute(() -> {
+            try {
+                if (!"live".equals(store.mode) || store.apiKey.isEmpty() || store.apiSecret.isEmpty()) {
+                    cb.done(new AutoResult(false, "Automatic reconciliation requires LIVE API credentials."));
+                    return;
+                }
+                String base = baseUrl(store.mode);
+                if (store.hasAutoPendingOrder() && !store.hasAutoPosition()) {
+                    recoverAutomaticPendingOrder(store, base);
+                }
+                if (!store.hasAutoPosition()) {
+                    cb.done(new AutoResult(true, "No automatic exchange position is open."));
+                    return;
+                }
+                String symbol = store.autoActiveSymbol;
+                String listParams = "orderListId=" + store.autoOcoOrderListId + "&timestamp=" + serverTime(base) + "&recvWindow=5000";
+                SignedResponse listResponse = signedGet(base, "/api/v3/orderList", listParams, store.apiKey, store.apiSecret);
+                if (listResponse.code < 200 || listResponse.code >= 300) {
+                    cb.done(new AutoResult(false, "Cannot reconcile Binance OCO list (HTTP " + listResponse.code + "): " + readableError(listResponse.body)));
+                    return;
+                }
+                JSONObject orderList = new JSONObject(listResponse.body);
+                String listStatus = orderList.optString("listOrderStatus", "").toUpperCase(Locale.US);
+                if ("EXECUTING".equals(listStatus)) {
+                    cb.done(new AutoResult(true, "Automatic " + symbol + " OCO protection is active on Binance."));
+                    return;
+                }
+                if (!"ALL_DONE".equals(listStatus)) {
+                    cb.done(new AutoResult(false, "Unexpected Binance OCO state " + listStatus + " for " + symbol + "."));
+                    return;
+                }
+
+                long takeProfitId = store.autoTakeProfitOrderId;
+                long stopId = store.autoStopOrderId;
+                JSONArray orders = orderList.optJSONArray("orders");
+                if (orders != null) {
+                    for (int i = 0; i < orders.length(); i++) {
+                        JSONObject item = orders.optJSONObject(i);
+                        if (item == null) continue;
+                        long id = item.optLong("orderId", 0L);
+                        if (takeProfitId == 0L) takeProfitId = id;
+                        else if (stopId == 0L && id != takeProfitId) stopId = id;
+                    }
+                }
+                JSONObject filled = null;
+                if (takeProfitId > 0L) {
+                    JSONObject order = queryOrder(base, symbol, takeProfitId, store);
+                    if ("FILLED".equalsIgnoreCase(order.optString("status"))) filled = order;
+                }
+                if (filled == null && stopId > 0L) {
+                    JSONObject order = queryOrder(base, symbol, stopId, store);
+                    if ("FILLED".equalsIgnoreCase(order.optString("status"))) filled = order;
+                }
+                if (filled == null) {
+                    cb.done(new AutoResult(false, "Binance OCO completed without a confirmed filled child order for " + symbol + "."));
+                    return;
+                }
+                double exitQuote = parseDouble(filled.optString("cummulativeQuoteQty", "0"));
+                double exitQty = parseDouble(filled.optString("executedQty", "0"));
+                if (!positive(exitQuote) || !positive(exitQty)) {
+                    cb.done(new AutoResult(false, "Binance OCO exit has no confirmed executed quantity for " + symbol + "."));
+                    return;
+                }
+                double pnl = exitQuote - store.autoEntryQuoteUsdt;
+                String exitType = "LIMIT_MAKER".equalsIgnoreCase(filled.optString("type")) ? "TAKE PROFIT" : "STOP LOSS";
+                store.autoRealizedPnlUsdt += pnl;
+                store.consecutiveLosses = pnl < 0 ? store.consecutiveLosses + 1 : 0;
+                store.recordBrainObservation(symbol + " " + exitType, pnl, true);
+                store.engine.addJournal("AUTO " + exitType + ": " + symbol + " " + String.format(Locale.US, "%+.2f", pnl) + " USDT.");
+                if (store.hasPendingProtectionCheck() && symbol.equals(store.pendingProtectionSymbol)) store.clearProtectionCheck("Automatic OCO exit reconciled");
+                store.clearAutoPosition("Binance " + exitType + " confirmed");
+                try { syncPortfolioInternal(store, base); } catch (Exception ignored) {}
+                store.triggerAlert("Nanu Automatic " + exitType, symbol + " closed through Binance OCO. Estimated realized P&L " + String.format(Locale.US, "%+.2f", pnl) + " USDT.", true, "live");
+                cb.done(new AutoResult(true, "Automatic " + symbol + " " + exitType + " confirmed. Estimated P&L " + String.format(Locale.US, "%+.2f", pnl) + " USDT."));
+            } catch (Exception e) {
+                cb.done(new AutoResult(false, "Automatic reconciliation exception: " + e.getClass().getSimpleName() + ": " + e.getMessage()));
+            }
+        });
+    }
+
+    public static void emergencyCloseAutomaticPosition(AppStore store, AutoCallback cb) {
+        exec.execute(() -> {
+            try {
+                if (!store.hasAutoPosition()) {
+                    cb.done(new AutoResult(false, "No tracked automatic position is open."));
+                    return;
+                }
+                String base = baseUrl(store.mode);
+                String symbol = store.autoActiveSymbol;
+                String cancelParams = "symbol=" + enc(symbol) + "&timestamp=" + serverTime(base) + "&recvWindow=5000";
+                SignedResponse cancel = signedDelete(base, "/api/v3/openOrders", cancelParams, store.apiKey, store.apiSecret);
+                if (cancel.code < 200 || cancel.code >= 300) {
+                    cb.done(new AutoResult(false, "Could not cancel Binance protective orders (HTTP " + cancel.code + "): " + readableError(cancel.body)));
+                    return;
+                }
+                SymbolRules rules = fetchSymbolRules(base, symbol);
+                String sell = attemptEmergencySell(store, base, symbol, rules, store.autoProtectedQuantity);
+                if (!sell.startsWith("Emergency market sell submitted")) {
+                    cb.done(new AutoResult(false, sell));
+                    return;
+                }
+                store.clearAutoPosition("Emergency market sell submitted");
+                if (store.hasPendingProtectionCheck() && symbol.equals(store.pendingProtectionSymbol)) store.clearProtectionCheck("Emergency market sell submitted");
+                cb.done(new AutoResult(true, sell));
+            } catch (Exception e) {
+                cb.done(new AutoResult(false, "Emergency close exception: " + e.getClass().getSimpleName() + ": " + e.getMessage()));
+            }
+        });
+    }
+
+    public static void verifyTrustedIp(AppStore store, AutoCallback cb) {
+        exec.execute(() -> {
+            try {
+                String expected = store.autoTrustedStaticIp == null ? "" : store.autoTrustedStaticIp.trim();
+                String current = publicIpSafe();
+                if (!current.isEmpty()) {
+                    store.lastPublicIp = current;
+                    store.save();
+                }
+                if (!AutoTradingPolicy.isStaticIp(expected)) {
+                    cb.done(new AutoResult(false, "Expected static public IP is not configured."));
+                } else if (current.isEmpty()) {
+                    cb.done(new AutoResult(false, "Could not determine this tablet's public IP."));
+                } else if (!expected.equalsIgnoreCase(current)) {
+                    cb.done(new AutoResult(false, "Static-IP mismatch. Expected " + expected + " but this tablet is using " + current + ". Binance trusted IP must match before automatic execution."));
+                } else {
+                    cb.done(new AutoResult(true, "Static IP verified: " + current));
+                }
+            } catch (Exception e) {
+                cb.done(new AutoResult(false, "Static-IP check failed: " + e.getMessage()));
+            }
+        });
+    }
+
+    private static void recordAutomaticProtection(AppStore store, String symbol, OcoProtection protection) {
+        if (protection == null || protection.listId <= 0L) {
+            throw new IllegalStateException("Binance did not return a usable OCO order list id.");
+        }
+        store.autoActiveSymbol = symbol;
+        store.autoOcoOrderListId = protection.listId;
+        store.autoTakeProfitOrderId = protection.takeProfitOrderId;
+        store.autoStopOrderId = protection.stopOrderId;
+        store.autoEntryQuoteUsdt = protection.entryQuote;
+        store.autoEntryPrice = protection.entryPrice;
+        store.autoProtectedQuantity = protection.protectedQuantity;
+        store.autoPositionOpenedMs = System.currentTimeMillis();
+    }
+
+    private static void recoverAutomaticPendingOrder(AppStore store, String base) throws Exception {
+        String symbol = store.autoPendingSymbol;
+        String params = "symbol=" + enc(symbol)
+                + "&origClientOrderId=" + enc(store.autoPendingClientOrderId)
+                + "&timestamp=" + serverTime(base)
+                + "&recvWindow=5000";
+        SignedResponse response = signedGet(base, "/api/v3/order", params, store.apiKey, store.apiSecret);
+        if (response.code < 200 || response.code >= 300) {
+            throw new IOException("Pending automatic order lookup failed (HTTP " + response.code + "): " + readableError(response.body));
+        }
+        JSONObject buy = new JSONObject(response.body);
+        if (!"FILLED".equalsIgnoreCase(buy.optString("status"))) {
+            throw new IllegalStateException("Pending automatic order status is " + buy.optString("status", "unknown") + ".");
+        }
+        SymbolRules rules = fetchSymbolRules(base, symbol);
+        if (!rules.ok) throw new IllegalStateException("Cannot load active Binance rules for pending " + symbol + " order.");
+        OcoProtection protection = createOcoProtection(store, base, symbol, rules, buy);
+        recordAutomaticProtection(store, symbol, protection);
+        if (!store.autoPendingEntryCounted) store.liveTradesToday++;
+        store.clearAutoPendingOrder();
+        if (store.hasPendingProtectionCheck() && symbol.equals(store.pendingProtectionSymbol)) {
+            store.clearProtectionCheck("Recovered automatic order and created Binance OCO");
+        }
+        store.lastLiveOrderReport = "RECOVERED AUTOMATIC ORDER\n" + protection.report;
+        store.engine.addJournal("Recovered automatic protected BUY: " + symbol + ".");
+        store.save();
+    }
+
+    private static JSONObject queryOrder(String base, String symbol, long orderId, AppStore store) throws Exception {
+        String params = "symbol=" + enc(symbol) + "&orderId=" + orderId + "&timestamp=" + serverTime(base) + "&recvWindow=5000";
+        SignedResponse response = signedGet(base, "/api/v3/order", params, store.apiKey, store.apiSecret);
+        if (response.code < 200 || response.code >= 300) {
+            throw new IOException("Binance order lookup failed (HTTP " + response.code + "): " + readableError(response.body));
+        }
+        return new JSONObject(response.body);
     }
 
     public static void getPublicIp(AppStore store, Callback cb) {
@@ -596,7 +957,7 @@ public class BinanceClient {
      * Creates Binance-side sell protection after a real Spot buy. If the exchange rejects
      * the OCO, this method immediately attempts a market sell instead of leaving the fill open.
      */
-    private static String createOcoProtection(AppStore store, String base, String symbol, SymbolRules rules, JSONObject buy) throws Exception {
+    private static OcoProtection createOcoProtection(AppStore store, String base, String symbol, SymbolRules rules, JSONObject buy) throws Exception {
         String status = buy.optString("status", "").toUpperCase(Locale.US);
         double executedQty = parseDouble(buy.optString("executedQty", "0"));
         double quoteSpent = parseDouble(buy.optString("cummulativeQuoteQty", "0"));
@@ -646,15 +1007,30 @@ public class BinanceClient {
             throw new IOException("Binance rejected OCO protection (HTTP " + response.code + "): " + readableError(response.body) + ". " + emergency);
         }
         JSONObject orderList = new JSONObject(response.body);
-        long listId = orderList.optLong("orderListId", 0L);
-        return "PROTECTION: OCO CREATED ON BINANCE\n"
+        OcoProtection protection = new OcoProtection();
+        protection.listId = orderList.optLong("orderListId", 0L);
+        protection.entryQuote = quoteSpent;
+        protection.entryPrice = entryPrice;
+        protection.protectedQuantity = protectedQty;
+        JSONArray reports = orderList.optJSONArray("orderReports");
+        if (reports != null) {
+            for (int i = 0; i < reports.length(); i++) {
+                JSONObject order = reports.optJSONObject(i);
+                if (order == null) continue;
+                String type = order.optString("type", "");
+                if ("LIMIT_MAKER".equals(type)) protection.takeProfitOrderId = order.optLong("orderId", 0L);
+                if ("STOP_LOSS_LIMIT".equals(type)) protection.stopOrderId = order.optLong("orderId", 0L);
+            }
+        }
+        protection.report = "PROTECTION: OCO CREATED ON BINANCE\n"
                 + "Entry: " + qtyForOrder(entryPrice) + " USDT\n"
                 + "Protected quantity: " + qtyForOrder(protectedQty) + " " + baseAsset(symbol) + "\n"
                 + "Take profit: " + qtyForOrder(takeProfit) + " USDT\n"
                 + "Stop trigger: " + qtyForOrder(stopPrice) + " USDT\n"
                 + "Stop limit: " + qtyForOrder(stopLimit) + " USDT\n"
-                + "Binance OCO list id: " + listId + "\n"
+                + "Binance OCO list id: " + protection.listId + "\n"
                 + "Verify both exit orders in Binance Open Orders now.\n";
+        return protection;
     }
 
     private static String attemptEmergencySell(AppStore store, String base, String symbol, SymbolRules rules, double quantity) {
@@ -695,6 +1071,27 @@ public class BinanceClient {
     private static SignedResponse signedPost(String base, String path, String params, String apiKey, String secret) throws Exception {
         HttpURLConnection c = (HttpURLConnection)new URL(base + path + "?" + params + "&signature=" + hmac(params, secret)).openConnection();
         c.setRequestMethod("POST");
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(15000);
+        c.setRequestProperty("X-MBX-APIKEY", apiKey);
+        c.setDoOutput(true);
+        c.setFixedLengthStreamingMode(0);
+        try (OutputStream os = c.getOutputStream()) { os.write(new byte[0]); }
+        return new SignedResponse(c.getResponseCode(), read(c));
+    }
+
+    private static SignedResponse signedGet(String base, String path, String params, String apiKey, String secret) throws Exception {
+        HttpURLConnection c = (HttpURLConnection)new URL(base + path + "?" + params + "&signature=" + hmac(params, secret)).openConnection();
+        c.setRequestMethod("GET");
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(15000);
+        c.setRequestProperty("X-MBX-APIKEY", apiKey);
+        return new SignedResponse(c.getResponseCode(), read(c));
+    }
+
+    private static SignedResponse signedDelete(String base, String path, String params, String apiKey, String secret) throws Exception {
+        HttpURLConnection c = (HttpURLConnection)new URL(base + path + "?" + params + "&signature=" + hmac(params, secret)).openConnection();
+        c.setRequestMethod("DELETE");
         c.setConnectTimeout(15000);
         c.setReadTimeout(15000);
         c.setRequestProperty("X-MBX-APIKEY", apiKey);

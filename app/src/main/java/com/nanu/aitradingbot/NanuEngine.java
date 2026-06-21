@@ -38,6 +38,7 @@ public class NanuEngine {
     public final List<Trade> trades = new CopyOnWriteArrayList<>();
     public final List<String> journal = new CopyOnWriteArrayList<>();
     public final List<String> brain = new CopyOnWriteArrayList<>();
+    public final AutoExecutionEngine autoExecution;
 
     private long lastScalperDispatchMs = 0L;
     private String lastHandledAction = "";
@@ -46,6 +47,7 @@ public class NanuEngine {
 
     public NanuEngine(AppStore store) {
         this.store = store;
+        this.autoExecution = new AutoExecutionEngine(store, this);
         buildMood();
         buildBrain();
         addJournal("Nanu v6.2 ready. Live candle scanner is OFF until Start is pressed.");
@@ -55,12 +57,13 @@ public class NanuEngine {
         panic = false;
         running = true;
         store.resetGuardSession();
-        addJournal("Scalper started in " + store.mode.toUpperCase(Locale.US) + " mode. Real automatic orders remain disabled.");
+        addJournal("Scalper started in " + store.mode.toUpperCase(Locale.US) + " mode. Automatic live orders require the separate armed automatic session.");
         tick(true);
     }
 
     public void stop() {
         running = false;
+        autoExecution.stop("Automatic executor stopped by operator.");
         addJournal("Scalper stopped. No new scans or paper entries will be created.");
         store.resetOrderSafetyState("Stop button");
         buildMood();
@@ -70,6 +73,7 @@ public class NanuEngine {
     public void panicClose() {
         running = false;
         panic = true;
+        autoExecution.panic("Panic stop active. Existing Binance OCO protection remains in place.");
         trades.clear();
         openPnl = 0;
         addJournal("PANIC: scanner stopped and paper positions cleared. Check Binance manually; this cannot cancel exchange orders.");
@@ -103,6 +107,15 @@ public class NanuEngine {
         if (!running || panic) {
             buildMood();
             buildBrain();
+            return;
+        }
+
+        if ("live".equals(store.mode) && store.autoRunning) {
+            autoExecution.tick(force);
+            refreshMetrics();
+            buildMood();
+            buildBrain();
+            checkGuards();
             return;
         }
 
@@ -205,15 +218,16 @@ public class NanuEngine {
 
     private void checkGuards() {
         if (!running || panic) return;
+        double guardedPnl = store.autoRunning ? store.autoRealizedPnlUsdt : todayPnl;
         double guardBase = "live".equals(store.mode) && !Double.isNaN(store.liveEquityBaselineUsdt)
                 ? store.liveEquityBaselineUsdt : 1000.0;
         double maxLossUsdt = Math.max(0.0, guardBase * Math.max(0.0, store.dailyLossLimit) / 100.0);
-        if (maxLossUsdt > 0 && todayPnl <= -maxLossUsdt) {
-            store.autoStopForGuard("Daily loss limit reached", String.format(Locale.US, "Daily loss limit reached: %+.2f USDT (%.2f%% limit). Scanner stopped; inspect Binance before any new order.", todayPnl, store.dailyLossLimit));
+        if (maxLossUsdt > 0 && guardedPnl <= -maxLossUsdt) {
+            store.autoStopForGuard("Daily loss limit reached", String.format(Locale.US, "Daily loss limit reached: %+.2f USDT (%.2f%% limit). Scanner stopped; inspect Binance before any new order.", guardedPnl, store.dailyLossLimit));
             return;
         }
-        if (store.profitGuardEnabled && todayPnl >= store.profitTargetUsdt) {
-            store.autoStopForGuard("Profit target reached", String.format(Locale.US, "Profit target reached: %+.2f USDT. Scanner stopped safely.", todayPnl));
+        if (store.profitGuardEnabled && guardedPnl >= store.profitTargetUsdt) {
+            store.autoStopForGuard("Profit target reached", String.format(Locale.US, "Profit target reached: %+.2f USDT. Scanner stopped safely.", guardedPnl));
         }
     }
 
@@ -241,10 +255,10 @@ public class NanuEngine {
         brain.add("Live-data scanner: " + (store.scalperEnabled ? "ON" : "OFF") + " • " + store.scalperSymbol + " • 1m closed candles • every " + Math.max(30, store.scalperScanSeconds) + "s.");
         brain.add("Latest signal: " + store.lastScalperSignal + " • confidence " + store.lastScalperConfidence + "/100 • checked " + store.scalperAgeLabel() + ".");
         brain.add("Strategy: EMA 9/21 trend filter plus RSI 14 momentum band. It is deterministic, not predictive machine learning.");
-        brain.add("Execution: " + ("paper".equals(store.mode) && store.scalperPaperAutoTrade ? "automatic PAPER positions only" : "signals only; no automatic Binance orders") + ".");
+        brain.add("Execution: " + (store.autoRunning ? "automatic protected Binance Spot execution" : ("paper".equals(store.mode) && store.scalperPaperAutoTrade ? "automatic PAPER positions only" : "signals only")) + ".");
         brain.add("Risk: per-paper-trade " + String.format(Locale.US, "%.2f", store.scalperTradeAmountUsdt) + " USDT • stop reference " + String.format(Locale.US, "%.2f", store.stopLoss) + "% • target reference " + String.format(Locale.US, "%.2f", store.takeProfit) + "%.");
         if ("live".equals(store.mode)) brain.add("Live equity: " + (store.portfolioSyncOk ? store.portfolioEquityLabel() : "not synced; do not place a real order"));
-        brain.add("Real automatic trading is disabled. Manual real micro orders remain protected by Test Order, API Doctor, and typed confirmation.");
+        brain.add("Automatic LIVE execution requires a foreground service, fresh API and Telegram Doctors, static-IP verification, a one-time arm, and Binance OCO protection.");
         if (store.lastScalperError != null && !store.lastScalperError.isEmpty()) brain.add(store.lastScalperError);
     }
 

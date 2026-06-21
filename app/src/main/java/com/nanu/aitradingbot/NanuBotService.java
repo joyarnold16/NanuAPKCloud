@@ -21,11 +21,12 @@ public class NanuBotService extends Service {
     @Override public IBinder onBind(Intent intent) { return null; }
     private void createChannel() { if (Build.VERSION.SDK_INT >= 26) { NotificationChannel ch = new NotificationChannel("nanu", "Nanu Bot", NotificationManager.IMPORTANCE_LOW); ch.setDescription("Nanu AI Trading Bot engine"); ch.setLightColor(Color.CYAN); ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(ch); } }
     private Notification notification() {
+        AppStore store = AppStore.get(this);
         Intent i = new Intent(this, MainActivity.class);
         PendingIntent pi = PendingIntent.getActivity(this, 0, i, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, "nanu") : new Notification.Builder(this);
         return b.setContentTitle("Nanu AI Trading Bot")
-                .setContentText("Engine running. Profit Guard and alerts are armed when enabled.")
+                .setContentText(store.autoRunning ? "Automatic Spot executor running with Binance OCO protection." : "Market scanner running. No automatic live entries are armed.")
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .setContentIntent(pi)
                 .build();

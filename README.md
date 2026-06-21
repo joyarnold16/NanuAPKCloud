@@ -1,4 +1,4 @@
-# Nanu AI Trading Bot v6.4 Tablet Edition
+# Nanu AI Trading Bot v6.5 Automatic Spot Edition
 
 Nanu is an Android Binance Spot assistant designed to run directly on a private tablet. It does not require a VPS, executor URL, or executor control token.
 
@@ -11,9 +11,9 @@ No strategy can guarantee profit, avoid every loss, or make real-money trading r
 - Direct Spot equity and balance sync from the Binance account endpoint
 - Four approved pairs only: `BTCUSDT`, `ETHUSDT`, `BNBUSDT`, and `SOLUSDT`
 - Closed one-minute candle scanner using EMA 9/21, RSI 14, volatility, and volume checks
-- Automatic paper positions only; it does not place unattended real orders
-- Configurable manual BUY amount and a separate local manual order limit
-- Maximum four real BUY entries per day, with a cooldown and one-time real-order arm
+- Controlled automatic Spot execution after explicit LIVE preflight, one-time arm, foreground start, and Binance OCO protection
+- Configurable automatic/manual BUY amount, local order limit, confidence threshold, and static public-IP verification
+- Maximum four real BUY entries per day, one protected automatic exchange position, cooldown, and one-time automatic LIVE arm
 - Binance Test Order mode for validating an order request without creating a fill
 - After a confirmed real BUY fill, requests a Binance OCO sell list with a take-profit and stop-loss exit
 - If the OCO request fails, attempts an emergency market sell and reports the result prominently
@@ -21,10 +21,11 @@ No strategy can guarantee profit, avoid every loss, or make real-money trading r
 
 ## Real-money boundaries
 
-1. The scanner may trade only the internal paper wallet automatically.
-2. A real BUY needs LIVE mode, a successful API Doctor, fresh balance sync, the safety checklist, a dry-run, a typed arm phrase, and a typed confirmation.
-3. A manually confirmed SELL is treated as an exit path and is not blocked by the daily BUY cap or entry cooldown.
-4. Always verify a real BUY, the OCO list, and any emergency sell in Binance order history and Open Orders.
+1. Automatic LIVE starts only after LIVE mode, API Doctor, Telegram Doctor, fresh balance sync, static-IP match, withdrawal-OFF confirmation, Profit Guard, Panic test, a Binance Test Order, and a typed one-time arm.
+2. After `Start Automatic LIVE`, the foreground service scans the four approved pairs, chooses the highest qualifying signal, and submits a single protected entry without asking again per order.
+3. A filled automatic BUY is persisted before submission, receives Binance OCO target/stop protection, and is reconciled before any later entry. Uncertain exchange state halts the bot for manual review.
+4. Panic Stop prevents new entries while retaining exchange OCO protection. Emergency Close first cancels known protective orders and then requests a market sell.
+5. Always verify a real BUY, the OCO list, and any emergency sell in Binance order history and Open Orders.
 
 ## Binance API key setup
 
@@ -42,9 +43,9 @@ The app cannot prove the API-key withdrawal permission from the account response
 
 GitHub workflow: `Build Nanu AI Trading Bot Professional APK`
 
-Release tag: `nanu-ai-trading-bot-v6-4-tablet-edition`
+Release tag: `nanu-ai-trading-bot-v6-5-auto-spot`
 
-APK: `nanu-ai-trading-bot-v6-4-tablet-edition.apk`
+APK: `nanu-ai-trading-bot-v6-5-auto-spot.apk`
 
 Required GitHub Actions signing secrets:
 

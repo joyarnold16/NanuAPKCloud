@@ -44,7 +44,7 @@ public final class ScalpingStrategy {
 
         public String report(String symbol, double stopLossPct, double takeProfitPct) {
             return String.format(Locale.US,
-                    "Live Spot Signal\n\nPair: %s\nAction: %s\nPrice: %.8f\nEMA 9 / EMA 21: %.8f / %.8f\nRSI 14: %.1f\nConfidence: %d/100\n\nReason: %s\n\nPaper automation may act on this signal. Real Binance orders are never sent automatically. A manual order still requires the separate safety and confirmation flow.\n\nConfigured reference levels for a BUY: stop %.2f%%, target %.2f%%. These are strategy references, not exchange-protected orders.",
+                    "Live Spot Signal\n\nPair: %s\nAction: %s\nPrice: %.8f\nEMA 9 / EMA 21: %.8f / %.8f\nRSI 14: %.1f\nConfidence: %d/100\n\nReason: %s\n\nPaper automation may act on this signal. Automatic LIVE execution acts only when its separate static-IP, API Doctor, Telegram Doctor, arm, and foreground-service gates are active.\n\nConfigured reference levels for a BUY: stop %.2f%%, target %.2f%%. A real automatic fill requests Binance OCO exit protection.",
                     symbol, action, price, fastEma, slowEma, rsi, confidence, reason, stopLossPct, takeProfitPct);
         }
     }

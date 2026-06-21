@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - .github/workflows/build-apk.yml
 
 permissions:
   contents: write
@@ -20,8 +18,8 @@ jobs:
       NANU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.NANU_RELEASE_KEYSTORE_PASSWORD }}
       NANU_RELEASE_KEY_ALIAS: ${{ secrets.NANU_RELEASE_KEY_ALIAS }}
       NANU_RELEASE_KEY_PASSWORD: ${{ secrets.NANU_RELEASE_KEY_PASSWORD }}
-      RELEASE_TAG: nanu-ai-trading-bot-v6-4-tablet-edition
-      APK_NAME: nanu-ai-trading-bot-v6-4-tablet-edition.apk
+      RELEASE_TAG: nanu-ai-trading-bot-v6-5-auto-spot
+      APK_NAME: nanu-ai-trading-bot-v6-5-auto-spot.apk
 
     steps:
       - name: Checkout source
@@ -73,18 +71,16 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
           cat > release-notes.md <<'NOTES'
-          Nanu AI Trading Bot v6.4 Tablet Edition
+          Nanu AI Trading Bot v6.5 Automatic Spot Edition
 
-          - No VPS, HTTPS executor URL, or executor control token required
-          - Direct encrypted on-device Binance Spot API credentials
-          - Four approved pairs: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT
-          - Custom manual order amount and manual order limit; maximum four real BUY entries per day
-          - Closed-candle EMA 9/21, RSI, volatility, volume filters, and bounded paper-learning memory
-          - Automatic paper positions only; real Spot orders remain typed and manually confirmed
-          - A real filled BUY requests a Binance OCO target/stop exit. On an OCO failure, the app attempts an emergency market sell and reports the outcome.
-          - App-wide PIN lock, direct Spot portfolio sync, readable dialogs, and tablet rotation support
+          - Direct encrypted on-device Binance Spot API credentials and foreground-service execution
+          - Four approved pairs: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT; one protected open position and four entries per local day
+          - Automatic closed-candle scan chooses the highest qualified EMA/RSI setup above the configured confidence threshold
+          - Static public-IP match, API Doctor, Telegram Doctor, portfolio sync, withdrawal-OFF confirmation, Profit Guard, Panic test, Binance Test Order, and one-time Automatic LIVE arm are required before start
+          - A filled automatic BUY persists a recovery record, requests Binance OCO target/stop protection, reconciles OCO exits, and halts for manual review on uncertain exchange state
+          - Start Scanner, Start Automatic LIVE, Stop, Panic Stop, automatic preflight, emergency-close control, PIN lock, Telegram alerts, and direct Spot portfolio sync
 
-          No trading app can guarantee profit, prevent every loss, or replace checking Binance order history. Start with Binance Test Order mode and a small amount.
+          No trading app can guarantee profit, prevent every loss, or replace checking Binance order history. Keep withdrawals disabled, begin with Binance Test Order mode, then use the smallest valid amount and verify the first Binance OCO exit orders.
           NOTES
           ls -lh "$APK_NAME"
 
@@ -96,7 +92,7 @@ jobs:
             gh release upload "$RELEASE_TAG" "$APK_NAME" --clobber
           else
             gh release create "$RELEASE_TAG" "$APK_NAME" \
-              --title "Nanu AI Trading Bot v6.4 Tablet Edition" \
+              --title "Nanu AI Trading Bot v6.5 Automatic Spot Edition" \
               --notes-file release-notes.md \
               --latest
           fi

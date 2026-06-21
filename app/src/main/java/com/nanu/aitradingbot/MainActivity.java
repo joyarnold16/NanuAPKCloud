@@ -260,6 +260,7 @@ public class MainActivity extends Activity {
         addMetric(metrics2, "MODE", store.mode.toUpperCase(Locale.US), store.liveUnlocked ? "live gate unlocked" : "live gate locked", store.liveUnlocked ? GREEN : AMBER);
         addMetric(metrics2, "OCO", "ON BUY", "target + stop exit", CYAN);
         root.addView(metrics2); addGap(12);
+        buildAutoExecutionCard();
         buildV60LiveScalpingCard();
         buildScalperCard();
         buildSignalCards(false);
@@ -282,6 +283,77 @@ public class MainActivity extends Activity {
         root.addView(box); addGap(12);
     }
 
+    void buildAutoExecutionCard() {
+        LinearLayout box = cardBox();
+        LinearLayout head = row(); head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(section("AUTOMATIC SPOT BOT"), new LinearLayout.LayoutParams(0, -2, 1));
+        String state = store.autoRunning ? "RUNNING" : (store.autoPanic ? "PANIC STOP" : "STOPPED");
+        head.addView(tv(state, 12, store.autoRunning ? GREEN : (store.autoPanic ? RED : AMBER), true));
+        box.addView(head); addGap(box, 8);
+        box.addView(tv("Scans BTC, ETH, BNB and SOL every " + store.scalperScanSeconds + " seconds. It chooses only the strongest qualified closed-candle setup and holds one Binance OCO-protected position at a time.", 12, MUTED, false));
+        box.addView(tv("Auto amount " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT  |  Min confidence " + store.autoMinConfidence + "/100  |  Entries today " + store.liveTradesToday + " / " + store.maxLiveTradesPerDay, 12, WHITE, true));
+        box.addView(tv(store.autoStatus, 11, store.autoRunning ? CYAN : AMBER, false));
+        if (store.hasAutoPosition()) {
+            box.addView(tv("OPEN: " + store.autoActiveSymbol + " | Binance OCO " + store.autoOcoOrderListId + " | protected quantity " + String.format(Locale.US, "%.8f", store.autoProtectedQuantity), 11, GREEN, true));
+        }
+        if (store.hasAutoPendingOrder()) {
+            box.addView(tv("REVIEW REQUIRED: pending automatic " + store.autoPendingSymbol + " order " + store.autoPendingClientOrderId, 11, RED, true));
+        }
+        addGap(box, 10);
+        LinearLayout r1 = row();
+        r1.addView(actionButton("Start Scanner", GREEN, v -> startBot()), new LinearLayout.LayoutParams(0, dp(52), 1));
+        LinearLayout.LayoutParams r1lp = new LinearLayout.LayoutParams(0, dp(52), 1); r1lp.leftMargin = dp(10);
+        r1.addView(actionButton("Stop Bot", AMBER, v -> stopBot()), r1lp);
+        box.addView(r1); addGap(box, 8);
+        LinearLayout r2 = row();
+        r2.addView(actionButton("Start Automatic LIVE", store.autoRunning ? GREEN : RED, v -> startAutomaticLive()), new LinearLayout.LayoutParams(0, dp(52), 1));
+        LinearLayout.LayoutParams r2lp = new LinearLayout.LayoutParams(0, dp(52), 1); r2lp.leftMargin = dp(10);
+        r2.addView(actionButton("Panic Stop", RED, v -> panic()), r2lp);
+        box.addView(r2); addGap(box, 8);
+        LinearLayout r3 = row();
+        r3.addView(actionButton("Automation Preflight", CYAN, v -> runAutomaticPreflight()), new LinearLayout.LayoutParams(0, dp(52), 1));
+        LinearLayout.LayoutParams r3lp = new LinearLayout.LayoutParams(0, dp(52), 1); r3lp.leftMargin = dp(10);
+        r3.addView(actionButton("Emergency Close", RED, v -> confirmAutomaticEmergencyClose()), r3lp);
+        box.addView(r3);
+        root.addView(box); addGap(12);
+    }
+
+    void runAutomaticPreflight() {
+        String blockers = store.autoStartBlockers();
+        BinanceClient.verifyTrustedIp(store, result -> runOnUiThread(() -> {
+            String report = "Automatic Spot Preflight\n\n" + result.report + "\n\n";
+            report += blockers.isEmpty() ? "All local gates are ready. The one-time Start Automatic LIVE confirmation is still required." : "Complete these local gates:\n" + blockers;
+            alert("Automatic Spot Preflight", report);
+            render(false);
+        }));
+    }
+
+    void startAutomaticLive() {
+        if (store.autoRunning) { toast("Automatic Spot bot is already running"); return; }
+        String blockers = store.autoStartBlockers();
+        if (!blockers.isEmpty()) { alert("Automatic LIVE Blocked", blockers); return; }
+        input("Start Automatic LIVE Spot Bot", "Type START AUTO BOT", "", false, value -> {
+            if (!"START AUTO BOT".equals(value.trim())) { toast("Automatic start cancelled"); return; }
+            store.engine.autoExecution.start(result -> runOnUiThread(() -> {
+                if (store.autoRunning) startForegroundBotService();
+                alert("Automatic Spot Bot", result);
+                render(true);
+            }));
+        });
+    }
+
+    void confirmAutomaticEmergencyClose() {
+        if (!store.hasAutoPosition()) { toast("No tracked automatic position is open"); return; }
+        input("Emergency Close Automatic Position", "Type EMERGENCY CLOSE", "", false, value -> {
+            if (!"EMERGENCY CLOSE".equals(value.trim())) { toast("Emergency close cancelled"); return; }
+            store.engine.autoExecution.emergencyClose(result -> runOnUiThread(() -> {
+                alert("Automatic Emergency Close", result);
+                stopService(new Intent(this, NanuBotService.class));
+                render(true);
+            }));
+        });
+    }
+
     void buildScalperCard() {
         LinearLayout box = cardBox();
         LinearLayout head = row(); head.setGravity(Gravity.CENTER_VERTICAL);
@@ -291,7 +363,7 @@ public class MainActivity extends Activity {
         box.addView(head); addGap(box, 8);
         box.addView(tv(store.scalperSymbol + " • 1m closed candles • EMA 9/21 + RSI 14 • checked " + store.scalperAgeLabel(), 12, MUTED, false));
         box.addView(tv("Price " + moneyOrDash(store.lastScalperPrice) + " • confidence " + store.lastScalperConfidence + "/100 • market checks " + store.scalperMarketChecks, 13, signalColor, true));
-        box.addView(tv("The scanner studies closed candles. It can automatically paper-trade only; real Spot BUY remains a typed confirmation and receives Binance OCO exit protection after a fill.", 12, AMBER, false));
+        box.addView(tv("The scanner studies closed candles. In Automatic LIVE it selects the strongest qualified pair; every real fill must create Binance OCO exit protection before another entry is allowed.", 12, AMBER, false));
         if (store.lastScalperError != null && !store.lastScalperError.isEmpty()) box.addView(tv(store.lastScalperError, 11, RED, false));
         addGap(box, 8);
         LinearLayout controls = row();
@@ -342,7 +414,7 @@ public class MainActivity extends Activity {
     void buildScanner() {
         LinearLayout box = cardBox();
         box.addView(screenTitle("SCANNER"));
-        box.addView(tv("The tablet scanner reads live closed Binance candles for the four approved USDT Spot pairs. It does not predict profit or place unattended real orders.", 13, MUTED, false));
+        box.addView(tv("The tablet scanner reads live closed Binance candles for the four approved USDT Spot pairs. It does not predict profit; automatic orders require the separate Automatic LIVE safety gates.", 13, MUTED, false));
         addGap(box, 12);
         String[] pairs = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"};
         for (String coin : pairs) {
@@ -409,7 +481,7 @@ public class MainActivity extends Activity {
         box.addView(tv("Use this only after checking Binance API Management and confirming Enable Withdrawals is OFF for this API key.", 11, AMBER, false));
         addGap(box, 8);
         box.addView(actionButton("Unlock LIVE Control Gate", RED, v -> unlockLive()), new LinearLayout.LayoutParams(-1, dp(54)));
-        box.addView(tv("This tablet can scan and paper-trade automatically. A real Spot BUY is manual and is protected by Binance OCO after a confirmed fill.", 12, AMBER, false));
+        box.addView(tv("The tablet can run automatic Spot execution only after every live gate, static-IP verification, a one-time arm, and Start Automatic LIVE. Every filled automatic BUY receives Binance OCO protection.", 12, AMBER, false));
         if (store.hasPendingProtectionCheck()) {
             addGap(box, 8);
             box.addView(actionButton("Acknowledge Binance Protection Check", RED, v -> acknowledgeProtectionCheck()), new LinearLayout.LayoutParams(-1, dp(52)));
@@ -421,6 +493,7 @@ public class MainActivity extends Activity {
         box.addView(tv("Stop-loss: " + store.stopLoss + "%  •  Take-profit: " + store.takeProfit + "%  •  Trailing: " + store.trailingStop + "%", 13, MUTED, false)); addGap(box, 8);
         buildOrderSafetySettings(box);
         buildV60Settings(box);
+        buildAutomaticSettings(box);
         box.addView(actionButton("Reset Paper Wallet", AMBER, v -> { store.engine.resetPaper(); render(true); }), new LinearLayout.LayoutParams(-1, dp(52))); addGap(box, 18);
 
         buildProfitGuardSettings(box);
@@ -503,7 +576,7 @@ public class MainActivity extends Activity {
         status.addView(tv("Account withdraw ability: " + (sameMode && store.lastApiAccountCanWithdraw ? "ON / account-level flag" : "OFF or not checked"), 12, sameMode && store.lastApiAccountCanWithdraw ? AMBER : MUTED, false));
         status.addView(tv("Manual API-key withdrawal confirmation: " + (store.withdrawalPermissionConfirmedOff ? "OFF confirmed" : "Required before live unlock"), 12, store.withdrawalPermissionConfirmedOff ? GREEN : RED, true));
         status.addView(tv(store.lastApiDiagnosis, 12, store.lastApiCanTrade ? GREEN : AMBER, false));
-        status.addView(tv("Full auto stays locked. Manual micro orders require API Doctor + Telegram Doctor + Profit Guard + Panic test + withdrawal OFF confirmation.", 12, AMBER, false));
+        status.addView(tv("Automatic LIVE requires API Doctor + Telegram Doctor + Profit Guard + Panic test + withdrawals OFF + static-IP verification + one-time arm.", 12, AMBER, false));
         box.addView(status);
     }
 
@@ -546,7 +619,7 @@ public class MainActivity extends Activity {
                 "Testnet:\nUse Binance Spot Testnet API key only for API Doctor. Do not paste a live key.\n\n" +
                 "Live:\nUse a dedicated real Binance API key. Enable Spot trading only, keep Withdrawals OFF, and restrict the key to a trusted IP where practical.\n\n" +
                 "Trusted IP meaning:\nThe IP must be the public IP of the device/server that sends API requests. If your mobile internet IP changes, update Binance trusted IP again.\n\n" +
-                "Tablet Edition:\nNo VPS is needed for scanning, portfolio sync, test orders, or manual protected Spot orders. Keep the app on your private device.\n\nLive unlock checklist:\nAPI Doctor PASS + Telegram Doctor PASS + Profit Guard ON + Panic tested + manual withdrawal OFF confirmation.\n\nThe scanner can auto-trade only the paper wallet. A real order is always manual and requires a fresh confirmation.";
+                "Tablet Edition:\nNo VPS is needed for scanning, portfolio sync, test orders, manual protected Spot orders, or Automatic LIVE while the foreground service is running. Keep the app on your private device.\n\nAutomatic LIVE checklist:\nAPI Doctor PASS + Telegram Doctor PASS + Profit Guard ON + Panic tested + withdrawals OFF confirmation + matching static public IP + successful Binance Test Order + one-time Automatic LIVE arm.\n\nAutomatic LIVE sends only qualifying closed-candle entries across the four approved pairs, holds one Binance OCO-protected position, and stops for review on uncertain exchange state.";
     }
 
 
@@ -625,7 +698,7 @@ public class MainActivity extends Activity {
         String state = store.liveOrderTestMode ? "TEST ORDER" : (store.liveRealOrderArmed ? "REAL ARMED" : "REAL LOCKED");
         head.addView(tv(state, 12, store.liveOrderTestMode ? CYAN : (store.liveRealOrderArmed ? RED : AMBER), true));
         box.addView(head); addGap(box, 8);
-        box.addView(tv("Manual Spot order only. No profit promise and no order spam. Automatic real Binance execution is intentionally disabled on this tablet.", 12, AMBER, false));
+        box.addView(tv("Manual protected orders remain available. Automatic LIVE execution is controlled separately by its static-IP, one-time arm, foreground-service, and OCO safety gates.", 12, AMBER, false));
         box.addView(tv("BUY: " + String.format(Locale.US, "%.2f USDT", store.microLiveOrderUsdt) + "  •  Limit: " + String.format(Locale.US, "%.2f USDT", store.manualOrderLimitUsdt) + "  •  Test order: " + (store.liveOrderTestMode ? "ON" : "OFF"), 12, MUTED, false));
         box.addView(tv("Compliance: " + (store.complianceGuardEnabled ? "ON" : "OFF") + "  •  Rate lock: " + (store.binanceRateLimitLock ? "ACTIVE" : "Clear") + "  •  OCO: created after a real filled BUY", 12, store.binanceRateLimitLock ? RED : GREEN, true));
         if (store.lastBinanceStatusCode != 0) box.addView(tv("Last Binance HTTP: " + store.lastBinanceStatusCode + " • " + store.lastBinanceErrorDoctor, 11, store.lastBinanceStatusCode >= 400 ? RED : GREEN, false));
@@ -646,7 +719,7 @@ public class MainActivity extends Activity {
 
     void buildV60Settings(LinearLayout box) {
         box.addView(section("TABLET ORDER CONTROLS")); addGap(box, 8);
-        box.addView(tv("Manual protected Spot orders, API diagnostics, backup, and Error Doctor. The tablet will never run unattended real trading.", 12, MUTED, false)); addGap(box, 8);
+        box.addView(tv("Manual protected Spot orders, automatic execution controls, API diagnostics, backup, and Error Doctor.", 12, MUTED, false)); addGap(box, 8);
         LinearLayout r1 = row();
         r1.addView(actionButton("Compliance Guard: " + (store.complianceGuardEnabled ? "ON" : "OFF"), store.complianceGuardEnabled ? GREEN : RED, v -> { store.complianceGuardEnabled = !store.complianceGuardEnabled; store.liveRealOrderArmed = false; store.save(); render(true); }), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams r1lp = new LinearLayout.LayoutParams(0, dp(52), 1); r1lp.leftMargin = dp(10);
@@ -662,7 +735,7 @@ public class MainActivity extends Activity {
         LinearLayout r3 = row();
         r3.addView(actionButton("Order Limit: " + String.format(Locale.US, "%.2f", store.manualOrderLimitUsdt) + " USDT", CYAN, v -> input("Manual Order Limit", "5 to 1000 USDT", String.format(Locale.US, "%.2f", store.manualOrderLimitUsdt), false, val -> { try { store.manualOrderLimitUsdt = Math.max(5.0, Math.min(1000.0, Double.parseDouble(val.trim()))); if (store.microLiveOrderUsdt > store.manualOrderLimitUsdt) store.microLiveOrderUsdt = store.manualOrderLimitUsdt; store.liveRealOrderArmed=false; store.save(); render(true); } catch(Exception e){ toast("Enter 5 to 1000 USDT"); } })), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams r3lp = new LinearLayout.LayoutParams(0, dp(52), 1); r3lp.leftMargin = dp(10);
-        r3.addView(actionButton("Approval: Required", GREEN, v -> alert("Real Order Approval", "Every real order needs a fresh dry-run, a one-time arm phrase, and a typed BUY or SELL confirmation. The app does not offer unattended real trading.")), r3lp);
+        r3.addView(actionButton("Manual Approval Guide", GREEN, v -> alert("Manual Order Approval", "Manual real orders need a fresh dry-run, a one-time arm phrase, and a typed BUY or SELL confirmation. Automatic LIVE uses its separate static-IP, API Doctor, Telegram Doctor, arm, and Start Automatic LIVE flow.")), r3lp);
         box.addView(r3); addGap(box, 8);
 
         LinearLayout r4 = row();
@@ -677,6 +750,58 @@ public class MainActivity extends Activity {
         r5.addView(actionButton("Error Doctor", store.binanceRateLimitLock ? RED : CYAN, v -> alert("Nanu Error Doctor", errorDoctorReport())), r5lp);
         box.addView(r5); addGap(box, 8);
         box.addView(tv("Telegram messages can report status and alerts. Telegram cannot submit a real BUY or SELL from this tablet.", 11, AMBER, false)); addGap(box, 18);
+    }
+
+    void buildAutomaticSettings(LinearLayout box) {
+        box.addView(section("AUTOMATIC LIVE EXECUTION")); addGap(box, 8);
+        box.addView(tv("Automatic mode scans BTCUSDT, ETHUSDT, BNBUSDT and SOLUSDT. It selects the highest qualified closed-candle BUY, permits one OCO-protected position at a time, and enforces the daily entry limit.", 12, MUTED, false)); addGap(box, 8);
+        LinearLayout r1 = row();
+        r1.addView(actionButton(store.autoTrustedStaticIp.isEmpty() ? "Set Static Public IP" : "Static IP: " + store.autoTrustedStaticIp, CYAN, v -> input("Trusted Static Public IP", "Example: 203.0.113.10", store.autoTrustedStaticIp, false, value -> {
+            String ip = value.trim();
+            if (!AutoTradingPolicy.isStaticIp(ip)) { toast("Enter a valid public IPv4 or IPv6 address"); return; }
+            store.autoTrustedStaticIp = ip; store.autoLiveArmed = false; store.save(); render(true);
+        })), new LinearLayout.LayoutParams(0, dp(52), 1));
+        LinearLayout.LayoutParams r1lp = new LinearLayout.LayoutParams(0, dp(52), 1); r1lp.leftMargin = dp(10);
+        r1.addView(actionButton("Check Static IP", CYAN, v -> runAutomaticPreflight()), r1lp);
+        box.addView(r1); addGap(box, 8);
+        LinearLayout r2 = row();
+        r2.addView(actionButton("Auto Amount: " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT", CYAN, v -> input("Automatic Spot Order Amount", "5 to your order limit", String.format(Locale.US, "%.2f", store.microLiveOrderUsdt), false, value -> {
+            try { store.microLiveOrderUsdt = Math.max(5.0, Math.min(store.manualOrderLimitUsdt, Double.parseDouble(value.trim()))); store.liveDryRunOrderUsdt = store.microLiveOrderUsdt; store.autoLiveArmed = false; store.save(); render(true); }
+            catch (Exception e) { toast("Enter an amount inside your order limit"); }
+        })), new LinearLayout.LayoutParams(0, dp(52), 1));
+        LinearLayout.LayoutParams r2lp = new LinearLayout.LayoutParams(0, dp(52), 1); r2lp.leftMargin = dp(10);
+        r2.addView(actionButton("Minimum Signal: " + store.autoMinConfidence, CYAN, v -> input("Automatic Minimum Confidence", "60 to 95", String.valueOf(store.autoMinConfidence), false, value -> {
+            try { store.autoMinConfidence = Math.max(60, Math.min(95, Integer.parseInt(value.trim()))); store.autoLiveArmed = false; store.save(); render(true); }
+            catch (Exception e) { toast("Enter a whole number from 60 to 95"); }
+        })), r2lp);
+        box.addView(r2); addGap(box, 8);
+        LinearLayout r3 = row();
+        r3.addView(actionButton(store.autoLiveArmed ? "Automatic LIVE ARMED" : "Arm Automatic LIVE", store.autoLiveArmed ? RED : AMBER, v -> armAutomaticLive()), new LinearLayout.LayoutParams(0, dp(52), 1));
+        LinearLayout.LayoutParams r3lp = new LinearLayout.LayoutParams(0, dp(52), 1); r3lp.leftMargin = dp(10);
+        r3.addView(actionButton("Readiness Report", CYAN, v -> runAutomaticPreflight()), r3lp);
+        box.addView(r3); addGap(box, 8);
+        box.addView(tv("Arm is cleared on Stop, Panic, API changes, restart, and any automatic failure. Test Order Mode must be OFF only after you have completed a successful Binance test order. Never enable API withdrawals.", 11, AMBER, false)); addGap(box, 18);
+    }
+
+    void armAutomaticLive() {
+        if (store.autoRunning) { toast("Stop the automatic bot before changing its arm state"); return; }
+        if (store.liveOrderTestMode) { toast("Complete a Binance Test Order, then turn Test Order OFF before automatic LIVE arming"); return; }
+        input("Arm Automatic LIVE Spot", "Type ARM AUTO LIVE", "", false, value -> {
+            if (!"ARM AUTO LIVE".equals(value.trim())) { toast("Automatic LIVE not armed"); return; }
+            store.autoLiveArmed = true;
+            String blockers = store.autoStartBlockers();
+            if (!blockers.isEmpty()) {
+                store.autoLiveArmed = false;
+                store.save();
+                alert("Automatic LIVE Cannot Arm", blockers);
+                render(true);
+                return;
+            }
+            store.autoStatus = "Automatic LIVE armed. Use Start Automatic LIVE on Home to begin the foreground executor.";
+            store.save();
+            store.triggerAlert("Nanu Automatic LIVE Armed", "Automatic Spot bot is armed for one operator-started session. It still requires Start Automatic LIVE.", true, "live");
+            render(true);
+        });
     }
 
     void toggleTestOrderMode() {
@@ -913,12 +1038,13 @@ public class MainActivity extends Activity {
         if ("live".equals(store.mode) && !store.liveUnlocked) { toast("Live signal scanner locked. Use Unlock LIVE after all checks pass."); activeTab=4; render(true); return; }
         if ("live".equals(store.mode) && !store.apiTradingOkForCurrentMode()) { toast("Live signal scanner blocked: run API Doctor in LIVE mode first."); activeTab=4; render(true); return; }
         store.engine.start();
-        store.triggerAlert("Nanu Started", "Live candle scanner started in " + store.mode.toUpperCase(Locale.US) + ". Automatic real orders are disabled; manual micro orders require confirmation.", false, "startstop");
-        try { Intent i = new Intent(this, NanuBotService.class); if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i); } catch (Exception ignored) {}
+        store.triggerAlert("Nanu Started", "Live candle scanner started in " + store.mode.toUpperCase(Locale.US) + ". Automatic Binance orders require the separate Automatic LIVE arm and start flow.", false, "startstop");
+        startForegroundBotService();
         toast("Nanu started"); render(false);
     }
-    void stopBot() { store.engine.stop(); stopService(new Intent(this, NanuBotService.class)); store.resetOrderSafetyState("Stop button"); store.triggerAlert("Nanu Stopped", "Bot stopped safely.", false, "startstop"); toast("Nanu stopped"); render(false); }
-    void panic() { store.engine.panicClose(); store.panicButtonTested = true; store.save(); stopService(new Intent(this, NanuBotService.class)); store.triggerAlert("Nanu PANIC", "Panic close activated. Check Binance manually before restarting.", true, "panic"); toast("Panic close activated"); render(false); }
+    void startForegroundBotService() { try { Intent i = new Intent(this, NanuBotService.class); if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i); } catch (Exception ignored) {} }
+    void stopBot() { store.engine.stop(); stopService(new Intent(this, NanuBotService.class)); store.resetOrderSafetyState("Stop button"); store.triggerAlert("Nanu Stopped", "Scanner and automatic entries stopped. Existing Binance OCO protection remains on the exchange.", false, "startstop"); toast("Nanu stopped"); render(false); }
+    void panic() { store.engine.panicClose(); store.panicButtonTested = true; store.save(); stopService(new Intent(this, NanuBotService.class)); store.triggerAlert("Nanu PANIC", "Panic stopped new entries. Existing Binance OCO protection stays active; check Binance before restarting.", true, "panic"); toast("Panic stop activated"); render(false); }
 
     void setMode(String m) {
         if ("live".equals(m)) {
@@ -943,7 +1069,7 @@ public class MainActivity extends Activity {
             alert("Live Dry-Run Unlock Blocked", "Nanu will not unlock the live control gate yet. Fix these items first:\n\n" + missing + "\nThis is intentional safety protection for your Binance account.");
             return;
         }
-        input("Unlock LIVE Control Gate", "Type UNLOCK LIVE", "", false, s -> { if ("UNLOCK LIVE".equals(s.trim())) { store.liveUnlocked=true; store.mode="live"; store.save(); store.triggerAlert("Nanu Live Signal Control Unlocked", "LIVE signal scanner unlocked. Automatic real orders remain disabled; manual micro orders require separate confirmation.", true, "live"); toast("Live scanner unlocked"); syncPortfolio(true); } else toast("Live not unlocked"); render(true); });
+        input("Unlock LIVE Control Gate", "Type UNLOCK LIVE", "", false, s -> { if ("UNLOCK LIVE".equals(s.trim())) { store.liveUnlocked=true; store.mode="live"; store.save(); store.triggerAlert("Nanu Live Signal Control Unlocked", "LIVE scanner unlocked. Automatic execution still requires its own static-IP preflight, one-time arm, and Start Automatic LIVE.", true, "live"); toast("Live scanner unlocked"); syncPortfolio(true); } else toast("Live not unlocked"); render(true); });
     }
 
     String liveMissingItems() {
@@ -1012,7 +1138,7 @@ public class MainActivity extends Activity {
         sb.append("Bot running: ").append(store.engine.running).append("\n");
         sb.append("Panic state: ").append(store.engine.panic).append("\n");
         sb.append("Live control gate unlocked: ").append(store.liveUnlocked).append("\n");
-        sb.append("Real live orders: manual only after live unlock, fresh portfolio sync, API Doctor, one-time arming, and typed confirmation.\n\n");
+        sb.append("Live execution: manual protected orders or separately armed automatic Spot execution after live unlock, fresh sync, API Doctor, Telegram Doctor, static-IP verification, and Start Automatic LIVE.\n\n");
 
         sb.append("=== TABLET EXECUTION ===\n");
         sb.append("Remote executor: not used.\n");
@@ -1021,6 +1147,17 @@ public class MainActivity extends Activity {
         sb.append("Current order amount: ").append(store.microLiveOrderUsdt).append(" USDT\n");
         sb.append("Manual order limit: ").append(store.manualOrderLimitUsdt).append(" USDT\n");
         sb.append("Real BUY exit protection: Binance OCO target/stop requested after a filled order.\n\n");
+
+        sb.append("=== AUTOMATIC EXECUTION ===\n");
+        sb.append("Automatic LIVE armed: ").append(store.autoLiveArmed).append("\n");
+        sb.append("Automatic executor running: ").append(store.autoRunning).append("\n");
+        sb.append("Automatic panic: ").append(store.autoPanic).append("\n");
+        sb.append("Expected static IP: ").append(store.autoTrustedStaticIp).append("\n");
+        sb.append("Minimum confidence: ").append(store.autoMinConfidence).append("\n");
+        sb.append("Automatic active position: ").append(store.hasAutoPosition() ? store.autoActiveSymbol : "none").append("\n");
+        sb.append("Automatic OCO list: ").append(store.autoOcoOrderListId).append("\n");
+        sb.append("Automatic realized P&L: ").append(String.format(Locale.US, "%+.2f", store.autoRealizedPnlUsdt)).append(" USDT\n");
+        sb.append("Automatic status: ").append(store.autoStatus).append("\n\n");
 
         sb.append("=== NANU FACE ENGINE ===\n");
         sb.append("Face mood: ").append(faceMoodLabel()).append("\n");
@@ -1096,7 +1233,7 @@ public class MainActivity extends Activity {
         sb.append("Binance Test Order Mode: ").append(store.liveOrderTestMode).append("\n");
         sb.append("Real Spot Order Armed: ").append(store.liveRealOrderArmed).append("\n");
         sb.append("Manual approval required: true\n");
-        sb.append("Unattended real trading: disabled\n");
+        sb.append("Automatic real trading: available only through the armed foreground Automatic LIVE executor\n");
         sb.append("Spot order USDT: ").append(store.microLiveOrderUsdt).append("\n");
         sb.append("Manual order limit USDT: ").append(store.manualOrderLimitUsdt).append("\n");
         sb.append("Rate Limit Lock: ").append(store.binanceRateLimitLock).append("\n");
@@ -1118,7 +1255,7 @@ public class MainActivity extends Activity {
         return report;
     }
 
-    String developerReport() { return "Nanu AI Trading Bot Tablet Edition\nRemote executor: not used\nActive scanner pair: " + store.scalperSymbol + "\nLatest local signal: " + store.lastScalperSignal + " / " + store.lastScalperConfidence + "\nSpot equity: " + store.portfolioEquityLabel() + "\nReal entries: " + store.liveTradesToday + "/" + store.maxLiveTradesPerDay + "\nManual order limit: " + store.manualOrderLimitUsdt + " USDT\nAPI last mode: " + store.lastApiMode + "\nAPI private OK: " + store.lastApiPrivateOk + "\nAPI can trade: " + store.lastApiCanTrade + "\nBinance API secret: HIDDEN"; }
+    String developerReport() { return "Nanu AI Trading Bot Automatic Spot Edition\nRemote executor: not used\nAutomatic executor: " + store.autoStatus + "\nActive scanner pair: " + store.scalperSymbol + "\nLatest local signal: " + store.lastScalperSignal + " / " + store.lastScalperConfidence + "\nSpot equity: " + store.portfolioEquityLabel() + "\nReal entries: " + store.liveTradesToday + "/" + store.maxLiveTradesPerDay + "\nAutomatic position: " + (store.hasAutoPosition() ? store.autoActiveSymbol + " / OCO " + store.autoOcoOrderListId : "none") + "\nOrder limit: " + store.manualOrderLimitUsdt + " USDT\nAPI last mode: " + store.lastApiMode + "\nAPI private OK: " + store.lastApiPrivateOk + "\nAPI can trade: " + store.lastApiCanTrade + "\nBinance API secret: HIDDEN"; }
 
     TextView tv(String s, int sp, int color, boolean bold) { TextView t = new TextView(this); t.setText(s); t.setTextSize(sp); t.setTextColor(color); t.setIncludeFontPadding(true); t.setLineSpacing(dp(2), 1.0f); t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL)); return t; }
     TextView label(String s) { return tv(s, 12, MUTED, true); }

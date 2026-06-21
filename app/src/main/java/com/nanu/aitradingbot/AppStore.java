@@ -106,7 +106,7 @@ public class AppStore {
     // v6.1 Controlled Live Scalping System
     public boolean complianceGuardEnabled = true;
     public boolean semiAutoApprovalRequired = true;
-    public boolean fullAutoLocked = true;
+    public boolean fullAutoLocked = false;
     public boolean telegramCommandControl = true;
     public boolean liveRealOrderArmed = false;
     public boolean liveOrderTestMode = true;
@@ -128,7 +128,7 @@ public class AppStore {
     public String lastBrainInsight = "Learning memory is ready.";
     public String brainMemoryLog = "";
 
-    // v6.2 Live-data Spot scalping assistant. Real automatic execution is deliberately disabled.
+    // Live-data Spot scalping and controlled automatic execution settings.
     public boolean scalperEnabled = true;
     public boolean scalperPaperAutoTrade = true;
     public String scalperSymbol = "BTCUSDT";
@@ -141,6 +141,31 @@ public class AppStore {
     public int lastScalperConfidence = 0;
     public String lastScalperReport = "No live market scan yet.";
     public String lastScalperError = "";
+
+    // On-device automatic Spot executor state. The executor is intentionally
+    // limited to approved pairs, one protected position, and four daily entries.
+    public boolean autoLiveArmed = false;
+    public boolean autoRunning = false;
+    public boolean autoPanic = false;
+    public String autoTrustedStaticIp = "";
+    public int autoMinConfidence = 68;
+    public long autoLastScanMs = 0L;
+    public long autoLastHeartbeatMs = 0L;
+    public String autoStatus = "Automatic executor is stopped.";
+    public String autoActiveSymbol = "";
+    public long autoOcoOrderListId = 0L;
+    public long autoTakeProfitOrderId = 0L;
+    public long autoStopOrderId = 0L;
+    public double autoEntryQuoteUsdt = 0.0;
+    public double autoEntryPrice = 0.0;
+    public double autoProtectedQuantity = 0.0;
+    public long autoPositionOpenedMs = 0L;
+    public String autoPendingClientOrderId = "";
+    public String autoPendingSymbol = "";
+    public long autoPendingStartedMs = 0L;
+    public boolean autoPendingEntryCounted = false;
+    public double autoRealizedPnlUsdt = 0.0;
+    public int autoConsecutiveFailures = 0;
 
     public final List<String> watchlist = new ArrayList<>();
 
@@ -250,8 +275,8 @@ public class AppStore {
 
         complianceGuardEnabled = sp.getBoolean("complianceGuardEnabled", true);
         semiAutoApprovalRequired = sp.getBoolean("semiAutoApprovalRequired", true);
-        // v6.2 never permits automatic real exchange execution, including for users upgrading from older builds.
-        fullAutoLocked = true;
+        // Legacy display flag. Automatic execution has separate explicit arming and preflight gates.
+        fullAutoLocked = false;
         telegramCommandControl = sp.getBoolean("telegramCommandControl", true);
         liveRealOrderArmed = sp.getBoolean("liveRealOrderArmed", false);
         liveOrderTestMode = sp.getBoolean("liveOrderTestMode", true);
@@ -287,6 +312,32 @@ public class AppStore {
         lastScalperConfidence = sp.getInt("lastScalperConfidence", 0);
         lastScalperReport = sp.getString("lastScalperReport", "No live market scan yet.");
         lastScalperError = sp.getString("lastScalperError", "");
+        // A restart must never silently resume real-money automation. Position and
+        // pending-order metadata remains available for exchange reconciliation.
+        autoLiveArmed = false;
+        autoRunning = false;
+        autoPanic = sp.getBoolean("autoPanic", false);
+        autoTrustedStaticIp = sp.getString("autoTrustedStaticIp", "").trim();
+        autoMinConfidence = Math.max(60, Math.min(95, sp.getInt("autoMinConfidence", 68)));
+        autoLastScanMs = sp.getLong("autoLastScanMs", 0L);
+        autoLastHeartbeatMs = sp.getLong("autoLastHeartbeatMs", 0L);
+        autoStatus = sp.getString("autoStatus", "Automatic executor is stopped.");
+        autoActiveSymbol = normalizeCoin(sp.getString("autoActiveSymbol", ""));
+        if (!BinanceClient.isTabletPair(autoActiveSymbol)) autoActiveSymbol = "";
+        autoOcoOrderListId = sp.getLong("autoOcoOrderListId", 0L);
+        autoTakeProfitOrderId = sp.getLong("autoTakeProfitOrderId", 0L);
+        autoStopOrderId = sp.getLong("autoStopOrderId", 0L);
+        autoEntryQuoteUsdt = Double.longBitsToDouble(sp.getLong("autoEntryQuoteUsdt", Double.doubleToRawLongBits(0.0)));
+        autoEntryPrice = Double.longBitsToDouble(sp.getLong("autoEntryPrice", Double.doubleToRawLongBits(0.0)));
+        autoProtectedQuantity = Double.longBitsToDouble(sp.getLong("autoProtectedQuantity", Double.doubleToRawLongBits(0.0)));
+        autoPositionOpenedMs = sp.getLong("autoPositionOpenedMs", 0L);
+        autoPendingClientOrderId = sp.getString("autoPendingClientOrderId", "");
+        autoPendingSymbol = normalizeCoin(sp.getString("autoPendingSymbol", ""));
+        if (!BinanceClient.isTabletPair(autoPendingSymbol)) autoPendingSymbol = "";
+        autoPendingStartedMs = sp.getLong("autoPendingStartedMs", 0L);
+        autoPendingEntryCounted = sp.getBoolean("autoPendingEntryCounted", false);
+        autoRealizedPnlUsdt = Double.longBitsToDouble(sp.getLong("autoRealizedPnlUsdt", Double.doubleToRawLongBits(0.0)));
+        autoConsecutiveFailures = Math.max(0, sp.getInt("autoConsecutiveFailures", 0));
         watchlist.clear();
         watchlist.addAll(Arrays.asList("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"));
         ensureDailySafetyWindow();
@@ -438,6 +489,28 @@ public class AppStore {
                 .putInt("lastScalperConfidence", lastScalperConfidence)
                 .putString("lastScalperReport", lastScalperReport)
                 .putString("lastScalperError", lastScalperError)
+                .putBoolean("autoLiveArmed", false)
+                .putBoolean("autoRunning", false)
+                .putBoolean("autoPanic", autoPanic)
+                .putString("autoTrustedStaticIp", autoTrustedStaticIp == null ? "" : autoTrustedStaticIp)
+                .putInt("autoMinConfidence", autoMinConfidence)
+                .putLong("autoLastScanMs", autoLastScanMs)
+                .putLong("autoLastHeartbeatMs", autoLastHeartbeatMs)
+                .putString("autoStatus", autoStatus == null ? "" : autoStatus)
+                .putString("autoActiveSymbol", autoActiveSymbol == null ? "" : autoActiveSymbol)
+                .putLong("autoOcoOrderListId", autoOcoOrderListId)
+                .putLong("autoTakeProfitOrderId", autoTakeProfitOrderId)
+                .putLong("autoStopOrderId", autoStopOrderId)
+                .putLong("autoEntryQuoteUsdt", Double.doubleToRawLongBits(autoEntryQuoteUsdt))
+                .putLong("autoEntryPrice", Double.doubleToRawLongBits(autoEntryPrice))
+                .putLong("autoProtectedQuantity", Double.doubleToRawLongBits(autoProtectedQuantity))
+                .putLong("autoPositionOpenedMs", autoPositionOpenedMs)
+                .putString("autoPendingClientOrderId", autoPendingClientOrderId == null ? "" : autoPendingClientOrderId)
+                .putString("autoPendingSymbol", autoPendingSymbol == null ? "" : autoPendingSymbol)
+                .putLong("autoPendingStartedMs", autoPendingStartedMs)
+                .putBoolean("autoPendingEntryCounted", autoPendingEntryCounted)
+                .putLong("autoRealizedPnlUsdt", Double.doubleToRawLongBits(autoRealizedPnlUsdt))
+                .putInt("autoConsecutiveFailures", autoConsecutiveFailures)
                 .putString("watchlist", join(watchlist))
                 .apply();
     }
@@ -469,6 +542,8 @@ public class AppStore {
         lastApiAccountCanWithdraw = false;
         withdrawalPermissionConfirmedOff = false;
         liveUnlocked = false;
+        autoLiveArmed = false;
+        autoRunning = false;
         lastApiDiagnosis = reason == null ? "API Doctor must be run again." : reason;
         save();
     }
@@ -490,6 +565,8 @@ public class AppStore {
         liveDryRunPassCount = 0;
         orderCooldownUntilMs = 0L;
         liveEquityBaselineUsdt = Double.NaN;
+        autoRealizedPnlUsdt = 0.0;
+        autoConsecutiveFailures = 0;
         if (engine != null) engine.addJournal("New local safety day: entry count and live P&L baseline reset.");
         save();
     }
@@ -592,10 +669,17 @@ public class AppStore {
 
     public void autoStopForGuard(String reason, String message) {
         engine.running = false;
+        autoRunning = false;
+        autoLiveArmed = false;
+        autoStatus = reason == null ? "Automatic executor stopped by a risk guard." : reason;
         engine.addJournal("AUTO STOP: " + reason);
         save();
         try { appContext.stopService(new Intent(appContext, NanuBotService.class)); } catch (Exception ignored) {}
         triggerAlert("Nanu Guard Stop", message, true, "profitguard");
+    }
+
+    public void stopBackgroundEngine() {
+        try { appContext.stopService(new Intent(appContext, NanuBotService.class)); } catch (Exception ignored) {}
     }
 
 
@@ -629,11 +713,72 @@ public class AppStore {
 
     public void resetV60SafetyState(String reason) {
         liveRealOrderArmed = false;
+        autoLiveArmed = false;
+        autoRunning = false;
+        autoPanic = false;
         binanceRateLimitLock = false;
         lastBinanceStatusCode = 0;
         lastBinanceErrorDoctor = "Safety state reset" + (reason == null || reason.isEmpty() ? "." : (": " + reason));
         resetOrderSafetyState(reason == null ? "v6.2 safety reset" : reason);
         save();
+    }
+
+    public boolean hasAutoPosition() {
+        return autoActiveSymbol != null && !autoActiveSymbol.isEmpty() && autoOcoOrderListId > 0L;
+    }
+
+    public boolean hasAutoPendingOrder() {
+        return autoPendingClientOrderId != null && !autoPendingClientOrderId.isEmpty()
+                && autoPendingSymbol != null && !autoPendingSymbol.isEmpty();
+    }
+
+    public void clearAutoPendingOrder() {
+        autoPendingClientOrderId = "";
+        autoPendingSymbol = "";
+        autoPendingStartedMs = 0L;
+        autoPendingEntryCounted = false;
+    }
+
+    public void clearAutoPosition(String reason) {
+        if (hasAutoPosition() && engine != null) {
+            engine.addJournal("Automatic position cleared for " + autoActiveSymbol + ": " + (reason == null ? "exchange reconciliation" : reason));
+        }
+        autoActiveSymbol = "";
+        autoOcoOrderListId = 0L;
+        autoTakeProfitOrderId = 0L;
+        autoStopOrderId = 0L;
+        autoEntryQuoteUsdt = 0.0;
+        autoEntryPrice = 0.0;
+        autoProtectedQuantity = 0.0;
+        autoPositionOpenedMs = 0L;
+        clearAutoPendingOrder();
+        save();
+    }
+
+    public String autoStartBlockers() {
+        StringBuilder out = new StringBuilder();
+        boolean recoveringAutomaticOrder = hasAutoPendingOrder()
+                && hasPendingProtectionCheck()
+                && autoPendingSymbol.equals(pendingProtectionSymbol);
+        if (!"live".equals(mode)) out.append("- Select LIVE mode.\n");
+        if (!liveUnlocked) out.append("- Unlock the LIVE control gate.\n");
+        if (!apiTradingOkForCurrentMode()) out.append("- Run LIVE API Doctor and confirm Spot trading is enabled.\n");
+        if (!withdrawalPermissionConfirmedOff) out.append("- Confirm API-key withdrawals are OFF.\n");
+        if (!telegramDoctorOk) out.append("- Run Telegram Doctor successfully.\n");
+        if (!profitGuardEnabled) out.append("- Enable Profit Guard.\n");
+        if (!panicButtonTested) out.append("- Test Panic Stop once in PAPER mode.\n");
+        if (!complianceGuardEnabled) out.append("- Enable Compliance Guard.\n");
+        if (binanceRateLimitLock) out.append("- Clear Binance rate-limit lock only after checking Binance.\n");
+        if (liveOrderTestMode) out.append("- Complete a Binance Test Order, then disable Test Order Mode for auto live execution.\n");
+        if (!autoLiveArmed) out.append("- Arm Automatic LIVE once for this session.\n");
+        if (!AutoTradingPolicy.isStaticIp(autoTrustedStaticIp)) out.append("- Add your expected static public IP.\n");
+        if (!portfolioSyncOk || System.currentTimeMillis() - lastPortfolioSyncMs > 5 * 60 * 1000L) out.append("- Sync the Spot portfolio within five minutes.\n");
+        if (microLiveOrderUsdt < Math.max(5.0, minOrderNotionalUsdt)) out.append("- Set an automatic amount above the exchange minimum.\n");
+        if (microLiveOrderUsdt > manualOrderLimitUsdt) out.append("- Raise the order limit or lower the automatic amount.\n");
+        if (!Double.isNaN(spotFreeUsdt) && spotFreeUsdt < microLiveOrderUsdt) out.append("- Free USDT is below the automatic order amount.\n");
+        if (liveTradesToday >= Math.max(1, maxLiveTradesPerDay)) out.append("- Daily entry limit has been reached.\n");
+        if (hasPendingProtectionCheck() && !recoveringAutomaticOrder) out.append("- Inspect and acknowledge the pending Binance protection check.\n");
+        return out.toString();
     }
 
     public void addCoin(String raw) {
