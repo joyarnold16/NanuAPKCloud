@@ -101,8 +101,8 @@ public class OrderSafetyEngine {
     }
 
     private static String chooseSymbol(AppStore store) {
-        if (store.scalperSymbol != null && BinanceClient.isTabletPair(store.scalperSymbol)) return store.scalperSymbol.trim().toUpperCase(Locale.US);
-        if (store.watchlist != null && !store.watchlist.isEmpty() && BinanceClient.isTabletPair(store.watchlist.get(0))) return store.watchlist.get(0);
+        if (store.scalperSymbol != null && BinanceClient.isSupportedPair(store.scalperSymbol)) return store.scalperSymbol.trim().toUpperCase(Locale.US);
+        if (store.watchlist != null && !store.watchlist.isEmpty() && BinanceClient.isSupportedPair(store.watchlist.get(0))) return store.watchlist.get(0);
         return "BTCUSDT";
     }
 

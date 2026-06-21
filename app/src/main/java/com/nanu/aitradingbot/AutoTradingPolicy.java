@@ -1,5 +1,7 @@
 package com.nanu.aitradingbot;
 
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.util.Map;
 
 /** Pure automatic-entry policy helpers, independent from Android UI code. */
@@ -27,7 +29,13 @@ public final class AutoTradingPolicy {
         if (value == null) return false;
         String ip = value.trim();
         if (ip.isEmpty() || ip.contains(" ")) return false;
-        if (ip.indexOf(':') >= 0) return ip.matches("[0-9A-Fa-f:]+") && ip.length() >= 3;
+        if (ip.indexOf(':') >= 0) {
+            try {
+                return InetAddress.getByName(ip) instanceof Inet6Address;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
         String[] parts = ip.split("\\.", -1);
         if (parts.length != 4) return false;
         for (String part : parts) {
@@ -40,5 +48,16 @@ public final class AutoTradingPolicy {
             }
         }
         return true;
+    }
+
+    public static boolean publicIpMatches(String expected, String current) {
+        return isStaticIp(expected)
+                && isStaticIp(current)
+                && expected.trim().equalsIgnoreCase(current.trim());
+    }
+
+    public static String runtimeState(boolean scannerRunning, boolean automaticRunning, boolean scannerPanic, boolean automaticPanic) {
+        if (scannerPanic || automaticPanic) return "PANIC";
+        return scannerRunning || automaticRunning ? "ACTIVE" : "IDLE";
     }
 }

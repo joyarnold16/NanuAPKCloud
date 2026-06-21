@@ -14,10 +14,38 @@ import android.os.Looper;
 
 public class NanuBotService extends Service {
     Handler h = new Handler(Looper.getMainLooper());
-    Runnable loop = new Runnable() { @Override public void run() { AppStore.get(NanuBotService.this).engine.tick(false); h.postDelayed(this, 2500); } };
+    long lastHeartbeatSaveMs = 0L;
+    Runnable loop = new Runnable() {
+        @Override public void run() {
+            AppStore store = AppStore.get(NanuBotService.this);
+            store.recordDeviceHeartbeat();
+            if (System.currentTimeMillis() - lastHeartbeatSaveMs >= 30_000L) {
+                lastHeartbeatSaveMs = System.currentTimeMillis();
+                store.save();
+            }
+            store.engine.tick(false);
+            h.postDelayed(this, 2500);
+        }
+    };
     @Override public void onCreate() { super.onCreate(); createChannel(); }
-    @Override public int onStartCommand(Intent intent, int flags, int startId) { startForeground(77, notification()); h.removeCallbacks(loop); h.post(loop); return START_STICKY; }
-    @Override public void onDestroy() { h.removeCallbacks(loop); super.onDestroy(); }
+    @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        AppStore store = AppStore.get(this);
+        store.recordDeviceHeartbeat();
+        store.save();
+        startForeground(77, notification());
+        h.removeCallbacks(loop);
+        h.post(loop);
+        return START_STICKY;
+    }
+    @Override public void onDestroy() {
+        h.removeCallbacks(loop);
+        AppStore store = AppStore.get(this);
+        if (store.engine.running || store.autoRunning) {
+            store.recordUnexpectedDeviceStop("Foreground device service stopped unexpectedly. No new automatic entries will be sent; inspect Binance before restarting.");
+            store.triggerAlert("Nanu Device Service Stopped", store.deviceLastStopReason, true, "api");
+        }
+        super.onDestroy();
+    }
     @Override public IBinder onBind(Intent intent) { return null; }
     private void createChannel() { if (Build.VERSION.SDK_INT >= 26) { NotificationChannel ch = new NotificationChannel("nanu", "Nanu Bot", NotificationManager.IMPORTANCE_LOW); ch.setDescription("Nanu AI Trading Bot engine"); ch.setLightColor(Color.CYAN); ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(ch); } }
     private Notification notification() {

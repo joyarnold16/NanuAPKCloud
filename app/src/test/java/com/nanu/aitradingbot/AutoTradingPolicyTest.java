@@ -27,6 +27,22 @@ public class AutoTradingPolicyTest {
         assertTrue(AutoTradingPolicy.isStaticIp("2001:db8::1"));
         assertFalse(AutoTradingPolicy.isStaticIp("example.com"));
         assertFalse(AutoTradingPolicy.isStaticIp("999.1.1.1"));
+        assertFalse(AutoTradingPolicy.isStaticIp("2001:::1"));
+    }
+
+    @Test
+    public void requiresAnExactPublicIpMatchBeforeAutomaticEntry() {
+        assertTrue(AutoTradingPolicy.publicIpMatches("203.0.113.10", "203.0.113.10"));
+        assertFalse(AutoTradingPolicy.publicIpMatches("203.0.113.10", "203.0.113.11"));
+        assertFalse(AutoTradingPolicy.publicIpMatches("203.0.113.10", "not-an-ip"));
+    }
+
+    @Test
+    public void reportsPanicBeforeActiveOrIdle() {
+        assertEquals("ACTIVE", AutoTradingPolicy.runtimeState(true, false, false, false));
+        assertEquals("ACTIVE", AutoTradingPolicy.runtimeState(false, true, false, false));
+        assertEquals("PANIC", AutoTradingPolicy.runtimeState(true, false, false, true));
+        assertEquals("IDLE", AutoTradingPolicy.runtimeState(false, false, false, false));
     }
 
     private ScalpingStrategy.Signal signal(ScalpingStrategy.Action action, int confidence) {

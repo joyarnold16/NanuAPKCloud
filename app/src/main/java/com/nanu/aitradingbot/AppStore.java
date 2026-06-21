@@ -90,6 +90,7 @@ public class AppStore {
     // v5.3/v5.4/v5.5 API Doctor + Trusted IP Helper
     public String lastApiMode = "";
     public String lastPublicIp = "";
+    public long lastPublicIpCheckedMs = 0L;
     public int lastApiHttpCode = 0;
     public boolean lastApiPrivateOk = false;
     public boolean lastApiCanTrade = false;
@@ -152,6 +153,9 @@ public class AppStore {
     public int autoMinConfidence = 68;
     public long autoLastScanMs = 0L;
     public long autoLastHeartbeatMs = 0L;
+    public long deviceLastHeartbeatMs = 0L;
+    public int deviceUnexpectedStopCount = 0;
+    public String deviceLastStopReason = "No unexpected device-service stop recorded.";
     public String autoStatus = "Automatic executor is stopped.";
     public String autoActiveSymbol = "";
     public long autoOcoOrderListId = 0L;
@@ -266,6 +270,7 @@ public class AppStore {
 
         lastApiMode = sp.getString("lastApiMode", "");
         lastPublicIp = sp.getString("lastPublicIp", "");
+        lastPublicIpCheckedMs = sp.getLong("lastPublicIpCheckedMs", 0L);
         lastApiHttpCode = sp.getInt("lastApiHttpCode", 0);
         lastApiPrivateOk = sp.getBoolean("lastApiPrivateOk", false);
         lastApiCanTrade = sp.getBoolean("lastApiCanTrade", false);
@@ -304,7 +309,7 @@ public class AppStore {
         scalperEnabled = sp.getBoolean("scalperEnabled", true);
         scalperPaperAutoTrade = sp.getBoolean("scalperPaperAutoTrade", true);
         scalperSymbol = normalizeCoin(sp.getString("scalperSymbol", "BTCUSDT"));
-        if (!BinanceClient.isTabletPair(scalperSymbol)) scalperSymbol = "BTCUSDT";
+        if (!BinanceClient.isSupportedPair(scalperSymbol)) scalperSymbol = "BTCUSDT";
         scalperScanSeconds = Math.max(30, sp.getInt("scalperScanSeconds", 60));
         scalperTradeAmountUsdt = Double.longBitsToDouble(sp.getLong("scalperTradeAmountUsdt", Double.doubleToRawLongBits(5.0)));
         scalperMarketChecks = sp.getInt("scalperMarketChecks", 0);
@@ -324,9 +329,12 @@ public class AppStore {
         autoMinConfidence = Math.max(60, Math.min(95, sp.getInt("autoMinConfidence", 68)));
         autoLastScanMs = sp.getLong("autoLastScanMs", 0L);
         autoLastHeartbeatMs = sp.getLong("autoLastHeartbeatMs", 0L);
+        deviceLastHeartbeatMs = sp.getLong("deviceLastHeartbeatMs", 0L);
+        deviceUnexpectedStopCount = Math.max(0, sp.getInt("deviceUnexpectedStopCount", 0));
+        deviceLastStopReason = sp.getString("deviceLastStopReason", "No unexpected device-service stop recorded.");
         autoStatus = sp.getString("autoStatus", "Automatic executor is stopped.");
         autoActiveSymbol = normalizeCoin(sp.getString("autoActiveSymbol", ""));
-        if (!BinanceClient.isTabletPair(autoActiveSymbol)) autoActiveSymbol = "";
+        if (!BinanceClient.isSupportedPair(autoActiveSymbol)) autoActiveSymbol = "";
         autoOcoOrderListId = sp.getLong("autoOcoOrderListId", 0L);
         autoTakeProfitOrderId = sp.getLong("autoTakeProfitOrderId", 0L);
         autoStopOrderId = sp.getLong("autoStopOrderId", 0L);
@@ -336,7 +344,7 @@ public class AppStore {
         autoPositionOpenedMs = sp.getLong("autoPositionOpenedMs", 0L);
         autoPendingClientOrderId = sp.getString("autoPendingClientOrderId", "");
         autoPendingSymbol = normalizeCoin(sp.getString("autoPendingSymbol", ""));
-        if (!BinanceClient.isTabletPair(autoPendingSymbol)) autoPendingSymbol = "";
+        if (!BinanceClient.isSupportedPair(autoPendingSymbol)) autoPendingSymbol = "";
         autoPendingStartedMs = sp.getLong("autoPendingStartedMs", 0L);
         autoPendingEntryCounted = sp.getBoolean("autoPendingEntryCounted", false);
         autoRealizedPnlUsdt = Double.longBitsToDouble(sp.getLong("autoRealizedPnlUsdt", Double.doubleToRawLongBits(0.0)));
@@ -449,6 +457,7 @@ public class AppStore {
                 .putBoolean("duplicateProfitAlreadyHit", duplicateProfitAlreadyHit)
                 .putString("lastApiMode", lastApiMode)
                 .putString("lastPublicIp", lastPublicIp)
+                .putLong("lastPublicIpCheckedMs", lastPublicIpCheckedMs)
                 .putInt("lastApiHttpCode", lastApiHttpCode)
                 .putBoolean("lastApiPrivateOk", lastApiPrivateOk)
                 .putBoolean("lastApiCanTrade", lastApiCanTrade)
@@ -500,6 +509,9 @@ public class AppStore {
                 .putInt("autoMinConfidence", autoMinConfidence)
                 .putLong("autoLastScanMs", autoLastScanMs)
                 .putLong("autoLastHeartbeatMs", autoLastHeartbeatMs)
+                .putLong("deviceLastHeartbeatMs", deviceLastHeartbeatMs)
+                .putInt("deviceUnexpectedStopCount", deviceUnexpectedStopCount)
+                .putString("deviceLastStopReason", deviceLastStopReason == null ? "" : deviceLastStopReason)
                 .putString("autoStatus", autoStatus == null ? "" : autoStatus)
                 .putString("autoActiveSymbol", autoActiveSymbol == null ? "" : autoActiveSymbol)
                 .putLong("autoOcoOrderListId", autoOcoOrderListId)
@@ -716,15 +728,57 @@ public class AppStore {
         save();
     }
 
-    public void resetV60SafetyState(String reason) {
+    public void clearRateLimitLock(String reason) {
         liveRealOrderArmed = false;
         autoLiveArmed = false;
         autoRunning = false;
-        autoPanic = false;
+        liveUnlocked = false;
+        lastApiMode = "";
+        lastApiPrivateOk = false;
+        lastApiCanTrade = false;
+        autoBinanceTestOrderPassed = false;
         binanceRateLimitLock = false;
         lastBinanceStatusCode = 0;
-        lastBinanceErrorDoctor = "Safety state reset" + (reason == null || reason.isEmpty() ? "." : (": " + reason));
-        resetOrderSafetyState(reason == null ? "v6.2 safety reset" : reason);
+        lastBinanceErrorDoctor = "Rate-limit lock cleared" + (reason == null || reason.isEmpty() ? "." : (": " + reason));
+        engine.addJournal("Rate-limit lock cleared" + (reason == null || reason.isEmpty() ? "." : (": " + reason));
+        save();
+    }
+
+    public boolean panicLatched() {
+        return engine != null && (engine.panic || autoPanic);
+    }
+
+    public boolean runtimeActive() {
+        return engine != null && "ACTIVE".equals(AutoTradingPolicy.runtimeState(engine.running, autoRunning, engine.panic, autoPanic));
+    }
+
+    public String runtimeState() {
+        return engine == null ? "IDLE" : AutoTradingPolicy.runtimeState(engine.running, autoRunning, engine.panic, autoPanic);
+    }
+
+    public void resetPanicState(String reason) {
+        engine.running = false;
+        engine.panic = false;
+        autoRunning = false;
+        autoPanic = false;
+        autoLiveArmed = false;
+        liveRealOrderArmed = false;
+        autoStatus = "Panic state reset. Scanner is idle; Automatic LIVE must be armed again.";
+        engine.addJournal("Panic state reset" + (reason == null || reason.isEmpty() ? "." : ": " + reason));
+        save();
+    }
+
+    public void recordDeviceHeartbeat() {
+        deviceLastHeartbeatMs = System.currentTimeMillis();
+    }
+
+    public void recordUnexpectedDeviceStop(String reason) {
+        deviceUnexpectedStopCount++;
+        deviceLastStopReason = reason == null || reason.isEmpty() ? "Foreground device service stopped unexpectedly." : reason;
+        autoRunning = false;
+        autoLiveArmed = false;
+        engine.running = false;
+        autoStatus = deviceLastStopReason;
         save();
     }
 
@@ -776,6 +830,7 @@ public class AppStore {
         if (binanceRateLimitLock) out.append("- Clear Binance rate-limit lock only after checking Binance.\n");
         if (liveOrderTestMode) out.append("- Complete a Binance Test Order, then disable Test Order Mode for auto live execution.\n");
         if (!autoBinanceTestOrderPassed) out.append("- Pass a Binance BUY Test Order with this API key.\n");
+        if (autoPanic || engine.panic) out.append("- Reset the Panic state after checking Binance.\n");
         if (!autoLiveArmed) out.append("- Arm Automatic LIVE once for this session.\n");
         if (!AutoTradingPolicy.isStaticIp(autoTrustedStaticIp)) out.append("- Add your expected static public IP.\n");
         if (!portfolioSyncOk || System.currentTimeMillis() - lastPortfolioSyncMs > 5 * 60 * 1000L) out.append("- Sync the Spot portfolio within five minutes.\n");
@@ -789,7 +844,7 @@ public class AppStore {
 
     public void addCoin(String raw) {
         String coin = normalizeCoin(raw);
-        if (BinanceClient.isTabletPair(coin) && !watchlist.contains(coin)) watchlist.add(coin);
+        if (BinanceClient.isSupportedPair(coin) && !watchlist.contains(coin)) watchlist.add(coin);
         save();
     }
 

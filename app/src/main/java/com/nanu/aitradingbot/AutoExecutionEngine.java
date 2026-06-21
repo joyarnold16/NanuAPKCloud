@@ -130,17 +130,30 @@ public final class AutoExecutionEngine {
         store.lastScalperSignal = signal.action.name();
         store.lastScalperConfidence = signal.confidence;
         store.lastScalperReport = signal.report(selected, store.stopLoss, store.takeProfit);
-        store.autoStatus = "Qualified " + selected + " BUY setup at " + signal.confidence + "/100. Submitting protected entry.";
+        store.autoStatus = "Qualified " + selected + " BUY setup at " + signal.confidence + "/100. Verifying device IP before protected entry.";
         store.save();
-        BinanceClient.placeAutomaticMarketBuy(store, selected, signal, result -> {
-            requestInFlight = false;
-            if (!result.ok) {
-                haltForReview("Automatic entry failed: " + result.report);
+        // A device can change networks after the session starts. Verify the
+        // external IP again immediately before an exchange order is submitted.
+        BinanceClient.verifyTrustedIp(store, ipResult -> {
+            if (!ipResult.ok) {
+                requestInFlight = false;
+                haltForReview("Automatic entry blocked by device IP check: " + ipResult.report);
                 return;
             }
-            store.autoStatus = result.report;
-            store.autoConsecutiveFailures = 0;
-            store.save();
+            if (!store.autoRunning || store.autoPanic || engine.panic) {
+                requestInFlight = false;
+                return;
+            }
+            BinanceClient.placeAutomaticMarketBuy(store, selected, signal, result -> {
+                requestInFlight = false;
+                if (!result.ok) {
+                    haltForReview("Automatic entry failed: " + result.report);
+                    return;
+                }
+                store.autoStatus = result.report;
+                store.autoConsecutiveFailures = 0;
+                store.save();
+            });
         });
     }
 

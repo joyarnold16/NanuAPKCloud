@@ -39,7 +39,7 @@ public class BinanceClient {
     }
     private static final ExecutorService exec = Executors.newSingleThreadExecutor();
     private static volatile boolean scalperRequestInFlight = false;
-    private static final String[] TABLET_PAIRS = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"};
+    private static final String[] SUPPORTED_PAIRS = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"};
 
     private static class BinanceHttpException extends Exception {
         final int code;
@@ -104,6 +104,7 @@ public class BinanceClient {
                 String ip = publicIpSafe();
                 if (!ip.isEmpty()) {
                     store.lastPublicIp = ip;
+                    store.lastPublicIpCheckedMs = System.currentTimeMillis();
                     out.append("Public IP helper: ").append(ip).append('\n');
                 }
 
@@ -222,7 +223,7 @@ public class BinanceClient {
             try {
                 String symbol = store.normalizeCoin(store.scalperSymbol);
                 if (symbol.isEmpty()) symbol = "BTCUSDT";
-                if (!isTabletPair(symbol)) throw new IllegalArgumentException("Nanu supports BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT only.");
+                if (!isSupportedPair(symbol)) throw new IllegalArgumentException("Nanu supports BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT only.");
                 HttpURLConnection c = (HttpURLConnection)new URL("https://api.binance.com/api/v3/klines?symbol=" + enc(symbol) + "&interval=1m&limit=80").openConnection();
                 c.setRequestMethod("GET");
                 c.setConnectTimeout(12000);
@@ -283,7 +284,7 @@ public class BinanceClient {
             String report;
             try {
                 String symbol = store.normalizeCoin(requestedSymbol);
-                if (!isTabletPair(symbol)) throw new IllegalArgumentException("Automatic execution supports BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT only.");
+                if (!isSupportedPair(symbol)) throw new IllegalArgumentException("Automatic execution supports BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT only.");
                 HttpURLConnection c = (HttpURLConnection)new URL("https://api.binance.com/api/v3/klines?symbol=" + enc(symbol) + "&interval=1m&limit=80").openConnection();
                 c.setRequestMethod("GET");
                 c.setConnectTimeout(12000);
@@ -349,7 +350,7 @@ public class BinanceClient {
                 out.append("Side: ").append(safeSide).append('\n');
                 out.append("Execution channel: ").append(testOnly ? "BINANCE /order/test (NO REAL FILL)" : "BINANCE REAL MARKET ORDER").append("\n\n");
 
-                if (!isTabletPair(safeSymbol)) { cb.done(out + "BLOCKED: Nanu is limited to BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT."); return; }
+                if (!isSupportedPair(safeSymbol)) { cb.done(out + "BLOCKED: Nanu is limited to BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT."); return; }
                 if (!"live".equals(store.mode)) { cb.done(out + "BLOCKED: select LIVE mode first."); return; }
                 if (!store.liveUnlocked) { cb.done(out + "BLOCKED: LIVE gate is locked."); return; }
                 if (store.apiKey.isEmpty() || store.apiSecret.isEmpty()) { cb.done(out + "BLOCKED: API key/secret missing."); return; }
@@ -509,7 +510,7 @@ public class BinanceClient {
                     cb.done(new AutoResult(false, "Automatic executor is not running."));
                     return;
                 }
-                if (!isTabletPair(safeSymbol)) {
+                if (!isSupportedPair(safeSymbol)) {
                     cb.done(new AutoResult(false, "Automatic execution attempted an unsupported pair."));
                     return;
                 }
@@ -707,14 +708,15 @@ public class BinanceClient {
                 String current = publicIpSafe();
                 if (!current.isEmpty()) {
                     store.lastPublicIp = current;
+                    store.lastPublicIpCheckedMs = System.currentTimeMillis();
                     store.save();
                 }
                 if (!AutoTradingPolicy.isStaticIp(expected)) {
                     cb.done(new AutoResult(false, "Expected static public IP is not configured."));
                 } else if (current.isEmpty()) {
-                    cb.done(new AutoResult(false, "Could not determine this tablet's public IP."));
-                } else if (!expected.equalsIgnoreCase(current)) {
-                    cb.done(new AutoResult(false, "Static-IP mismatch. Expected " + expected + " but this tablet is using " + current + ". Binance trusted IP must match before automatic execution."));
+                    cb.done(new AutoResult(false, "Could not determine this device's public IP."));
+                } else if (!AutoTradingPolicy.publicIpMatches(expected, current)) {
+                    cb.done(new AutoResult(false, "Static-IP mismatch. Expected " + expected + " but this device is using " + current + ". Binance trusted IP must match before automatic execution."));
                 } else {
                     cb.done(new AutoResult(true, "Static IP verified: " + current));
                 }
@@ -779,8 +781,8 @@ public class BinanceClient {
         exec.execute(() -> {
             try {
                 String ip = publicIpSafe();
-                if (!ip.isEmpty()) { store.lastPublicIp = ip; store.save(); }
-                cb.done("Trusted IP Helper\n\nYour current public IP appears to be:\n" + (ip.isEmpty() ? "Unknown" : ip) + "\n\nAdd this IP to Binance API trusted IP list if your account requires it. Mobile networks can change IP often.");
+                if (!ip.isEmpty()) { store.lastPublicIp = ip; store.lastPublicIpCheckedMs = System.currentTimeMillis(); store.save(); }
+                cb.done("Trusted IP Helper\n\nYour current public IP appears to be:\n" + (ip.isEmpty() ? "Unknown" : ip) + "\n\nThis screen only shows the address; it cannot make your IP static. Add the same stable IP to Binance API trusted IP restrictions. Mobile networks often change IP.");
             } catch (Exception e) {
                 cb.done("Trusted IP Helper failed: " + e.getMessage());
             }
@@ -1113,9 +1115,9 @@ public class BinanceClient {
         return raw.length() <= 36 ? raw : raw.substring(0, 36);
     }
 
-    public static boolean isTabletPair(String symbol) {
+    public static boolean isSupportedPair(String symbol) {
         if (symbol == null) return false;
-        for (String pair : TABLET_PAIRS) if (pair.equalsIgnoreCase(symbol.trim())) return true;
+        for (String pair : SUPPORTED_PAIRS) if (pair.equalsIgnoreCase(symbol.trim())) return true;
         return false;
     }
 
@@ -1225,12 +1227,15 @@ public class BinanceClient {
     }
 
     private static String publicIpSafe() {
-        try {
-            HttpURLConnection c = (HttpURLConnection)new URL("https://api.ipify.org").openConnection();
-            c.setConnectTimeout(8000); c.setReadTimeout(8000);
-            String ip = read(c).trim();
-            if (ip.matches("[0-9a-fA-F:.]+")) return ip;
-        } catch (Exception ignored) {}
+        String[] helpers = {"https://api.ipify.org", "https://ifconfig.me/ip"};
+        for (String helper : helpers) {
+            try {
+                HttpURLConnection c = (HttpURLConnection)new URL(helper).openConnection();
+                c.setConnectTimeout(8000); c.setReadTimeout(8000);
+                String ip = read(c).trim();
+                if (AutoTradingPolicy.isStaticIp(ip)) return ip;
+            } catch (Exception ignored) {}
+        }
         return "";
     }
 

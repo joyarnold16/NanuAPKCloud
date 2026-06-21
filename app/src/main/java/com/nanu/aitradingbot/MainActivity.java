@@ -3,15 +3,21 @@ package com.nanu.aitradingbot;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -158,8 +164,9 @@ public class MainActivity extends Activity {
         TextView title = tv("NANU AI TRADING BOT", 20, WHITE, true); title.setLetterSpacing(0f); title.setSingleLine(true); titles.addView(title);
         LinearLayout meta = row(); meta.setGravity(Gravity.CENTER_VERTICAL);
         TextView sub = tv("AUTOMATIC SPOT", 12, CYAN, true); sub.setLetterSpacing(0f); sub.setSingleLine(true); meta.addView(sub, new LinearLayout.LayoutParams(0, -2, 1));
-        boolean active = (store.engine.running || store.autoRunning) && !store.engine.panic && !store.autoPanic;
-        TextView status = active ? activeStatusPill() : pill("IDLE", MUTED, 11); status.setMinWidth(dp(64)); meta.addView(status, new LinearLayout.LayoutParams(-2, -2));
+        String state = store.runtimeState();
+        TextView status = "PANIC".equals(state) ? panicStatusPill() : ("ACTIVE".equals(state) ? activeStatusPill() : pill("IDLE", MUTED, 11));
+        status.setMinWidth(dp(64)); meta.addView(status, new LinearLayout.LayoutParams(-2, -2));
         titles.addView(meta, new LinearLayout.LayoutParams(-1, -2));
         row.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
         TextView settings = pill("⚙", CYAN, 19); settings.setPadding(dp(10), dp(7), dp(10), dp(7)); settings.setOnClickListener(v -> openSecurity());
@@ -207,9 +214,17 @@ public class MainActivity extends Activity {
         return t;
     }
 
+    TextView panicStatusPill() {
+        TextView t = pill("PANIC", RED, 11);
+        t.setTextColor(WHITE);
+        t.setBackground(bg(RED, Color.WHITE, 10));
+        return t;
+    }
+
     void buildSafetyDashboardCard() {
         LinearLayout box = cardBox();
         box.addView(section("SAFETY STATUS"));
+        box.addView(tv("Runtime: " + store.runtimeState() + " • Device heartbeat: " + heartbeatAgeLabel(), 12, "ACTIVE".equals(store.runtimeState()) ? GREEN : (store.panicLatched() ? RED : AMBER), true));
         box.addView(tv("Spot trading • LIVE gate " + (store.liveUnlocked ? "unlocked" : "locked") + " • API Doctor " + (store.apiDoctorOkForCurrentMode() ? "passed" : "required"), 12, store.liveUnlocked ? GREEN : AMBER, true));
         box.addView(tv("Real BUY is manual, single-use armed, and attempts Binance-side OCO target/stop protection immediately after a fill.", 12, CYAN, false));
         box.addView(tv("Four approved pairs: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT • Daily cap: " + store.liveTradesToday + " / " + store.maxLiveTradesPerDay, 12, MUTED, false));
@@ -226,7 +241,7 @@ public class MainActivity extends Activity {
         head.addView(tv("MANUAL", 12, CYAN, true));
         box.addView(head); addGap(box, 8);
         box.addView(big(store.portfolioSyncOk ? "BINANCE BALANCE READY" : "SYNC BINANCE FIRST", store.portfolioSyncOk ? GREEN : AMBER, 20));
-        box.addView(tv("No server, URL, or executor token is required. Your encrypted API credentials stay on this tablet.", 12, MUTED, false));
+        box.addView(tv("No server, URL, or executor token is required. Your encrypted API credentials stay on this device.", 12, MUTED, false));
         box.addView(tv("BUY amount: " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT • Daily cap: " + store.liveTradesToday + " / " + store.maxLiveTradesPerDay, 13, WHITE, true));
         box.addView(tv("Stop " + String.format(Locale.US, "%.2f", store.stopLoss) + "% • Target " + String.format(Locale.US, "%.2f", store.takeProfit) + "% • Protection: Binance OCO after a real fill", 12, MUTED, false));
         root.addView(box); addGap(12);
@@ -333,6 +348,11 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams r3lp = new LinearLayout.LayoutParams(0, dp(52), 1); r3lp.leftMargin = dp(10);
         r3.addView(actionButton("Emergency Close", RED, v -> confirmAutomaticEmergencyClose()), r3lp);
         box.addView(r3);
+        if (store.panicLatched()) {
+            addGap(box, 8);
+            box.addView(actionButton("Reset Panic State", AMBER, v -> confirmPanicReset(null)), new LinearLayout.LayoutParams(-1, dp(52)));
+            box.addView(tv("Panic recovery never restarts automatic trading. Check Binance first; a fresh arm is always required.", 11, AMBER, false));
+        }
         root.addView(box); addGap(12);
     }
 
@@ -390,7 +410,7 @@ public class MainActivity extends Activity {
         controls.addView(actionButton("Signal Report", CYAN, v -> alert("Nanu Live Spot Signal", store.lastScalperReport)), reportLp);
         box.addView(controls); addGap(box, 8);
         LinearLayout settings = row();
-        settings.addView(actionButton("Pair: " + store.scalperSymbol, CYAN, v -> chooseTabletPair()), new LinearLayout.LayoutParams(0, dp(48), 1));
+        settings.addView(actionButton("Pair: " + store.scalperSymbol, CYAN, v -> chooseSupportedPair()), new LinearLayout.LayoutParams(0, dp(48), 1));
         LinearLayout.LayoutParams amountLp = new LinearLayout.LayoutParams(0, dp(48), 1); amountLp.leftMargin = dp(10);
         settings.addView(actionButton("Paper: " + String.format(Locale.US, "%.2f", store.scalperTradeAmountUsdt), GREEN, v -> input("Paper Trade Amount", "Minimum 5 USDT", String.format(Locale.US, "%.2f", store.scalperTradeAmountUsdt), false, value -> {
             try { store.scalperTradeAmountUsdt = Math.max(5.0, Math.min(100.0, Double.parseDouble(value.trim()))); store.save(); render(true); }
@@ -419,10 +439,10 @@ public class MainActivity extends Activity {
         }));
     }
 
-    void chooseTabletPair() {
+    void chooseSupportedPair() {
         input("Active Scalper Pair", "BTCUSDT, ETHUSDT, BNBUSDT, or SOLUSDT", store.scalperSymbol, false, value -> {
             String pair = store.normalizeCoin(value);
-            if (!BinanceClient.isTabletPair(pair)) { toast("Use BTCUSDT, ETHUSDT, BNBUSDT, or SOLUSDT"); return; }
+            if (!BinanceClient.isSupportedPair(pair)) { toast("Use BTCUSDT, ETHUSDT, BNBUSDT, or SOLUSDT"); return; }
             store.scalperSymbol = pair;
             store.save();
             render(true);
@@ -446,7 +466,7 @@ public class MainActivity extends Activity {
 
     void buildBrain() {
         LinearLayout box = cardBox(); box.addView(screenTitle("SCALPING STRATEGY"));
-        box.addView(tv("The tablet strategy uses closed one-minute candles, EMA 9/21, RSI 14, volatility, volume, and bounded local learning. It does not predict profit or remove market risk.", 13, MUTED, false)); addGap(box, 12);
+        box.addView(tv("The device strategy uses closed one-minute candles, EMA 9/21, RSI 14, volatility, volume, and bounded local learning. It does not predict profit or remove market risk.", 13, MUTED, false)); addGap(box, 12);
         LinearLayout brainMetrics = row(); brainMetrics.setBaselineAligned(false);
         addMetric(brainMetrics, "LEARNING", String.valueOf(store.brainLearningCycles), "cycles", CYAN);
         addMetric(brainMetrics, "BIAS", String.format(Locale.US, "%.2f", store.brainAdaptiveBias), "adaptive", store.brainAdaptiveBias >= 0 ? GREEN : AMBER);
@@ -489,8 +509,9 @@ public class MainActivity extends Activity {
         LinearLayout apiTools = row();
         apiTools.addView(actionButton("Show My Public IP", CYAN, v -> showPublicIp()), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams apiToolsLp = new LinearLayout.LayoutParams(0, dp(52), 1); apiToolsLp.leftMargin = dp(10);
-        apiTools.addView(actionButton("API Mode Guide", AMBER, v -> alert("API Mode Guide", apiModeGuide())), apiToolsLp);
+        apiTools.addView(actionButton("Device Readiness", CYAN, v -> alert("Device Readiness", deviceReadinessReport())), apiToolsLp);
         box.addView(apiTools); addGap(box, 10);
+        box.addView(actionButton("API Mode Guide", AMBER, v -> alert("API Mode Guide", apiModeGuide())), new LinearLayout.LayoutParams(-1, dp(52))); addGap(box, 10);
         buildApiDoctorStatus(box);
         addGap(box, 8);
         buildLiveChecklist(box);
@@ -499,7 +520,7 @@ public class MainActivity extends Activity {
         box.addView(tv("Use this only after checking Binance API Management and confirming Enable Withdrawals is OFF for this API key.", 11, AMBER, false));
         addGap(box, 8);
         box.addView(actionButton("Unlock LIVE Control Gate", RED, v -> unlockLive()), new LinearLayout.LayoutParams(-1, dp(54)));
-        box.addView(tv("The tablet can run automatic Spot execution only after every live gate, static-IP verification, a one-time arm, and Start Automatic LIVE. Every filled automatic BUY receives Binance OCO protection.", 12, AMBER, false));
+        box.addView(tv("This device can run automatic Spot execution only after every live gate, static-IP verification, a one-time arm, and Start Automatic LIVE. Every filled automatic BUY receives Binance OCO protection.", 12, AMBER, false));
         if (store.hasPendingProtectionCheck()) {
             addGap(box, 8);
             box.addView(actionButton("Acknowledge Binance Protection Check", RED, v -> acknowledgeProtectionCheck()), new LinearLayout.LayoutParams(-1, dp(52)));
@@ -590,7 +611,8 @@ public class MainActivity extends Activity {
         status.addView(tv("Last HTTP: " + (store.lastApiHttpCode == 0 ? "Not tested" : String.valueOf(store.lastApiHttpCode)), 12, MUTED, false));
         status.addView(tv("Private API: " + (sameMode && store.lastApiPrivateOk ? "OK" : "Not OK / Run Doctor for current mode"), 12, sameMode && store.lastApiPrivateOk ? GREEN : AMBER, true));
         status.addView(tv("Spot trading permission: " + (sameMode && store.lastApiCanTrade ? "OK" : "Blocked / Read-only / Not checked"), 12, sameMode && store.lastApiCanTrade ? GREEN : RED, true));
-        status.addView(tv("Current public IP: " + (store.lastPublicIp.isEmpty() ? "Not checked" : store.lastPublicIp), 12, MUTED, false));
+        status.addView(tv("Current public IP: " + (store.lastPublicIp.isEmpty() ? "Not checked" : store.lastPublicIp) + " (" + publicIpAgeLabel() + ")", 12, MUTED, false));
+        status.addView(tv("Expected device IP: " + (store.autoTrustedStaticIp.isEmpty() ? "Not set" : store.autoTrustedStaticIp), 12, MUTED, false));
         status.addView(tv("Account withdraw ability: " + (sameMode && store.lastApiAccountCanWithdraw ? "ON / account-level flag" : "OFF or not checked"), 12, sameMode && store.lastApiAccountCanWithdraw ? AMBER : MUTED, false));
         status.addView(tv("Manual API-key withdrawal confirmation: " + (store.withdrawalPermissionConfirmedOff ? "OFF confirmed" : "Required before live unlock"), 12, store.withdrawalPermissionConfirmedOff ? GREEN : RED, true));
         status.addView(tv(store.lastApiDiagnosis, 12, store.lastApiCanTrade ? GREEN : AMBER, false));
@@ -735,7 +757,7 @@ public class MainActivity extends Activity {
     }
 
     void buildV60Settings(LinearLayout box) {
-        box.addView(section("TABLET ORDER CONTROLS")); addGap(box, 8);
+        box.addView(section("DEVICE ORDER CONTROLS")); addGap(box, 8);
         box.addView(tv("Manual protected Spot orders, automatic execution controls, API diagnostics, backup, and Error Doctor.", 12, MUTED, false)); addGap(box, 8);
         LinearLayout r1 = row();
         r1.addView(actionButton("Compliance Guard: " + (store.complianceGuardEnabled ? "ON" : "OFF"), store.complianceGuardEnabled ? GREEN : RED, v -> { store.complianceGuardEnabled = !store.complianceGuardEnabled; store.liveRealOrderArmed = false; store.save(); render(true); }), new LinearLayout.LayoutParams(0, dp(52), 1));
@@ -758,7 +780,7 @@ public class MainActivity extends Activity {
         LinearLayout r4 = row();
         r4.addView(actionButton("Export Backup", CYAN, v -> alert("Nanu Backup", exportBackupText())), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams r4lp = new LinearLayout.LayoutParams(0, dp(52), 1); r4lp.leftMargin = dp(10);
-        r4.addView(actionButton("Reset v6 Safety", AMBER, v -> { store.resetV60SafetyState("Manual v6 reset"); toast("v6 safety state reset"); render(true); }), r4lp);
+        r4.addView(actionButton(store.binanceRateLimitLock ? "Clear Rate Limit Lock" : "Rate Limit: Clear", store.binanceRateLimitLock ? RED : MUTED, v -> confirmRateLimitClear()), r4lp);
         box.addView(r4); addGap(box, 8);
 
         LinearLayout r5 = row();
@@ -766,21 +788,23 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams r5lp = new LinearLayout.LayoutParams(0, dp(52), 1); r5lp.leftMargin = dp(10);
         r5.addView(actionButton("Error Doctor", store.binanceRateLimitLock ? RED : CYAN, v -> alert("Nanu Error Doctor", errorDoctorReport())), r5lp);
         box.addView(r5); addGap(box, 8);
-        box.addView(tv("Telegram messages can report status and alerts. Telegram cannot submit a real BUY or SELL from this tablet.", 11, AMBER, false)); addGap(box, 18);
+        box.addView(tv("Telegram messages can report status and alerts. Telegram cannot submit a real BUY or SELL from this device.", 11, AMBER, false)); addGap(box, 18);
     }
 
     void buildAutomaticSettings(LinearLayout box) {
         box.addView(section("AUTOMATIC LIVE EXECUTION")); addGap(box, 8);
         box.addView(tv("Automatic mode scans BTCUSDT, ETHUSDT, BNBUSDT and SOLUSDT. It selects the highest qualified closed-candle BUY, permits one OCO-protected position at a time, and enforces the daily entry limit.", 12, MUTED, false)); addGap(box, 8);
         LinearLayout r1 = row();
-        r1.addView(actionButton(store.autoTrustedStaticIp.isEmpty() ? "Set Static Public IP" : "Static IP: " + store.autoTrustedStaticIp, CYAN, v -> input("Trusted Static Public IP", "Example: 203.0.113.10", store.autoTrustedStaticIp, false, value -> {
+        r1.addView(actionButton(store.autoTrustedStaticIp.isEmpty() ? "Set Expected Public IP" : "Expected IP: " + store.autoTrustedStaticIp, CYAN, v -> input("Expected Device Public IP", "Example: 203.0.113.10", store.autoTrustedStaticIp, false, value -> {
             String ip = value.trim();
             if (!AutoTradingPolicy.isStaticIp(ip)) { toast("Enter a valid public IPv4 or IPv6 address"); return; }
             store.autoTrustedStaticIp = ip; store.autoLiveArmed = false; store.save(); render(true);
         })), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams r1lp = new LinearLayout.LayoutParams(0, dp(52), 1); r1lp.leftMargin = dp(10);
-        r1.addView(actionButton("Check Static IP", CYAN, v -> runAutomaticPreflight()), r1lp);
+        r1.addView(actionButton("Use Current IP", CYAN, v -> useCurrentPublicIp()), r1lp);
         box.addView(r1); addGap(box, 8);
+        box.addView(actionButton("Check Device IP", CYAN, v -> checkDeviceIp()), new LinearLayout.LayoutParams(-1, dp(52))); addGap(box, 6);
+        box.addView(tv("Expected: " + (store.autoTrustedStaticIp.isEmpty() ? "Not set" : store.autoTrustedStaticIp) + "  |  Current: " + (store.lastPublicIp.isEmpty() ? "Not checked" : store.lastPublicIp) + "  |  Last check: " + publicIpAgeLabel(), 11, MUTED, false)); addGap(box, 8);
         LinearLayout r2 = row();
         r2.addView(actionButton("Auto Amount: " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT", CYAN, v -> input("Automatic Spot Order Amount", "5 to your order limit", String.format(Locale.US, "%.2f", store.microLiveOrderUsdt), false, value -> {
             try { store.microLiveOrderUsdt = Math.max(5.0, Math.min(store.manualOrderLimitUsdt, Double.parseDouble(value.trim()))); store.liveDryRunOrderUsdt = store.microLiveOrderUsdt; store.autoLiveArmed = false; store.save(); render(true); }
@@ -969,7 +993,7 @@ public class MainActivity extends Activity {
     }
 
     String telegramStatusText() {
-        return "Nanu AI Trading Bot Status\nMode: " + store.mode.toUpperCase(Locale.US) + "\nBot: " + (store.engine.running && !store.engine.panic ? "ACTIVE" : "IDLE") + "\nReal entries: " + store.liveTradesToday + "/" + store.maxLiveTradesPerDay + "\nScalper: " + store.scalperSymbol + " / " + store.lastScalperSignal + "\nSpot equity: " + store.portfolioEquityLabel() + "\nManual order limit: " + String.format(Locale.US, "%.2f", store.manualOrderLimitUsdt) + " USDT";
+        return "Nanu AI Trading Bot Status\nMode: " + store.mode.toUpperCase(Locale.US) + "\nBot: " + store.runtimeState() + "\nReal entries: " + store.liveTradesToday + "/" + store.maxLiveTradesPerDay + "\nScalper: " + store.scalperSymbol + " / " + store.lastScalperSignal + "\nSpot equity: " + store.portfolioEquityLabel() + "\nManual order limit: " + String.format(Locale.US, "%.2f", store.manualOrderLimitUsdt) + " USDT";
     }
 
     void buildProfitGuardCard() {
@@ -1052,6 +1076,10 @@ public class MainActivity extends Activity {
     }
 
     void startBot() {
+        if (store.panicLatched()) {
+            confirmPanicReset(this::startBot);
+            return;
+        }
         if ("live".equals(store.mode) && !store.liveUnlocked) { toast("Live signal scanner locked. Use Unlock LIVE after all checks pass."); activeTab=4; render(true); return; }
         if ("live".equals(store.mode) && !store.apiTradingOkForCurrentMode()) { toast("Live signal scanner blocked: run API Doctor in LIVE mode first."); activeTab=4; render(true); return; }
         store.engine.start();
@@ -1061,7 +1089,29 @@ public class MainActivity extends Activity {
     }
     void startForegroundBotService() { try { Intent i = new Intent(this, NanuBotService.class); if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i); } catch (Exception ignored) {} }
     void stopBot() { store.engine.stop(); stopService(new Intent(this, NanuBotService.class)); store.resetOrderSafetyState("Stop button"); store.triggerAlert("Nanu Stopped", "Scanner and automatic entries stopped. Existing Binance OCO protection remains on the exchange.", false, "startstop"); toast("Nanu stopped"); render(false); }
-    void panic() { store.engine.panicClose(); store.panicButtonTested = true; store.save(); stopService(new Intent(this, NanuBotService.class)); store.triggerAlert("Nanu PANIC", "Panic stopped new entries. Existing Binance OCO protection stays active; check Binance before restarting.", true, "panic"); toast("Panic stop activated"); render(false); }
+    void panic() { store.engine.panicClose(); store.panicButtonTested = true; store.save(); stopService(new Intent(this, NanuBotService.class)); store.triggerAlert("Nanu PANIC", "Panic stopped new entries. Existing Binance OCO protection stays active; check Binance, then reset Panic before restarting the scanner.", true, "panic"); toast("Panic stop activated"); render(false); }
+
+    void confirmPanicReset(Runnable afterReset) {
+        if (!store.panicLatched()) { toast("Panic state is already clear"); return; }
+        input("Reset Panic State", "Type RESET PANIC", "", false, value -> {
+            if (!"RESET PANIC".equals(value.trim())) { toast("Panic state remains active"); return; }
+            store.resetPanicState("Operator confirmed after Panic Stop");
+            store.triggerAlert("Nanu Panic Reset", "Panic state cleared. Scanner is idle; Automatic LIVE remains disarmed and requires a fresh arm.", true, "startstop");
+            toast("Panic state reset. Automatic LIVE remains disarmed.");
+            if (afterReset != null) afterReset.run(); else render(true);
+        });
+    }
+
+    void confirmRateLimitClear() {
+        if (!store.binanceRateLimitLock) { toast("No Binance rate-limit lock is active"); return; }
+        input("Clear Binance Rate Limit Lock", "Type CLEAR RATE LOCK", "", false, value -> {
+            if (!"CLEAR RATE LOCK".equals(value.trim())) { toast("Rate-limit lock remains active"); return; }
+            store.clearRateLimitLock("Operator confirmed after checking Binance");
+            store.triggerAlert("Nanu Rate Limit Lock Cleared", "The local rate-limit lock was cleared. Run API Doctor and Automatic Preflight before any new LIVE session.", true, "api");
+            toast("Rate-limit lock cleared. Run API Doctor and Preflight.");
+            render(true);
+        });
+    }
 
     void setMode(String m) {
         if ("live".equals(m)) {
@@ -1134,6 +1184,81 @@ public class MainActivity extends Activity {
     }
 
     void showPublicIp() { toast("Checking public IP..."); BinanceClient.getPublicIp(store, result -> runOnUiThread(() -> { alert("Trusted IP Helper", result); render(false); })); }
+
+    void useCurrentPublicIp() {
+        final long requestedAt = System.currentTimeMillis();
+        toast("Checking current public IP...");
+        BinanceClient.getPublicIp(store, result -> runOnUiThread(() -> {
+            if (store.lastPublicIpCheckedMs < requestedAt || !AutoTradingPolicy.isStaticIp(store.lastPublicIp)) {
+                alert("Expected Device IP Not Saved", "Nanu could not get a fresh public IP. Stay on the intended network and try again.");
+                return;
+            }
+            store.autoTrustedStaticIp = store.lastPublicIp;
+            store.autoLiveArmed = false;
+            store.save();
+            alert("Expected Device IP Saved", "Expected public IP: " + store.autoTrustedStaticIp + "\n\nThis does not make the address static. Add the same stable address to Binance API trusted IP restrictions, then run Check Device IP.");
+            render(true);
+        }));
+    }
+
+    void checkDeviceIp() {
+        toast("Checking device IP...");
+        BinanceClient.verifyTrustedIp(store, result -> runOnUiThread(() -> {
+            String report = "Expected IP: " + (store.autoTrustedStaticIp.isEmpty() ? "Not set" : store.autoTrustedStaticIp)
+                    + "\nCurrent IP: " + (store.lastPublicIp.isEmpty() ? "Unknown" : store.lastPublicIp)
+                    + "\nLast check: " + publicIpAgeLabel()
+                    + "\n\n" + result.report;
+            alert(result.ok ? "Device IP Match" : "Device IP Mismatch", report);
+            render(false);
+        }));
+    }
+
+    String heartbeatAgeLabel() { return ageLabel(store.deviceLastHeartbeatMs); }
+    String publicIpAgeLabel() { return ageLabel(store.lastPublicIpCheckedMs); }
+
+    String ageLabel(long timestampMs) {
+        if (timestampMs <= 0L) return "not checked";
+        long seconds = Math.max(0L, (System.currentTimeMillis() - timestampMs) / 1000L);
+        if (seconds < 10L) return "just now";
+        if (seconds < 60L) return seconds + "s ago";
+        return (seconds / 60L) + "m ago";
+    }
+
+    boolean deviceHasInternet() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return false;
+        if (Build.VERSION.SDK_INT >= 23) {
+            android.net.Network network = cm.getActiveNetwork();
+            NetworkCapabilities capabilities = network == null ? null : cm.getNetworkCapabilities(network);
+            return capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        }
+        android.net.NetworkInfo info = cm.getActiveNetworkInfo();
+        return info != null && info.isConnected();
+    }
+
+    String deviceReadinessReport() {
+        boolean online = deviceHasInternet();
+        PowerManager power = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        boolean batterySaver = power != null && Build.VERSION.SDK_INT >= 21 && power.isPowerSaveMode();
+        Intent battery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        int level = battery == null ? -1 : battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+        int scale = battery == null ? -1 : battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+        int plugged = battery == null ? 0 : battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
+        String batteryLabel = level < 0 || scale <= 0 ? "Unknown" : Math.round(level * 100f / scale) + "%" + (plugged != 0 ? " and charging" : " on battery");
+        boolean heartbeatFresh = store.runtimeActive() && store.deviceLastHeartbeatMs > 0L && System.currentTimeMillis() - store.deviceLastHeartbeatMs < 12_000L;
+
+        return "Runtime: " + store.runtimeState()
+                + "\nNetwork: " + (online ? "Internet available" : "NO INTERNET")
+                + "\nExpected public IP: " + (store.autoTrustedStaticIp.isEmpty() ? "Not set" : store.autoTrustedStaticIp)
+                + "\nCurrent public IP: " + (store.lastPublicIp.isEmpty() ? "Not checked" : store.lastPublicIp)
+                + "\nIP status: " + (AutoTradingPolicy.publicIpMatches(store.autoTrustedStaticIp, store.lastPublicIp) ? "MATCH" : "Check required or mismatch")
+                + "\nBattery: " + batteryLabel
+                + "\nBattery Saver: " + (batterySaver ? "ON - turn it off for an active bot" : "OFF")
+                + "\nForeground heartbeat: " + heartbeatAgeLabel() + (store.runtimeActive() ? (heartbeatFresh ? " (fresh)" : " (stale - inspect app)") : "")
+                + "\nUnexpected service stops: " + store.deviceUnexpectedStopCount
+                + "\nLast stop note: " + store.deviceLastStopReason
+                + "\n\nFor Automatic LIVE, keep this device charged, on the approved stable network, with Battery Saver off. Android can still restrict background work; the heartbeat and Telegram alerts help you notice it, but they cannot guarantee 24/7 operation.";
+    }
     void testTelegram() {
         if (telegramDoctorRunning) { toast("Telegram Doctor already running"); return; }
         telegramDoctorRunning = true;
@@ -1152,12 +1277,12 @@ public class MainActivity extends Activity {
 
         sb.append("=== MODE ===\n");
         sb.append("Current mode: ").append(store.mode.toUpperCase(Locale.US)).append("\n");
-        sb.append("Bot running: ").append(store.engine.running).append("\n");
-        sb.append("Panic state: ").append(store.engine.panic).append("\n");
+        sb.append("Runtime state: ").append(store.runtimeState()).append("\n");
+        sb.append("Panic state: ").append(store.panicLatched()).append("\n");
         sb.append("Live control gate unlocked: ").append(store.liveUnlocked).append("\n");
         sb.append("Live execution: manual protected orders or separately armed automatic Spot execution after live unlock, fresh sync, API Doctor, Telegram Doctor, static-IP verification, and Start Automatic LIVE.\n\n");
 
-        sb.append("=== TABLET EXECUTION ===\n");
+        sb.append("=== DEVICE EXECUTION ===\n");
         sb.append("Remote executor: not used.\n");
         sb.append("Approved pairs: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT\n");
         sb.append("Entries today: ").append(store.liveTradesToday).append(" / ").append(store.maxLiveTradesPerDay).append("\n");
@@ -1169,6 +1294,9 @@ public class MainActivity extends Activity {
         sb.append("Automatic LIVE armed: ").append(store.autoLiveArmed).append("\n");
         sb.append("Automatic executor running: ").append(store.autoRunning).append("\n");
         sb.append("Automatic panic: ").append(store.autoPanic).append("\n");
+        sb.append("Device heartbeat: ").append(heartbeatAgeLabel()).append("\n");
+        sb.append("Unexpected device-service stops: ").append(store.deviceUnexpectedStopCount).append("\n");
+        sb.append("Last device stop note: ").append(store.deviceLastStopReason).append("\n");
         sb.append("Expected static IP: ").append(store.autoTrustedStaticIp).append("\n");
         sb.append("Minimum confidence: ").append(store.autoMinConfidence).append("\n");
         sb.append("Automatic active position: ").append(store.hasAutoPosition() ? store.autoActiveSymbol : "none").append("\n");
@@ -1189,7 +1317,8 @@ public class MainActivity extends Activity {
         sb.append("Spot trading OK: ").append(store.lastApiCanTrade).append("\n");
         sb.append("Account withdraw ability flag: ").append(store.lastApiAccountCanWithdraw).append("\n");
         sb.append("Manual withdrawals OFF confirmed: ").append(store.withdrawalPermissionConfirmedOff).append("\n");
-        sb.append("Public IP: ").append(store.lastPublicIp == null ? "" : store.lastPublicIp).append("\n\n");
+        sb.append("Public IP: ").append(store.lastPublicIp == null ? "" : store.lastPublicIp).append("\n");
+        sb.append("Expected device IP: ").append(store.autoTrustedStaticIp == null ? "" : store.autoTrustedStaticIp).append("\n\n");
 
         sb.append("=== TELEGRAM ===\n");
         sb.append("Telegram Doctor OK: ").append(store.telegramDoctorOk).append("\n");
