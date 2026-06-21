@@ -740,7 +740,7 @@ public class AppStore {
         binanceRateLimitLock = false;
         lastBinanceStatusCode = 0;
         lastBinanceErrorDoctor = "Rate-limit lock cleared" + (reason == null || reason.isEmpty() ? "." : (": " + reason));
-        engine.addJournal("Rate-limit lock cleared" + (reason == null || reason.isEmpty() ? "." : (": " + reason));
+        engine.addJournal("Rate-limit lock cleared" + (reason == null || reason.isEmpty() ? "." : (": " + reason)));
         save();
     }
 
