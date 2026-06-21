@@ -7,6 +7,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class AutoTradingPolicyTest {
@@ -43,6 +44,22 @@ public class AutoTradingPolicyTest {
         assertEquals("ACTIVE", AutoTradingPolicy.runtimeState(false, true, false, false));
         assertEquals("PANIC", AutoTradingPolicy.runtimeState(true, false, false, true));
         assertEquals("IDLE", AutoTradingPolicy.runtimeState(false, false, false, false));
+    }
+
+    @Test
+    public void requiresMoreThanTheExchangeMinimumForAPotentiallyProtectedEntry() {
+        assertEquals(6.0d, AutoTradingPolicy.minimumProtectedQuote(5.0d, 0.6d), 0.000001d);
+        assertTrue(AutoTradingPolicy.minimumProtectedQuote(10.0d, 3.0d) > 10.0d);
+    }
+
+    @Test
+    public void createsOnlyAValidSellOcoBracket() {
+        AutoTradingPolicy.OcoLevels levels = AutoTradingPolicy.calculateOcoLevels(100.0d, 100.2d, 0.6d, 0.6d, 0.01d);
+
+        assertTrue(levels.takeProfit > 100.2d);
+        assertTrue(100.2d > levels.stopPrice);
+        assertTrue(levels.stopPrice > levels.stopLimit);
+        assertNull(AutoTradingPolicy.calculateOcoLevels(100.0d, 99.4d, 0.6d, 0.6d, 0.01d));
     }
 
     private ScalpingStrategy.Signal signal(ScalpingStrategy.Action action, int confidence) {

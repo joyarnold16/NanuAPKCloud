@@ -158,8 +158,8 @@ public final class AutoExecutionEngine {
     }
 
     public void emergencyClose(Callback callback) {
-        if (!store.hasAutoPosition()) {
-            callback.done("No tracked automatic Binance position is open. Check Binance Open Orders before taking action.");
+        if (!store.hasAutoPosition() && !store.hasAutoPendingOrder()) {
+            callback.done("No tracked automatic Binance position or pending BUY is open. Check Binance Open Orders before taking action.");
             return;
         }
         store.autoRunning = false;

@@ -397,6 +397,14 @@ public class BinanceClient {
                         cb.done(out + "BLOCKED: quote amount is below Binance min notional " + fmt2(rules.minNotional) + " USDT.");
                         return;
                     }
+                    if (!testOnly) {
+                        double protectedMinimum = AutoTradingPolicy.minimumProtectedQuote(rules.minNotional, store.stopLoss);
+                        if (safeAmount < protectedMinimum) {
+                            cb.done(out + "BLOCKED: a real protected BUY needs at least " + fmt2(protectedMinimum)
+                                    + " USDT so its Binance stop order remains valid after fees and price rounding.");
+                            return;
+                        }
+                    }
                     if (!Double.isNaN(rules.maxNotional) && safeAmount > rules.maxNotional) {
                         cb.done(out + "BLOCKED: quote amount is above Binance max notional " + fmt2(rules.maxNotional) + " USDT.");
                         return;
@@ -531,8 +539,10 @@ public class BinanceClient {
                     return;
                 }
                 double amount = Math.max(0.01, store.microLiveOrderUsdt);
-                if (amount < rules.minNotional || (!Double.isNaN(rules.maxNotional) && amount > rules.maxNotional)) {
-                    cb.done(new AutoResult(false, "Automatic entry amount does not satisfy current Binance notional rules."));
+                double protectedMinimum = AutoTradingPolicy.minimumProtectedQuote(rules.minNotional, store.stopLoss);
+                if (amount < protectedMinimum || (!Double.isNaN(rules.maxNotional) && amount > rules.maxNotional)) {
+                    cb.done(new AutoResult(false, "Automatic entry blocked before Binance BUY: use at least "
+                            + fmt2(protectedMinimum) + " USDT so the OCO stop can remain above Binance's minimum after fees."));
                     return;
                 }
                 if (!Double.isNaN(store.spotFreeUsdt) && store.spotFreeUsdt < amount) {
@@ -674,20 +684,27 @@ public class BinanceClient {
     public static void emergencyCloseAutomaticPosition(AppStore store, AutoCallback cb) {
         exec.execute(() -> {
             try {
-                if (!store.hasAutoPosition()) {
-                    cb.done(new AutoResult(false, "No tracked automatic position is open."));
+                if (!store.hasAutoPosition() && !store.hasAutoPendingOrder()) {
+                    cb.done(new AutoResult(false, "No tracked automatic position or pending automatic BUY is open."));
                     return;
                 }
                 String base = baseUrl(store.mode);
-                String symbol = store.autoActiveSymbol;
-                String cancelParams = "symbol=" + enc(symbol) + "&timestamp=" + serverTime(base) + "&recvWindow=5000";
-                SignedResponse cancel = signedDelete(base, "/api/v3/openOrders", cancelParams, store.apiKey, store.apiSecret);
-                if (cancel.code < 200 || cancel.code >= 300) {
-                    cb.done(new AutoResult(false, "Could not cancel Binance protective orders (HTTP " + cancel.code + "): " + readableError(cancel.body)));
-                    return;
+                String symbol = store.hasAutoPosition() ? store.autoActiveSymbol : store.autoPendingSymbol;
+                if (store.hasAutoPosition()) {
+                    String cancelParams = "orderListId=" + store.autoOcoOrderListId + "&timestamp=" + serverTime(base) + "&recvWindow=5000";
+                    SignedResponse cancel = signedDelete(base, "/api/v3/orderList", cancelParams, store.apiKey, store.apiSecret);
+                    if (cancel.code < 200 || cancel.code >= 300) {
+                        cb.done(new AutoResult(false, "Could not cancel this app's Binance OCO list (HTTP " + cancel.code + "): " + readableError(cancel.body)));
+                        return;
+                    }
                 }
                 SymbolRules rules = fetchSymbolRules(base, symbol);
-                String sell = attemptEmergencySell(store, base, symbol, rules, store.autoProtectedQuantity);
+                if (!rules.ok) {
+                    cb.done(new AutoResult(false, "Could not load current Binance rules for " + symbol + "."));
+                    return;
+                }
+                double quantity = store.hasAutoPosition() ? store.autoProtectedQuantity : pendingAutomaticFilledQuantity(store, base);
+                String sell = attemptEmergencySell(store, base, symbol, rules, quantity);
                 if (!sell.startsWith("Emergency market sell submitted")) {
                     cb.done(new AutoResult(false, sell));
                     return;
@@ -742,15 +759,7 @@ public class BinanceClient {
 
     private static void recoverAutomaticPendingOrder(AppStore store, String base) throws Exception {
         String symbol = store.autoPendingSymbol;
-        String params = "symbol=" + enc(symbol)
-                + "&origClientOrderId=" + enc(store.autoPendingClientOrderId)
-                + "&timestamp=" + serverTime(base)
-                + "&recvWindow=5000";
-        SignedResponse response = signedGet(base, "/api/v3/order", params, store.apiKey, store.apiSecret);
-        if (response.code < 200 || response.code >= 300) {
-            throw new IOException("Pending automatic order lookup failed (HTTP " + response.code + "): " + readableError(response.body));
-        }
-        JSONObject buy = new JSONObject(response.body);
+        JSONObject buy = pendingAutomaticOrder(store, base);
         if (!"FILLED".equalsIgnoreCase(buy.optString("status"))) {
             throw new IllegalStateException("Pending automatic order status is " + buy.optString("status", "unknown") + ".");
         }
@@ -766,6 +775,26 @@ public class BinanceClient {
         store.lastLiveOrderReport = "RECOVERED AUTOMATIC ORDER\n" + protection.report;
         store.engine.addJournal("Recovered automatic protected BUY: " + symbol + ".");
         store.save();
+    }
+
+    private static double pendingAutomaticFilledQuantity(AppStore store, String base) throws Exception {
+        JSONObject buy = pendingAutomaticOrder(store, base);
+        if (!"FILLED".equalsIgnoreCase(buy.optString("status"))) {
+            throw new IllegalStateException("Pending automatic order status is " + buy.optString("status", "unknown") + ".");
+        }
+        return netBaseQuantity(buy, store.autoPendingSymbol);
+    }
+
+    private static JSONObject pendingAutomaticOrder(AppStore store, String base) throws Exception {
+        String params = "symbol=" + enc(store.autoPendingSymbol)
+                + "&origClientOrderId=" + enc(store.autoPendingClientOrderId)
+                + "&timestamp=" + serverTime(base)
+                + "&recvWindow=5000";
+        SignedResponse response = signedGet(base, "/api/v3/order", params, store.apiKey, store.apiSecret);
+        if (response.code < 200 || response.code >= 300) {
+            throw new IOException("Pending automatic order lookup failed (HTTP " + response.code + "): " + readableError(response.body));
+        }
+        return new JSONObject(response.body);
     }
 
     private static JSONObject queryOrder(String base, String symbol, long orderId, AppStore store) throws Exception {
@@ -964,30 +993,30 @@ public class BinanceClient {
         String status = buy.optString("status", "").toUpperCase(Locale.US);
         double executedQty = parseDouble(buy.optString("executedQty", "0"));
         double quoteSpent = parseDouble(buy.optString("cummulativeQuoteQty", "0"));
+        double netBaseQty = netBaseQuantity(buy, symbol);
         if (!"FILLED".equals(status) || !positive(executedQty) || !positive(quoteSpent)) {
-            String emergency = attemptEmergencySell(store, base, symbol, rules, executedQty);
+            String emergency = attemptEmergencySell(store, base, symbol, rules, netBaseQty);
             throw new IllegalStateException("Buy status was " + (status.isEmpty() ? "unknown" : status) + "; OCO was not placed. " + emergency);
         }
 
-        // Reserve a little base asset for a possible Binance commission paid in the base coin.
-        double protectedQty = roundDownToStep(executedQty * 0.998d, rules.stepSize);
+        // A FULL market-buy response includes fills, allowing base-asset commissions to be removed exactly.
+        double protectedQty = roundDownToStep(netBaseQty, rules.stepSize);
         if (!positive(protectedQty) || protectedQty < rules.minQty || (!Double.isNaN(rules.maxQty) && protectedQty > rules.maxQty)) {
-            String emergency = attemptEmergencySell(store, base, symbol, rules, executedQty);
+            String emergency = attemptEmergencySell(store, base, symbol, rules, protectedQty);
             throw new IllegalStateException("Filled quantity cannot satisfy Binance OCO lot rules. " + emergency);
         }
 
         double entryPrice = quoteSpent / executedQty;
-        double takeProfit = roundDownToStep(entryPrice * (1d + store.takeProfit / 100d), rules.tickSize);
-        double stopPrice = roundDownToStep(entryPrice * (1d - store.stopLoss / 100d), rules.tickSize);
-        // A sell stop-limit must be below its stop trigger so it can fill in a fast move.
-        double stopLimit = roundDownToStep(stopPrice * 0.998d, rules.tickSize);
         double current = lastPrice(base, symbol);
-        if (!positive(takeProfit) || !positive(stopPrice) || !positive(stopLimit)
-                || !(takeProfit > current && current > stopPrice && stopPrice > stopLimit)
-                || protectedQty * stopLimit < rules.minNotional) {
-            String emergency = attemptEmergencySell(store, base, symbol, rules, executedQty);
-            throw new IllegalStateException("Calculated OCO protection is not valid at the current Binance price. " + emergency);
+        AutoTradingPolicy.OcoLevels levels = AutoTradingPolicy.calculateOcoLevels(
+                entryPrice, current, store.takeProfit, store.stopLoss, rules.tickSize);
+        if (levels == null || protectedQty * (levels == null ? 0d : levels.stopLimit) < rules.minNotional) {
+            String emergency = attemptEmergencySell(store, base, symbol, rules, protectedQty);
+            throw new IllegalStateException("OCO could not be safely placed at the current Binance price without weakening the configured stop. " + emergency);
         }
+        double takeProfit = levels.takeProfit;
+        double stopPrice = levels.stopPrice;
+        double stopLimit = levels.stopLimit;
 
         String params = "symbol=" + enc(symbol)
                 + "&side=SELL"
@@ -1006,7 +1035,7 @@ public class BinanceClient {
                 + "&recvWindow=5000";
         SignedResponse response = signedPost(base, "/api/v3/orderList/oco", params, store.apiKey, store.apiSecret);
         if (response.code < 200 || response.code >= 300) {
-            String emergency = attemptEmergencySell(store, base, symbol, rules, executedQty);
+            String emergency = attemptEmergencySell(store, base, symbol, rules, protectedQty);
             throw new IOException("Binance rejected OCO protection (HTTP " + response.code + "): " + readableError(response.body) + ". " + emergency);
         }
         JSONObject orderList = new JSONObject(response.body);
@@ -1039,9 +1068,13 @@ public class BinanceClient {
     private static String attemptEmergencySell(AppStore store, String base, String symbol, SymbolRules rules, double quantity) {
         try {
             double step = positive(rules.marketStepSize) ? rules.marketStepSize : rules.stepSize;
-            double sellQuantity = roundDownToStep(quantity * 0.998d, step);
+            double sellQuantity = roundDownToStep(quantity, step);
             double minQty = positive(rules.marketMinQty) ? rules.marketMinQty : rules.minQty;
             if (!positive(sellQuantity) || sellQuantity < minQty) return "Emergency sell could not be attempted: sell quantity is below Binance minimum.";
+            double currentPrice = lastPrice(base, symbol);
+            if (sellQuantity * currentPrice < rules.minNotional) {
+                return "Emergency sell could not be attempted: sell notional is below Binance minimum at the current price.";
+            }
             String params = "symbol=" + enc(symbol)
                     + "&side=SELL&type=MARKET"
                     + "&quantity=" + enc(qtyForOrder(sellQuantity))
@@ -1052,10 +1085,31 @@ public class BinanceClient {
             SignedResponse response = signedPost(base, "/api/v3/order", params, store.apiKey, store.apiSecret);
             return response.code >= 200 && response.code < 300
                     ? "Emergency market sell submitted. Verify Binance order history immediately."
-                    : "CRITICAL: OCO and emergency sell both failed (HTTP " + response.code + "). Inspect Binance immediately.";
+                    : "CRITICAL: OCO and emergency sell both failed (HTTP " + response.code + "): " + readableError(response.body) + ". Inspect Binance immediately.";
         } catch (Exception e) {
             return "CRITICAL: OCO and emergency sell both failed (" + e.getClass().getSimpleName() + "). Inspect Binance immediately.";
         }
+    }
+
+    private static double netBaseQuantity(JSONObject buy, String symbol) {
+        double executedQty = parseDouble(buy.optString("executedQty", "0"));
+        if (!positive(executedQty)) return 0d;
+        double baseCommission = 0d;
+        String base = baseAsset(symbol);
+        JSONArray fills = buy.optJSONArray("fills");
+        if (fills != null) {
+            for (int i = 0; i < fills.length(); i++) {
+                JSONObject fill = fills.optJSONObject(i);
+                if (fill != null && base.equalsIgnoreCase(fill.optString("commissionAsset", ""))) {
+                    double commission = parseDouble(fill.optString("commission", "0"));
+                    if (positive(commission)) baseCommission += commission;
+                }
+            }
+        } else {
+            // A recovery lookup has no fills. Keep a conservative amount so we never sell more than the buy received.
+            baseCommission = executedQty * 0.002d;
+        }
+        return Math.max(0d, executedQty - Math.max(0d, baseCommission));
     }
 
     private static double lastPrice(String base, String symbol) throws Exception {
