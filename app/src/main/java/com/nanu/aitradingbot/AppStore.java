@@ -147,6 +147,7 @@ public class AppStore {
     public boolean autoLiveArmed = false;
     public boolean autoRunning = false;
     public boolean autoPanic = false;
+    public boolean autoBinanceTestOrderPassed = false;
     public String autoTrustedStaticIp = "";
     public int autoMinConfidence = 68;
     public long autoLastScanMs = 0L;
@@ -317,6 +318,7 @@ public class AppStore {
         autoLiveArmed = false;
         autoRunning = false;
         autoPanic = sp.getBoolean("autoPanic", false);
+        autoBinanceTestOrderPassed = sp.getBoolean("autoBinanceTestOrderPassed", false);
         autoTrustedStaticIp = sp.getString("autoTrustedStaticIp", "").trim();
         autoMinConfidence = Math.max(60, Math.min(95, sp.getInt("autoMinConfidence", 68)));
         autoLastScanMs = sp.getLong("autoLastScanMs", 0L);
@@ -492,6 +494,7 @@ public class AppStore {
                 .putBoolean("autoLiveArmed", false)
                 .putBoolean("autoRunning", false)
                 .putBoolean("autoPanic", autoPanic)
+                .putBoolean("autoBinanceTestOrderPassed", autoBinanceTestOrderPassed)
                 .putString("autoTrustedStaticIp", autoTrustedStaticIp == null ? "" : autoTrustedStaticIp)
                 .putInt("autoMinConfidence", autoMinConfidence)
                 .putLong("autoLastScanMs", autoLastScanMs)
@@ -544,6 +547,7 @@ public class AppStore {
         liveUnlocked = false;
         autoLiveArmed = false;
         autoRunning = false;
+        autoBinanceTestOrderPassed = false;
         lastApiDiagnosis = reason == null ? "API Doctor must be run again." : reason;
         save();
     }
@@ -770,6 +774,7 @@ public class AppStore {
         if (!complianceGuardEnabled) out.append("- Enable Compliance Guard.\n");
         if (binanceRateLimitLock) out.append("- Clear Binance rate-limit lock only after checking Binance.\n");
         if (liveOrderTestMode) out.append("- Complete a Binance Test Order, then disable Test Order Mode for auto live execution.\n");
+        if (!autoBinanceTestOrderPassed) out.append("- Pass a Binance BUY Test Order with this API key.\n");
         if (!autoLiveArmed) out.append("- Arm Automatic LIVE once for this session.\n");
         if (!AutoTradingPolicy.isStaticIp(autoTrustedStaticIp)) out.append("- Add your expected static public IP.\n");
         if (!portfolioSyncOk || System.currentTimeMillis() - lastPortfolioSyncMs > 5 * 60 * 1000L) out.append("- Sync the Spot portfolio within five minutes.\n");

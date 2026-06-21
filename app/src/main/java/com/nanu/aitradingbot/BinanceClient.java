@@ -453,6 +453,7 @@ public class BinanceClient {
                 if (code >= 200 && code < 300) {
                     if (testOnly) {
                         out.append("RESULT: TEST ORDER PASSED\nNo real order was created. Binance accepted the order format/signature/symbol rules.\n");
+                        if ("BUY".equals(safeSide)) store.autoBinanceTestOrderPassed = true;
                         store.engine.addJournal("Binance test order PASS: " + safeSide + " " + safeSymbol);
                     } else {
                         out.append("RESULT: REAL MARKET ORDER ACCEPTED\n");
