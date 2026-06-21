@@ -222,7 +222,7 @@ public class BinanceClient {
             try {
                 String symbol = store.normalizeCoin(store.scalperSymbol);
                 if (symbol.isEmpty()) symbol = "BTCUSDT";
-                if (!isTabletPair(symbol)) throw new IllegalArgumentException("Tablet Edition supports BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT only.");
+                if (!isTabletPair(symbol)) throw new IllegalArgumentException("Nanu supports BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT only.");
                 HttpURLConnection c = (HttpURLConnection)new URL("https://api.binance.com/api/v3/klines?symbol=" + enc(symbol) + "&interval=1m&limit=80").openConnection();
                 c.setRequestMethod("GET");
                 c.setConnectTimeout(12000);
@@ -343,13 +343,13 @@ public class BinanceClient {
                 String safeSide = "SELL".equalsIgnoreCase(side) ? "SELL" : "BUY";
                 boolean testOnly = store.liveOrderTestMode;
 
-                out.append("Nanu Tablet Edition Protected Spot Order\n\n");
+                out.append("Nanu AI Trading Bot Protected Spot Order\n\n");
                 out.append("Mode: ").append(store.mode.toUpperCase(Locale.US)).append('\n');
                 out.append("Symbol: ").append(safeSymbol).append('\n');
                 out.append("Side: ").append(safeSide).append('\n');
                 out.append("Execution channel: ").append(testOnly ? "BINANCE /order/test (NO REAL FILL)" : "BINANCE REAL MARKET ORDER").append("\n\n");
 
-                if (!isTabletPair(safeSymbol)) { cb.done(out + "BLOCKED: Tablet Edition is limited to BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT."); return; }
+                if (!isTabletPair(safeSymbol)) { cb.done(out + "BLOCKED: Nanu is limited to BTCUSDT, ETHUSDT, BNBUSDT, and SOLUSDT."); return; }
                 if (!"live".equals(store.mode)) { cb.done(out + "BLOCKED: select LIVE mode first."); return; }
                 if (!store.liveUnlocked) { cb.done(out + "BLOCKED: LIVE gate is locked."); return; }
                 if (store.apiKey.isEmpty() || store.apiSecret.isEmpty()) { cb.done(out + "BLOCKED: API key/secret missing."); return; }
@@ -1169,7 +1169,6 @@ public class BinanceClient {
     }
 
     private static String modeAdvice(String mode) {
-        if ("demo".equals(mode)) return "Use Demo Trading API key only.";
         if ("testnet".equals(mode)) return "Use Spot Testnet API key only.";
         if ("live".equals(mode)) return "Use live Binance key only with trusted IP and withdrawals OFF.";
         return "Paper mode does not need API key.";
@@ -1182,7 +1181,6 @@ public class BinanceClient {
         if (code == 401 || lower.contains("-2015") || lower.contains("invalid api-key")) {
             d.append("API key rejected. ");
             if ("testnet".equals(mode)) d.append("TESTNET needs a Spot Testnet key, not your normal live Binance key.\n");
-            else if ("demo".equals(mode)) d.append("DEMO needs a Demo Trading key, not your live key.\n");
             else d.append("Check live API key, secret, permissions and trusted IP.\n");
         } else if (code == 403) {
             d.append("Forbidden. Check trusted IP, account restriction, region, or API permissions.\n");
@@ -1215,7 +1213,6 @@ public class BinanceClient {
 
     private static String baseUrl(String mode) {
         if ("testnet".equals(mode)) return "https://testnet.binance.vision";
-        if ("demo".equals(mode)) return "https://demo-api.binance.com";
         return "https://api.binance.com";
     }
 

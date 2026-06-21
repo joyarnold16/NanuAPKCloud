@@ -1,4 +1,4 @@
-# Nanu AI Trading Bot v6.5 Automatic Spot Edition
+# Nanu AI Trading Bot v6.6
 
 Nanu is an Android Binance Spot assistant designed to run directly on a private tablet. It does not require a VPS, executor URL, or executor control token.
 
@@ -43,9 +43,9 @@ The app cannot prove the API-key withdrawal permission from the account response
 
 GitHub workflow: `Build Nanu AI Trading Bot Professional APK`
 
-Release tag: `nanu-ai-trading-bot-v6-5-auto-spot`
+Release tag: `nanu-ai-trading-bot-v6-6-ui-polish`
 
-APK: `nanu-ai-trading-bot-v6-5-auto-spot.apk`
+APK: `nanu-ai-trading-bot-v6-6-ui-polish.apk`
 
 Required GitHub Actions signing secrets:
 

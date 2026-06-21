@@ -1,4 +1,4 @@
-name: Build Nanu AI Trading Bot Professional APK
+name: Build Nanu AI Trading Bot APK
 
 on:
   workflow_dispatch:
@@ -18,8 +18,8 @@ jobs:
       NANU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.NANU_RELEASE_KEYSTORE_PASSWORD }}
       NANU_RELEASE_KEY_ALIAS: ${{ secrets.NANU_RELEASE_KEY_ALIAS }}
       NANU_RELEASE_KEY_PASSWORD: ${{ secrets.NANU_RELEASE_KEY_PASSWORD }}
-      RELEASE_TAG: nanu-ai-trading-bot-v6-5-auto-spot
-      APK_NAME: nanu-ai-trading-bot-v6-5-auto-spot.apk
+      RELEASE_TAG: nanu-ai-trading-bot-v6-6-ui-polish
+      APK_NAME: nanu-ai-trading-bot-v6-6-ui-polish.apk
 
     steps:
       - name: Checkout source
@@ -71,7 +71,7 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
           cat > release-notes.md <<'NOTES'
-          Nanu AI Trading Bot v6.5 Automatic Spot Edition
+          Nanu AI Trading Bot v6.6
 
           - Direct encrypted on-device Binance Spot API credentials and foreground-service execution
           - Four approved pairs: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT; one protected open position and four entries per local day
@@ -79,6 +79,7 @@ jobs:
           - Static public-IP match, API Doctor, Telegram Doctor, portfolio sync, withdrawal-OFF confirmation, Profit Guard, Panic test, Binance Test Order, and one-time Automatic LIVE arm are required before start
           - A filled automatic BUY persists a recovery record, requests Binance OCO target/stop protection, reconciles OCO exits, and halts for manual review on uncertain exchange state
           - Start Scanner, Start Automatic LIVE, Stop, Panic Stop, automatic preflight, emergency-close control, PIN lock, Telegram alerts, and direct Spot portfolio sync
+          - Header now shows IDLE or pulsing ACTIVE state; Demo Trading mode removed; app branding simplified to Nanu AI Trading Bot
 
           No trading app can guarantee profit, prevent every loss, or replace checking Binance order history. Keep withdrawals disabled, begin with Binance Test Order mode, then use the smallest valid amount and verify the first Binance OCO exit orders.
           NOTES
@@ -92,7 +93,7 @@ jobs:
             gh release upload "$RELEASE_TAG" "$APK_NAME" --clobber
           else
             gh release create "$RELEASE_TAG" "$APK_NAME" \
-              --title "Nanu AI Trading Bot v6.5 Automatic Spot Edition" \
+              --title "Nanu AI Trading Bot v6.6" \
               --notes-file release-notes.md \
               --latest
           fi

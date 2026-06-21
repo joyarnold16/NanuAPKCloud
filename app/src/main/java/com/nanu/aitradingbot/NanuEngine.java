@@ -145,7 +145,7 @@ public class NanuEngine {
             String message = signal.action + " signal for " + store.scalperSymbol + " at " + String.format(Locale.US, "%.8f", signal.price)
                     + ". No automatic Binance order was sent.";
             addJournal(message);
-            store.triggerAlert("Nanu Spot Signal", message, false, "dryrun");
+            store.triggerAlert("Nanu AI Trading Bot Signal", message, false, "dryrun");
         }
 
         if (changed) addJournal("Live candle signal: " + signal.action + " " + store.scalperSymbol + " (" + signal.confidence + "/100).");

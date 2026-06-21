@@ -185,6 +185,7 @@ public class AppStore {
 
     public void load() {
         mode = sp.getString("mode", "paper");
+        if ("demo".equals(mode)) mode = "paper";
         liveUnlocked = sp.getBoolean("liveUnlocked", false);
         autoCoinMode = sp.getBoolean("autoCoinMode", true);
         apiKey = securePrefs.getSecret("apiKey", "");
@@ -350,7 +351,7 @@ public class AppStore {
         securePrefs.putSecret("apiSecret", apiSecret);
         securePrefs.putSecret("telegramToken", telegramToken);
         securePrefs.putSecret("telegramChatId", telegramChatId);
-        // Tablet Edition does not use a remote executor. Clear any old control token during upgrade.
+        // Nanu does not use a remote executor. Clear any old control token during upgrade.
         securePrefs.putSecret("executorControlToken", "");
         sp.edit()
                 .putString("mode", mode)

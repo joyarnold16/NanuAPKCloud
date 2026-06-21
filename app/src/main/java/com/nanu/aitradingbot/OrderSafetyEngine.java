@@ -27,7 +27,7 @@ public class OrderSafetyEngine {
         p.roundedQty = roundQty(p.symbol, p.rawQty);
 
         StringBuilder out = new StringBuilder();
-        out.append("Nanu Order Safety Engine Tablet Edition\n\n");
+        out.append("Nanu AI Trading Bot Order Safety Engine\n\n");
         out.append("CONTROLLED LIVE DRY-RUN\n");
         out.append("This preview sends no order. It must pass before a manual protected Spot BUY can run.\n\n");
         out.append("Mode: ").append(store.mode.toUpperCase(Locale.US)).append('\n');

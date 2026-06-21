@@ -8,8 +8,8 @@ android {
         applicationId 'com.nanu.aitradingbot'
         minSdk 23
         targetSdk 35
-        versionCode 26
-        versionName '6.5-auto-spot'
+        versionCode 27
+        versionName '6.6-ui-polish'
     }
     signingConfigs {
         release {
