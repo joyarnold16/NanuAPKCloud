@@ -158,7 +158,7 @@ public class MainActivity extends Activity {
         TextView title = tv("NANU AI TRADING BOT", 20, WHITE, true); title.setLetterSpacing(0f); title.setSingleLine(true); titles.addView(title);
         LinearLayout meta = row(); meta.setGravity(Gravity.CENTER_VERTICAL);
         TextView sub = tv("AUTOMATIC SPOT", 12, CYAN, true); sub.setLetterSpacing(0f); sub.setSingleLine(true); meta.addView(sub, new LinearLayout.LayoutParams(0, -2, 1));
-        boolean active = store.engine.running && !store.engine.panic;
+        boolean active = (store.engine.running || store.autoRunning) && !store.engine.panic && !store.autoPanic;
         TextView status = active ? activeStatusPill() : pill("IDLE", MUTED, 11); status.setMinWidth(dp(64)); meta.addView(status, new LinearLayout.LayoutParams(-2, -2));
         titles.addView(meta, new LinearLayout.LayoutParams(-1, -2));
         row.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
