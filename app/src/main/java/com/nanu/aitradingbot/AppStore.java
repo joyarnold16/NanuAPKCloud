@@ -82,6 +82,7 @@ public class AppStore {
     public boolean phoneNotifications = true;
     public boolean soundAlerts = true;
     public boolean longSoundAlerts = true;
+    public String alertSoundUri = "";
     public boolean profitGuardEnabled = false;
     public double profitTargetUsdt = 50.0;
     public boolean duplicateProfitGuardEnabled = true;
@@ -259,6 +260,7 @@ public class AppStore {
         phoneNotifications = sp.getBoolean("phoneNotifications", true);
         soundAlerts = sp.getBoolean("soundAlerts", true);
         longSoundAlerts = sp.getBoolean("longSoundAlerts", true);
+        alertSoundUri = sp.getString("alertSoundUri", "");
         profitGuardEnabled = sp.getBoolean("profitGuardEnabled", false);
         profitTargetUsdt = Double.longBitsToDouble(sp.getLong("profitTargetUsdt", Double.doubleToRawLongBits(50.0)));
         duplicateProfitGuardEnabled = sp.getBoolean("duplicateProfitGuardEnabled", true);
@@ -447,6 +449,7 @@ public class AppStore {
                 .putBoolean("phoneNotifications", phoneNotifications)
                 .putBoolean("soundAlerts", soundAlerts)
                 .putBoolean("longSoundAlerts", longSoundAlerts)
+                .putString("alertSoundUri", alertSoundUri == null ? "" : alertSoundUri)
                 .putBoolean("profitGuardEnabled", profitGuardEnabled)
                 .putLong("profitTargetUsdt", Double.doubleToRawLongBits(profitTargetUsdt))
                 .putBoolean("duplicateProfitGuardEnabled", duplicateProfitGuardEnabled)
@@ -675,7 +678,7 @@ public class AppStore {
     }
 
     public void triggerAlert(String title, String message, boolean critical, String category) {
-        AlertCenter.notify(appContext, title, message, critical, soundAlerts, phoneNotifications, longSoundAlerts);
+        AlertCenter.notify(appContext, title, message, critical, soundAlerts, phoneNotifications, longSoundAlerts, alertSoundUri);
         TelegramClient.sendSilent(this, title, message, category == null ? "general" : category, critical);
     }
 

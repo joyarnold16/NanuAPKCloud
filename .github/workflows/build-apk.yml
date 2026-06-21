@@ -18,8 +18,8 @@ jobs:
       NANU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.NANU_RELEASE_KEYSTORE_PASSWORD }}
       NANU_RELEASE_KEY_ALIAS: ${{ secrets.NANU_RELEASE_KEY_ALIAS }}
       NANU_RELEASE_KEY_PASSWORD: ${{ secrets.NANU_RELEASE_KEY_PASSWORD }}
-      RELEASE_TAG: nanu-ai-trading-bot-v6-8-oco-safety
-      APK_NAME: nanu-ai-trading-bot-v6-8-oco-safety.apk
+      RELEASE_TAG: nanu-ai-trading-bot-v6-9-alert-safety
+      APK_NAME: nanu-ai-trading-bot-v6-9-alert-safety.apk
 
     steps:
       - name: Checkout source
@@ -71,7 +71,7 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
           cat > release-notes.md <<'NOTES'
-          Nanu AI Trading Bot v6.8
+          Nanu AI Trading Bot v6.9
 
           - Direct encrypted on-device Binance Spot API credentials and foreground-service execution
           - Four approved pairs: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT; one protected open position and four entries per local day
@@ -81,6 +81,8 @@ jobs:
           - OCO price levels are validated against the current Binance price without weakening the configured stop; a price already through the stop invokes the emergency-close path
           - Filled base-asset commissions are removed from the OCO quantity, emergency exits report Binance's exact rejection, and pending automatic BUYs are explicitly blocked from restart
           - Emergency Close cancels only the Nanu-tracked OCO list, never all open orders for that symbol, and can attempt to close a confirmed pending automatic BUY
+          - Choose a device notification sound from Android's system picker; Nanu alerts and long critical alerts use it, while the foreground status notification stays quiet
+          - Updated live checklist text to distinguish the separate Automatic LIVE gate from manual protected orders
           - Explicit PANIC state and typed Reset Panic State recovery; automatic LIVE never resumes from Panic and must be armed again
           - Device Readiness report with network, battery-saver, foreground heartbeat, and unexpected device-service-stop alerting
           - Start Scanner, Start Automatic LIVE, Stop, Panic Stop, automatic preflight, emergency-close control, PIN lock, Telegram alerts, and direct Spot portfolio sync
@@ -98,7 +100,7 @@ jobs:
             gh release upload "$RELEASE_TAG" "$APK_NAME" --clobber
           else
             gh release create "$RELEASE_TAG" "$APK_NAME" \
-              --title "Nanu AI Trading Bot v6.8" \
+              --title "Nanu AI Trading Bot v6.9" \
               --notes-file release-notes.md \
               --latest
           fi

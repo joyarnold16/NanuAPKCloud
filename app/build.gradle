@@ -8,8 +8,8 @@ android {
         applicationId 'com.nanu.aitradingbot'
         minSdk 23
         targetSdk 35
-        versionCode 29
-        versionName '6.8-oco-safety'
+        versionCode 30
+        versionName '6.9-alert-safety'
     }
     signingConfigs {
         release {

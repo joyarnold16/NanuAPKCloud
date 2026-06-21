@@ -10,8 +10,11 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
+import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -46,6 +49,7 @@ public class MainActivity extends Activity {
     boolean telegramDoctorRunning = false;
     boolean portfolioSyncRunning = false;
     boolean pinSessionUnlocked = false;
+    static final int ALERT_SOUND_PICKER_REQUEST = 401;
     final Handler handler = new Handler(Looper.getMainLooper());
     final Runnable refresh = new Runnable() {
         @Override public void run() {
@@ -99,6 +103,16 @@ public class MainActivity extends Activity {
         handler.removeCallbacks(refresh);
         if (store != null && store.appPinEnabled) pinSessionUnlocked = false;
         super.onPause();
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != ALERT_SOUND_PICKER_REQUEST || resultCode != RESULT_OK) return;
+        Uri selected = data == null ? null : data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+        store.alertSoundUri = selected == null ? "" : selected.toString();
+        store.save();
+        toast(selected == null ? "Nanu alert sound reset to device default" : "Nanu alert sound selected");
+        render(false);
     }
 
     int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
@@ -642,7 +656,7 @@ public class MainActivity extends Activity {
         list.addView(checkLine("Order amount >= min notional", store.liveDryRunOrderUsdt >= store.minOrderNotionalUsdt));
         list.addView(checkLine("Max trades/day guard set", store.maxLiveTradesPerDay > 0));
         list.addView(checkLine("Order cooldown set", store.orderCooldownSeconds >= 10));
-        list.addView(tv("The scanner can auto-trade the paper wallet only. A real Spot BUY is always manual and receives a Binance OCO target/stop request after the fill.", 11, AMBER, false));
+        list.addView(tv("Automatic LIVE is separate from this manual checklist: it needs its own static-IP check, Binance test order, one-time arm, and Start Automatic LIVE confirmation. Every real BUY must receive Binance OCO protection after the fill.", 11, AMBER, false));
         box.addView(list);
     }
 
@@ -1040,7 +1054,34 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams nr = new LinearLayout.LayoutParams(0, dp(52), 1); nr.leftMargin=dp(10);
         soundRow.addView(actionButton("Notify: " + (store.phoneNotifications ? "ON" : "OFF"), store.phoneNotifications ? GREEN : AMBER, v -> { store.phoneNotifications = !store.phoneNotifications; store.save(); render(true); }), nr);
         box.addView(soundRow); addGap(box, 10);
+        box.addView(actionButton("Choose Alert Sound: " + alertSoundLabel(), CYAN, v -> chooseAlertSound()), new LinearLayout.LayoutParams(-1, dp(52))); addGap(box, 8);
+        box.addView(tv("This applies to Nanu alerts and tests. The quiet foreground status notification stays silent.", 11, MUTED, false)); addGap(box, 10);
         box.addView(tv("Best default: Profit Guard ON only when you set a target. Repeat Guard ON at 3 checks. Nanu stops new trades and alerts you.", 12, AMBER, false)); addGap(box, 18);
+    }
+
+    void chooseAlertSound() {
+        Intent picker = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER);
+        picker.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION);
+        picker.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true);
+        picker.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true);
+        Uri existing = store.alertSoundUri == null || store.alertSoundUri.isEmpty()
+                ? RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                : Uri.parse(store.alertSoundUri);
+        picker.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existing);
+        startActivityForResult(picker, ALERT_SOUND_PICKER_REQUEST);
+    }
+
+    String alertSoundLabel() {
+        try {
+            Uri uri = store.alertSoundUri == null || store.alertSoundUri.isEmpty()
+                    ? RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                    : Uri.parse(store.alertSoundUri);
+            Ringtone ringtone = uri == null ? null : RingtoneManager.getRingtone(this, uri);
+            String label = ringtone == null ? "Device Default" : ringtone.getTitle(this);
+            return label == null || label.trim().isEmpty() ? "Device Default" : label;
+        } catch (Exception ignored) {
+            return "Device Default";
+        }
     }
 
     void setProfitTarget(double amount) {
@@ -1339,6 +1380,7 @@ public class MainActivity extends Activity {
         sb.append("Repeated Profit Count: ").append(store.sameProfitRepeats).append(" / ").append(store.duplicateProfitRepeatCount).append("\n");
         sb.append("Phone Notifications: ").append(store.phoneNotifications).append("\n");
         sb.append("Long Sound Alerts: ").append(store.longSoundAlerts).append("\n\n");
+        sb.append("Alert Sound: ").append(alertSoundLabel()).append("\n\n");
 
         sb.append("=== RISK / SAFETY ENGINE ===\n");
         sb.append("Risk per trade: ").append(store.riskPerTrade).append("%\n");

@@ -21,11 +21,11 @@ public class AlertCenter {
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static int notifyId = 2200;
 
-    public static void notify(Context context, String title, String message, boolean critical, boolean sound, boolean phoneNotification, boolean longSound) {
+    public static void notify(Context context, String title, String message, boolean critical, boolean sound, boolean phoneNotification, boolean longSound, String selectedSoundUri) {
         Context c = context.getApplicationContext();
         if (phoneNotification) showNotification(c, title, message, critical);
         if (critical) vibrate(c, longSound);
-        if (sound) playSound(c, longSound && critical);
+        if (sound) playSound(c, selectedSoundUri, longSound && critical);
     }
 
     public static void showNotification(Context c, String title, String message, boolean critical) {
@@ -53,14 +53,16 @@ public class AlertCenter {
         try { nm.notify(++notifyId, b.build()); } catch (SecurityException ignored) {}
     }
 
-    public static void playSound(Context c, boolean longSound) {
+    public static void playSound(Context c, String selectedSoundUri, boolean longSound) {
         try {
-            Uri uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            Uri uri = null;
+            if (selectedSoundUri != null && !selectedSoundUri.trim().isEmpty()) uri = Uri.parse(selectedSoundUri);
             if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
             if (uri == null) return;
             final Ringtone r = RingtoneManager.getRingtone(c, uri);
             if (r == null) return;
-            if (Build.VERSION.SDK_INT >= 28) r.setLooping(false);
+            if (Build.VERSION.SDK_INT >= 28) r.setLooping(longSound);
             r.play();
             MAIN.postDelayed(() -> { try { if (r.isPlaying()) r.stop(); } catch (Exception ignored) {} }, longSound ? 9000 : 2200);
         } catch (Exception ignored) {}
