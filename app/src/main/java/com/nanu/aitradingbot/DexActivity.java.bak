@@ -42,8 +42,6 @@ public final class DexActivity extends Activity {
     private LinearLayout root;
     private int tab;
     private boolean refreshing;
-    private WalletClient.Balances balances;
-    private boolean loadingBalances;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
@@ -68,7 +66,6 @@ public final class DexActivity extends Activity {
         super.onResume();
         if (!refreshing) { refreshing = true; handler.post(refresh); }
     }
-
     @Override protected void onPause() { refreshing = false; handler.removeCallbacks(refresh); super.onPause(); }
 
     private int dp(float value) { return (int) (value * getResources().getDisplayMetrics().density + .5f); }
@@ -214,17 +211,7 @@ public final class DexActivity extends Activity {
             gap(box, 12);
             box.addView(command("Create Bot Wallet", GREEN, v -> createWallet()), new LinearLayout.LayoutParams(-1, dp(52)));
         } else {
-            LinearLayout balRow = row();
-            balRow.addView(metric("BNB", balanceText(balances == null ? null : balances.bnb, balances != null && balances.bnbOk), "BNB Chain", GREEN), new LinearLayout.LayoutParams(0, -2, 1));
-            space(balRow, 7);
-            balRow.addView(metric("ETH", balanceText(balances == null ? null : balances.eth, balances != null && balances.ethOk), "Ethereum", CYAN), new LinearLayout.LayoutParams(0, -2, 1));
-            space(balRow, 7);
-            balRow.addView(metric("SOL", balanceText(balances == null ? null : balances.sol, balances != null && balances.solOk), "Solana", AMBER), new LinearLayout.LayoutParams(0, -2, 1));
-            box.addView(balRow);
-            gap(box, 10);
-            box.addView(command(loadingBalances ? "Checking balances..." : "Refresh Balances", CYAN, v -> refreshBalances()), new LinearLayout.LayoutParams(-1, dp(50)));
-            gap(box, 12);
-            box.addView(text("BNB Chain (also receives ETH / BTCB)", 11, CYAN, true));
+            box.addView(text("BNB Chain", 11, CYAN, true));
             box.addView(text(store.bscAddress, 13, WHITE, false));
             gap(box, 8);
             box.addView(text("Solana", 11, CYAN, true));
@@ -235,32 +222,10 @@ public final class DexActivity extends Activity {
             box.addView(command("View Backup Phrase", AMBER, v -> showBackup()), new LinearLayout.LayoutParams(-1, dp(50)));
         }
         root.addView(box); gap(10);
-
         LinearLayout info = card();
         info.addView(text("FUNDING SAFETY", 16, AMBER, true));
         info.addView(text("Use the exact displayed network. BNB Chain needs BNB for fees; Solana needs SOL for fees. Do not fund this wallet until you have written the backup phrase offline.", 13, MUTED, false));
         root.addView(info);
-    }
-
-    private void refreshBalances() {
-        if (loadingBalances) return;
-        if (!store.hasWallet()) { toast("Create the bot wallet first."); return; }
-        loadingBalances = true;
-        render(false);
-        WalletClient.fetch(store.bscAddress, store.solanaAddress, (result, status) -> {
-            handler.post(() -> {
-                balances = result;
-                loadingBalances = false;
-                store.lastStatus = status;
-                store.save();
-                render(false);
-            });
-        });
-    }
-
-    private String balanceText(java.math.BigDecimal value, boolean ok) {
-        if (!ok || value == null) return "--";
-        return value.setScale(5, java.math.RoundingMode.DOWN).stripTrailingZeros().toPlainString();
     }
 
     private void control() {
@@ -275,6 +240,7 @@ public final class DexActivity extends Activity {
         setting(box, "Minimum pair age", store.minPairAgeHours + " hours", v -> editNumber("Minimum pair age", store.minPairAgeHours, 1, 720, x -> store.minPairAgeHours = (int) x));
         setting(box, "Stop / target", store.stopLossPercent + "% / " + store.takeProfitPercent + "%", v -> editStopTarget());
         root.addView(box); gap(10);
+
         LinearLayout live = card();
         live.addView(text("LIVE DEX EXECUTION", 16, RED, true));
         live.addView(text("Blocked in this build. Real wallet signing and PancakeSwap/Solana swap routing need complete device-level integration tests before a real balance can be exposed.", 13, MUTED, false));
@@ -301,7 +267,6 @@ public final class DexActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(service); else startService(service);
         render(false);
     }
-
     private void pauseScanner() { store.engine.stop("Scanner paused by operator."); stopService(new Intent(this, DexBotService.class)); render(false); }
     private void panic() { store.engine.panic(); stopService(new Intent(this, DexBotService.class)); render(false); }
 
@@ -331,7 +296,6 @@ public final class DexActivity extends Activity {
         if (words.isEmpty()) { toast("No wallet backup is available."); return; }
         alert("Bot Wallet Recovery Phrase", "Write these words offline in order. Do not screenshot, share, or paste them into any website.\n\n" + words);
     }
-
     private void funding() {
         String body = "BNB Chain address:\n" + store.bscAddress + "\n\nSend only BNB Chain assets to this address. Keep BNB for network fees.\n\nSolana address:\n" + store.solanaAddress + "\n\nSend only Solana assets to this address. Keep SOL for transaction fees.\n\nStart with a tiny test transfer after the backup phrase is stored offline.";
         alert("Fund Nanu Bot Wallet", body);
@@ -348,7 +312,6 @@ public final class DexActivity extends Activity {
             } catch (Exception ignored) { toast("Enter a valid number."); }
         }).show();
     }
-
     private void editStopTarget() {
         LinearLayout form = col(); form.setPadding(dp(20), dp(4), dp(20), dp(4));
         EditText stop = new EditText(this); stop.setHint("Stop loss percent"); stop.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); stop.setText(String.valueOf(store.stopLossPercent)); form.addView(stop);
