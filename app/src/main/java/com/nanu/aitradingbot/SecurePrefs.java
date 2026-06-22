@@ -100,11 +100,10 @@ public class SecurePrefs {
     }
 
     private String encrypt(String plain) throws Exception {
-        byte[] iv = new byte[GCM_IV_BYTES];
-        new SecureRandom().nextBytes(iv);
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey(), new GCMParameterSpec(GCM_TAG_BITS, iv));
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey());
         byte[] encrypted = cipher.doFinal(plain.getBytes(StandardCharsets.UTF_8));
+        byte[] iv = cipher.getIV();
         return b64(iv) + ":" + b64(encrypted);
     }
 
