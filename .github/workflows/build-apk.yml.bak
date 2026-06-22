@@ -20,15 +20,12 @@ jobs:
       NANU_RELEASE_KEY_ALIAS: ${{ secrets.NANU_RELEASE_KEY_ALIAS }}
       NANU_RELEASE_KEY_PASSWORD: ${{ secrets.NANU_RELEASE_KEY_PASSWORD }}
       GITHUB_TOKEN: ${{ github.token }}
+      RELEASE_TAG: nanu-ai-trading-bot-v8-0-dex-safety-paper
+      APK_NAME: nanu-ai-trading-bot-v8-0-dex-safety-paper.apk
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-
-      - name: Set build version
-        id: ver
-        run: |
-          echo "TAG=nanu-v$(date +%Y.%m.%d)-${{ github.run_number }}" >> $GITHUB_ENV
-          echo "APK_NAME=nanu-v$(date +%Y.%m.%d)-${{ github.run_number }}.apk" >> $GITHUB_ENV
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -66,14 +63,17 @@ jobs:
       - name: Prepare APK and release notes
         run: |
           cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
-          cat > release-notes.md <<NOTES
-          Nanu AI Trading Bot - build ${{ github.run_number }}
-          Commit: ${{ github.sha }}
-          Built: $(date -u '+%Y-%m-%d %H:%M UTC')
+          cat > release-notes.md <<'NOTES'
+          Nanu AI Trading Bot v8.0 DEX Safety Paper
 
-          This build includes the latest changes pushed to main.
-          Mainnet DEX signing remains blocked pending device tests.
-          No risk score proves a token safe or guarantees profit. Back up your recovery phrase offline before funding.
+          - DEX-only launch screen; Binance and Telegram controls are not exposed by the active application path
+          - Locally encrypted Trust Wallet Core bot-wallet identity with separate BNB Chain and Solana public addresses
+          - DEX Screener discovery, deterministic liquidity/volume/age/activity filters, and clear BLOCKED/WATCHING/QUALIFIED decisions
+          - Hard risk controls for per-trade amount, daily trade count, daily loss reference, liquidity floor, pair age, stop, and target
+          - Foreground local scanner, custom app UI, paper-position monitor, event history, pause, and panic state
+          - Mainnet DEX signing is intentionally blocked in this build pending device-level BNB Chain and Solana route tests
+
+          No risk score can prove a token safe, guarantee a successful DEX exit, or guarantee profit. Do not fund a wallet until its recovery phrase is backed up offline.
           NOTES
           ls -lh "$APK_NAME"
 
@@ -81,7 +81,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$TAG" "$APK_NAME" \
-            --title "Nanu AI Trading Bot - $TAG" \
-            --notes-file release-notes.md \
-            --latest
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK_NAME" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$APK_NAME" \
+              --title "Nanu AI Trading Bot v8.0 DEX Safety Paper" \
+              --notes-file release-notes.md \
+              --latest
+          fi
