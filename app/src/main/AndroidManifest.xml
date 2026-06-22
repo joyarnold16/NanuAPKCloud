@@ -13,13 +13,13 @@
         android:allowBackup="false"
         android:usesCleartextTraffic="false">
         <activity
-            android:name=".MainActivity"
+            android:name=".DexActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <service android:name=".NanuBotService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <service android:name=".DexBotService" android:exported="false" android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

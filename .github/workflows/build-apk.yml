@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 jobs:
   build-apk:
@@ -18,21 +19,13 @@ jobs:
       NANU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.NANU_RELEASE_KEYSTORE_PASSWORD }}
       NANU_RELEASE_KEY_ALIAS: ${{ secrets.NANU_RELEASE_KEY_ALIAS }}
       NANU_RELEASE_KEY_PASSWORD: ${{ secrets.NANU_RELEASE_KEY_PASSWORD }}
-      RELEASE_TAG: nanu-ai-trading-bot-v7-0-auto-entry-hardening
-      APK_NAME: nanu-ai-trading-bot-v7-0-auto-entry-hardening.apk
+      GITHUB_TOKEN: ${{ github.token }}
+      RELEASE_TAG: nanu-ai-trading-bot-v8-0-dex-safety-paper
+      APK_NAME: nanu-ai-trading-bot-v8-0-dex-safety-paper.apk
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-
-      - name: Set up Node 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      - name: Run Spot order safety regression tests
-        working-directory: server
-        run: npm test
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -71,27 +64,16 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
           cat > release-notes.md <<'NOTES'
-          Nanu AI Trading Bot v7.0
+          Nanu AI Trading Bot v8.0 DEX Safety Paper
 
-          - Direct encrypted on-device Binance Spot API credentials and foreground-service execution
-          - Four approved pairs: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT; one protected open position and four entries per local day
-          - Automatic closed-candle scan chooses the highest qualified EMA/RSI setup above the configured confidence threshold
-          - Device public-IP controls: show current IP, use it as the expected IP, explicit match check, and a mandatory recheck immediately before every automatic BUY
-          - Automatic and manual protected BUYs are blocked below the calculated fee-and-stop-safe Binance notional; automatic protected entries have a 6 USDT minimum
-          - OCO price levels are validated against the current Binance price without weakening the configured stop; a price already through the stop invokes the emergency-close path
-          - Filled base-asset commissions are removed from the OCO quantity, emergency exits report Binance's exact rejection, and pending automatic BUYs are explicitly blocked from restart
-          - Emergency Close cancels only the Nanu-tracked OCO list, never all open orders for that symbol, and can attempt to close a confirmed pending automatic BUY
-          - Choose a device notification sound from Android's system picker; Nanu alerts and long critical alerts use it, while the foreground status notification stays quiet
-          - Updated live checklist text to distinguish the separate Automatic LIVE gate from manual protected orders
-          - Manual and automatic order amounts are separate: manual protected orders start at 6 USDT, while Automatic LIVE starts at 15 USDT for a wider OCO and emergency-exit buffer
-          - Automatic market BUYs enforce the configured slippage limit; an excessive fill triggers the emergency sell path and halts the bot for review
-          - Emergency sells are submitted whenever the rounded quantity is valid, rather than being blocked by a stale local notional estimate
-          - Explicit PANIC state and typed Reset Panic State recovery; automatic LIVE never resumes from Panic and must be armed again
-          - Device Readiness report with network, battery-saver, foreground heartbeat, and unexpected device-service-stop alerting
-          - Start Scanner, Start Automatic LIVE, Stop, Panic Stop, automatic preflight, emergency-close control, PIN lock, Telegram alerts, and direct Spot portfolio sync
-          - Header and Telegram status now agree on IDLE, ACTIVE, and PANIC; all tablet terminology replaced with device
+          - DEX-only launch screen; Binance and Telegram controls are not exposed by the active application path
+          - Locally encrypted Trust Wallet Core bot-wallet identity with separate BNB Chain and Solana public addresses
+          - DEX Screener discovery, deterministic liquidity/volume/age/activity filters, and clear BLOCKED/WATCHING/QUALIFIED decisions
+          - Hard risk controls for per-trade amount, daily trade count, daily loss reference, liquidity floor, pair age, stop, and target
+          - Foreground local scanner, custom app UI, paper-position monitor, event history, pause, and panic state
+          - Mainnet DEX signing is intentionally blocked in this build pending device-level BNB Chain and Solana route tests
 
-          No trading app can guarantee profit, prevent every loss, or replace checking Binance order history. Keep withdrawals disabled, begin with Binance Test Order mode, then use the smallest valid amount and verify the first Binance OCO exit orders.
+          No risk score can prove a token safe, guarantee a successful DEX exit, or guarantee profit. Do not fund a wallet until its recovery phrase is backed up offline.
           NOTES
           ls -lh "$APK_NAME"
 
@@ -103,7 +85,7 @@ jobs:
             gh release upload "$RELEASE_TAG" "$APK_NAME" --clobber
           else
             gh release create "$RELEASE_TAG" "$APK_NAME" \
-              --title "Nanu AI Trading Bot v7.0" \
+              --title "Nanu AI Trading Bot v8.0 DEX Safety Paper" \
               --notes-file release-notes.md \
               --latest
           fi

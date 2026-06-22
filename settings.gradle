@@ -1,6 +1,19 @@
 pluginManagement {
     repositories { google(); mavenCentral(); gradlePluginPortal() }
 }
-dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            url = uri("https://maven.pkg.github.com/trustwallet/wallet-core")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: System.getenv("GITHUB_USER") ?: "x-access-token"
+                password = System.getenv("NANU_WALLET_CORE_TOKEN") ?: System.getenv("GITHUB_TOKEN") ?: ""
+            }
+        }
+    }
+}
 rootProject.name = 'NanuAITradingBot'
 include ':app'
