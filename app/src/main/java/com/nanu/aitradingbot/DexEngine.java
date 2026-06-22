@@ -90,7 +90,11 @@ public final class DexEngine {
             if (items != null && !items.isEmpty()) {
                 candidates.clear();
                 candidates.addAll(items);
-                Collections.sort(candidates, Comparator.comparingInt((DexCandidate c) -> c.riskScore).reversed());
+                Collections.sort(candidates, new Comparator<DexCandidate>() {
+                    @Override public int compare(DexCandidate left, DexCandidate right) {
+                        return right.riskScore - left.riskScore;
+                    }
+                });
                 updatePaperPosition();
             }
             store.lastStatus = status;
