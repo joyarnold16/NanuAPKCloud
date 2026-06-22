@@ -7,7 +7,8 @@ import java.util.Map;
 /** Pure automatic-entry policy helpers, independent from Android UI code. */
 public final class AutoTradingPolicy {
     public static final String[] PAIRS = {"BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT"};
-    public static final double MINIMUM_AUTOMATIC_QUOTE_USDT = 6.0d;
+    public static final double MINIMUM_MANUAL_PROTECTED_QUOTE_USDT = 6.0d;
+    public static final double MINIMUM_AUTOMATIC_QUOTE_USDT = 15.0d;
     private static final double BASE_FEE_RESERVE = 0.998d;
     private static final double PROTECTION_NOTIONAL_MARGIN = 1.10d;
     private static final double OCO_CURRENT_PRICE_BUFFER = 0.0015d;
@@ -35,7 +36,17 @@ public final class AutoTradingPolicy {
         double minNotional = Math.max(0.01d, exchangeMinNotional);
         double stopFraction = 1d - clamp(stopLossPercent, 0.1d, 3.0d) / 100d;
         double required = minNotional / (BASE_FEE_RESERVE * stopFraction) * PROTECTION_NOTIONAL_MARGIN;
-        return Math.max(MINIMUM_AUTOMATIC_QUOTE_USDT, ceilToCent(required));
+        return Math.max(MINIMUM_MANUAL_PROTECTED_QUOTE_USDT, ceilToCent(required));
+    }
+
+    /** Automatic market entries need a wider buffer because the OCO is submitted after the fill. */
+    public static double minimumAutomaticProtectedQuote(double exchangeMinNotional, double stopLossPercent) {
+        return Math.max(MINIMUM_AUTOMATIC_QUOTE_USDT, minimumProtectedQuote(exchangeMinNotional, stopLossPercent));
+    }
+
+    public static boolean entryWithinSlippage(double referencePrice, double entryPrice, double limitPercent) {
+        if (!(referencePrice > 0d) || !(entryPrice > 0d) || !(limitPercent > 0d)) return false;
+        return entryPrice <= referencePrice * (1d + limitPercent / 100d);
     }
 
     /**

@@ -256,7 +256,7 @@ public class MainActivity extends Activity {
         box.addView(head); addGap(box, 8);
         box.addView(big(store.portfolioSyncOk ? "BINANCE BALANCE READY" : "SYNC BINANCE FIRST", store.portfolioSyncOk ? GREEN : AMBER, 20));
         box.addView(tv("No server, URL, or executor token is required. Your encrypted API credentials stay on this device.", 12, MUTED, false));
-        box.addView(tv("BUY amount: " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT • Daily cap: " + store.liveTradesToday + " / " + store.maxLiveTradesPerDay, 13, WHITE, true));
+        box.addView(tv("Manual: " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT • Auto: " + String.format(Locale.US, "%.2f", store.autoOrderAmountUsdt) + " USDT • Daily cap: " + store.liveTradesToday + " / " + store.maxLiveTradesPerDay, 13, WHITE, true));
         box.addView(tv("Stop " + String.format(Locale.US, "%.2f", store.stopLoss) + "% • Target " + String.format(Locale.US, "%.2f", store.takeProfit) + "% • Protection: Binance OCO after a real fill", 12, MUTED, false));
         root.addView(box); addGap(12);
     }
@@ -338,8 +338,8 @@ public class MainActivity extends Activity {
         head.addView(tv(state, 12, store.autoRunning ? GREEN : (store.autoPanic ? RED : AMBER), true));
         box.addView(head); addGap(box, 8);
         box.addView(tv("Scans BTC, ETH, BNB and SOL every " + store.scalperScanSeconds + " seconds. It chooses only the strongest qualified closed-candle setup and holds one Binance OCO-protected position at a time.", 12, MUTED, false));
-        box.addView(tv("Automatic protected entries require at least " + String.format(Locale.US, "%.2f", AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT) + " USDT; this keeps the stop-side order above Binance minimum after fees.", 11, AMBER, false));
-        box.addView(tv("Auto amount " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT  |  Min confidence " + store.autoMinConfidence + "/100  |  Entries today " + store.liveTradesToday + " / " + store.maxLiveTradesPerDay, 12, WHITE, true));
+        box.addView(tv("Automatic protected entries require at least " + String.format(Locale.US, "%.2f", AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT) + " USDT; this leaves room for OCO setup, fees, lot rounding, and an emergency exit.", 11, AMBER, false));
+        box.addView(tv("Auto amount " + String.format(Locale.US, "%.2f", store.autoOrderAmountUsdt) + " USDT  |  Min confidence " + store.autoMinConfidence + "/100  |  Entries today " + store.liveTradesToday + " / " + store.maxLiveTradesPerDay, 12, WHITE, true));
         box.addView(tv(store.autoStatus, 11, store.autoRunning ? CYAN : AMBER, false));
         if (store.hasAutoPosition()) {
             box.addView(tv("OPEN: " + store.autoActiveSymbol + " | Binance OCO " + store.autoOcoOrderListId + " | protected quantity " + String.format(Locale.US, "%.8f", store.autoProtectedQuantity), 11, GREEN, true));
@@ -781,13 +781,13 @@ public class MainActivity extends Activity {
         box.addView(r1); addGap(box, 8);
 
         LinearLayout r2 = row();
-        r2.addView(actionButton("BUY: " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT", CYAN, v -> input("Spot BUY Amount", "6 to your manual limit", String.format(Locale.US, "%.2f", store.microLiveOrderUsdt), false, val -> { try { store.microLiveOrderUsdt = Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, Math.min(store.manualOrderLimitUsdt, Double.parseDouble(val.trim()))); store.liveDryRunOrderUsdt = store.microLiveOrderUsdt; store.liveRealOrderArmed=false; store.save(); render(true); } catch(Exception e){ toast("Enter an amount within your manual limit"); } })), new LinearLayout.LayoutParams(0, dp(52), 1));
+        r2.addView(actionButton("BUY: " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT", CYAN, v -> input("Spot BUY Amount", "6 to your manual limit", String.format(Locale.US, "%.2f", store.microLiveOrderUsdt), false, val -> { try { store.microLiveOrderUsdt = Math.max(AutoTradingPolicy.MINIMUM_MANUAL_PROTECTED_QUOTE_USDT, Math.min(store.manualOrderLimitUsdt, Double.parseDouble(val.trim()))); store.liveDryRunOrderUsdt = store.microLiveOrderUsdt; store.liveRealOrderArmed=false; store.save(); render(true); } catch(Exception e){ toast("Enter an amount within your manual limit"); } })), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams r2lp = new LinearLayout.LayoutParams(0, dp(52), 1); r2lp.leftMargin = dp(10);
         r2.addView(actionButton(store.liveRealOrderArmed ? "Real Order ARMED" : "Arm Real BUY", store.liveRealOrderArmed ? RED : AMBER, v -> armRealMicro()), r2lp);
         box.addView(r2); addGap(box, 8);
 
         LinearLayout r3 = row();
-        r3.addView(actionButton("Order Limit: " + String.format(Locale.US, "%.2f", store.manualOrderLimitUsdt) + " USDT", CYAN, v -> input("Manual Order Limit", "6 to 1000 USDT", String.format(Locale.US, "%.2f", store.manualOrderLimitUsdt), false, val -> { try { store.manualOrderLimitUsdt = Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, Math.min(1000.0, Double.parseDouble(val.trim()))); if (store.microLiveOrderUsdt > store.manualOrderLimitUsdt) store.microLiveOrderUsdt = store.manualOrderLimitUsdt; store.liveRealOrderArmed=false; store.save(); render(true); } catch(Exception e){ toast("Enter 6 to 1000 USDT"); } })), new LinearLayout.LayoutParams(0, dp(52), 1));
+        r3.addView(actionButton("Order Limit: " + String.format(Locale.US, "%.2f", store.manualOrderLimitUsdt) + " USDT", CYAN, v -> input("Manual Order Limit", "15 to 1000 USDT", String.format(Locale.US, "%.2f", store.manualOrderLimitUsdt), false, val -> { try { store.manualOrderLimitUsdt = Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, Math.min(1000.0, Double.parseDouble(val.trim()))); if (store.microLiveOrderUsdt > store.manualOrderLimitUsdt) store.microLiveOrderUsdt = store.manualOrderLimitUsdt; if (store.autoOrderAmountUsdt > store.manualOrderLimitUsdt) store.autoOrderAmountUsdt = store.manualOrderLimitUsdt; store.liveRealOrderArmed=false; store.autoLiveArmed=false; store.save(); render(true); } catch(Exception e){ toast("Enter 15 to 1000 USDT"); } })), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams r3lp = new LinearLayout.LayoutParams(0, dp(52), 1); r3lp.leftMargin = dp(10);
         r3.addView(actionButton("Manual Approval Guide", GREEN, v -> alert("Manual Order Approval", "Manual real orders need a fresh dry-run, a one-time arm phrase, and a typed BUY or SELL confirmation. Automatic LIVE uses its separate static-IP, API Doctor, Telegram Doctor, arm, and Start Automatic LIVE flow.")), r3lp);
         box.addView(r3); addGap(box, 8);
@@ -821,8 +821,8 @@ public class MainActivity extends Activity {
         box.addView(actionButton("Check Device IP", CYAN, v -> checkDeviceIp()), new LinearLayout.LayoutParams(-1, dp(52))); addGap(box, 6);
         box.addView(tv("Expected: " + (store.autoTrustedStaticIp.isEmpty() ? "Not set" : store.autoTrustedStaticIp) + "  |  Current: " + (store.lastPublicIp.isEmpty() ? "Not checked" : store.lastPublicIp) + "  |  Last check: " + publicIpAgeLabel(), 11, MUTED, false)); addGap(box, 8);
         LinearLayout r2 = row();
-        r2.addView(actionButton("Auto Amount: " + String.format(Locale.US, "%.2f", store.microLiveOrderUsdt) + " USDT", CYAN, v -> input("Automatic Spot Order Amount", "6 to your order limit", String.format(Locale.US, "%.2f", store.microLiveOrderUsdt), false, value -> {
-            try { store.microLiveOrderUsdt = Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, Math.min(store.manualOrderLimitUsdt, Double.parseDouble(value.trim()))); store.liveDryRunOrderUsdt = store.microLiveOrderUsdt; store.autoLiveArmed = false; store.save(); render(true); }
+        r2.addView(actionButton("Auto Amount: " + String.format(Locale.US, "%.2f", store.autoOrderAmountUsdt) + " USDT", CYAN, v -> input("Automatic Spot Order Amount", "15 to your order limit", String.format(Locale.US, "%.2f", store.autoOrderAmountUsdt), false, value -> {
+            try { store.autoOrderAmountUsdt = Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, Math.min(store.manualOrderLimitUsdt, Double.parseDouble(value.trim()))); store.autoLiveArmed = false; store.save(); render(true); }
             catch (Exception e) { toast("Enter an amount inside your order limit"); }
         })), new LinearLayout.LayoutParams(0, dp(52), 1));
         LinearLayout.LayoutParams r2lp = new LinearLayout.LayoutParams(0, dp(52), 1); r2lp.leftMargin = dp(10);
@@ -965,6 +965,7 @@ public class MainActivity extends Activity {
         sb.append("Max live trades/day: ").append(store.maxLiveTradesPerDay).append("\n");
         sb.append("Max open trades: ").append(store.maxOpenTrades).append("\n");
         sb.append("Manual order USDT: ").append(String.format(Locale.US, "%.2f", store.microLiveOrderUsdt)).append("\n");
+        sb.append("Automatic order USDT: ").append(String.format(Locale.US, "%.2f", store.autoOrderAmountUsdt)).append("\n");
         sb.append("Manual order limit USDT: ").append(String.format(Locale.US, "%.2f", store.manualOrderLimitUsdt)).append("\n");
         sb.append("Binance test order mode: ").append(store.liveOrderTestMode).append("\n");
         sb.append("Rate-limit lock: ").append(store.binanceRateLimitLock).append("\n");
@@ -1001,6 +1002,7 @@ public class MainActivity extends Activity {
         sb.append("maxLiveTradesPerDay=").append(store.maxLiveTradesPerDay).append('\n');
         sb.append("orderCooldownSeconds=").append(store.orderCooldownSeconds).append('\n');
         sb.append("microLiveOrderUsdt=").append(store.microLiveOrderUsdt).append('\n');
+        sb.append("autoOrderAmountUsdt=").append(store.autoOrderAmountUsdt).append('\n');
         sb.append("manualOrderLimitUsdt=").append(store.manualOrderLimitUsdt).append('\n');
         sb.append("telegramAlertsEnabled=").append(store.telegramAlertsEnabled).append('\n');
         sb.append("API_KEY=HIDDEN\nAPI_SECRET=HIDDEN\nTELEGRAM_TOKEN=HIDDEN\n");
@@ -1328,7 +1330,8 @@ public class MainActivity extends Activity {
         sb.append("Remote executor: not used.\n");
         sb.append("Approved pairs: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT\n");
         sb.append("Entries today: ").append(store.liveTradesToday).append(" / ").append(store.maxLiveTradesPerDay).append("\n");
-        sb.append("Current order amount: ").append(store.microLiveOrderUsdt).append(" USDT\n");
+        sb.append("Manual order amount: ").append(store.microLiveOrderUsdt).append(" USDT\n");
+        sb.append("Automatic order amount: ").append(store.autoOrderAmountUsdt).append(" USDT\n");
         sb.append("Manual order limit: ").append(store.manualOrderLimitUsdt).append(" USDT\n");
         sb.append("Real BUY exit protection: Binance OCO target/stop requested after a filled order.\n\n");
 
@@ -1423,7 +1426,8 @@ public class MainActivity extends Activity {
         sb.append("Real Spot Order Armed: ").append(store.liveRealOrderArmed).append("\n");
         sb.append("Manual approval required: true\n");
         sb.append("Automatic real trading: available only through the armed foreground Automatic LIVE executor\n");
-        sb.append("Spot order USDT: ").append(store.microLiveOrderUsdt).append("\n");
+        sb.append("Manual Spot order USDT: ").append(store.microLiveOrderUsdt).append("\n");
+        sb.append("Automatic Spot order USDT: ").append(store.autoOrderAmountUsdt).append("\n");
         sb.append("Manual order limit USDT: ").append(store.manualOrderLimitUsdt).append("\n");
         sb.append("Rate Limit Lock: ").append(store.binanceRateLimitLock).append("\n");
         sb.append("Last Binance HTTP: ").append(store.lastBinanceStatusCode).append("\n");

@@ -49,7 +49,14 @@ public class AutoTradingPolicyTest {
     @Test
     public void requiresMoreThanTheExchangeMinimumForAPotentiallyProtectedEntry() {
         assertEquals(6.0d, AutoTradingPolicy.minimumProtectedQuote(5.0d, 0.6d), 0.000001d);
+        assertEquals(15.0d, AutoTradingPolicy.minimumAutomaticProtectedQuote(5.0d, 0.6d), 0.000001d);
         assertTrue(AutoTradingPolicy.minimumProtectedQuote(10.0d, 3.0d) > 10.0d);
+    }
+
+    @Test
+    public void blocksARealBuyThatExceedsTheConfiguredSlippageLimit() {
+        assertTrue(AutoTradingPolicy.entryWithinSlippage(100.0d, 100.25d, 0.25d));
+        assertFalse(AutoTradingPolicy.entryWithinSlippage(100.0d, 100.26d, 0.25d));
     }
 
     @Test

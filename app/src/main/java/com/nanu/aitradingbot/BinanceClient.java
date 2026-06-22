@@ -428,6 +428,8 @@ public class BinanceClient {
                     }
                 }
 
+                double expectedEntryPrice = Double.NaN;
+                if ("BUY".equals(safeSide) && !testOnly) expectedEntryPrice = lastPrice(base, safeSymbol);
                 long ts = serverTime(base);
                 String params;
                 if ("BUY".equals(safeSide)) {
@@ -470,7 +472,7 @@ public class BinanceClient {
                             store.liveTradesToday++;
                             store.liveRealOrderArmed = false;
                             realBuySubmitted = true;
-                            OcoProtection protection = createOcoProtection(store, base, safeSymbol, rules, new JSONObject(body));
+                            OcoProtection protection = createOcoProtection(store, base, safeSymbol, rules, new JSONObject(body), expectedEntryPrice);
                             out.append(protection.report);
                             store.clearProtectionCheck("Binance OCO creation confirmed");
                             store.engine.addJournal("REAL PROTECTED BUY: " + safeSymbol);
@@ -538,8 +540,8 @@ public class BinanceClient {
                     cb.done(new AutoResult(false, "Automatic entry blocked: " + rules.report));
                     return;
                 }
-                double amount = Math.max(0.01, store.microLiveOrderUsdt);
-                double protectedMinimum = AutoTradingPolicy.minimumProtectedQuote(rules.minNotional, store.stopLoss);
+                double amount = Math.max(0.01, store.autoOrderAmountUsdt);
+                double protectedMinimum = AutoTradingPolicy.minimumAutomaticProtectedQuote(rules.minNotional, store.stopLoss);
                 if (amount < protectedMinimum || (!Double.isNaN(rules.maxNotional) && amount > rules.maxNotional)) {
                     cb.done(new AutoResult(false, "Automatic entry blocked before Binance BUY: use at least "
                             + fmt2(protectedMinimum) + " USDT so the OCO stop can remain above Binance's minimum after fees."));
@@ -549,6 +551,7 @@ public class BinanceClient {
                     cb.done(new AutoResult(false, "Automatic entry blocked: insufficient free USDT in the last portfolio sync."));
                     return;
                 }
+                double expectedEntryPrice = lastPrice(base, safeSymbol);
 
                 String clientOrderId = clientId("nanu-auto", safeSymbol);
                 store.autoPendingClientOrderId = clientOrderId;
@@ -576,7 +579,7 @@ public class BinanceClient {
                     return;
                 }
 
-                OcoProtection protection = createOcoProtection(store, base, safeSymbol, rules, new JSONObject(response.body));
+                OcoProtection protection = createOcoProtection(store, base, safeSymbol, rules, new JSONObject(response.body), expectedEntryPrice);
                 recordAutomaticProtection(store, safeSymbol, protection);
                 store.liveTradesToday++;
                 store.autoPendingEntryCounted = true;
@@ -765,7 +768,7 @@ public class BinanceClient {
         }
         SymbolRules rules = fetchSymbolRules(base, symbol);
         if (!rules.ok) throw new IllegalStateException("Cannot load active Binance rules for pending " + symbol + " order.");
-        OcoProtection protection = createOcoProtection(store, base, symbol, rules, buy);
+        OcoProtection protection = createOcoProtection(store, base, symbol, rules, buy, Double.NaN);
         recordAutomaticProtection(store, symbol, protection);
         if (!store.autoPendingEntryCounted) store.liveTradesToday++;
         store.clearAutoPendingOrder();
@@ -989,7 +992,7 @@ public class BinanceClient {
      * Creates Binance-side sell protection after a real Spot buy. If the exchange rejects
      * the OCO, this method immediately attempts a market sell instead of leaving the fill open.
      */
-    private static OcoProtection createOcoProtection(AppStore store, String base, String symbol, SymbolRules rules, JSONObject buy) throws Exception {
+    private static OcoProtection createOcoProtection(AppStore store, String base, String symbol, SymbolRules rules, JSONObject buy, double expectedEntryPrice) throws Exception {
         String status = buy.optString("status", "").toUpperCase(Locale.US);
         double executedQty = parseDouble(buy.optString("executedQty", "0"));
         double quoteSpent = parseDouble(buy.optString("cummulativeQuoteQty", "0"));
@@ -1007,6 +1010,11 @@ public class BinanceClient {
         }
 
         double entryPrice = quoteSpent / executedQty;
+        if (positive(expectedEntryPrice) && !AutoTradingPolicy.entryWithinSlippage(expectedEntryPrice, entryPrice, store.slippageLimitPct)) {
+            String emergency = attemptEmergencySell(store, base, symbol, rules, protectedQty);
+            throw new IllegalStateException("Market BUY exceeded the configured " + fmt2(store.slippageLimitPct)
+                    + "% slippage limit. " + emergency);
+        }
         double current = lastPrice(base, symbol);
         AutoTradingPolicy.OcoLevels levels = AutoTradingPolicy.calculateOcoLevels(
                 entryPrice, current, store.takeProfit, store.stopLoss, rules.tickSize);
@@ -1071,10 +1079,6 @@ public class BinanceClient {
             double sellQuantity = roundDownToStep(quantity, step);
             double minQty = positive(rules.marketMinQty) ? rules.marketMinQty : rules.minQty;
             if (!positive(sellQuantity) || sellQuantity < minQty) return "Emergency sell could not be attempted: sell quantity is below Binance minimum.";
-            double currentPrice = lastPrice(base, symbol);
-            if (sellQuantity * currentPrice < rules.minNotional) {
-                return "Emergency sell could not be attempted: sell notional is below Binance minimum at the current price.";
-            }
             String params = "symbol=" + enc(symbol)
                     + "&side=SELL&type=MARKET"
                     + "&quantity=" + enc(qtyForOrder(sellQuantity))

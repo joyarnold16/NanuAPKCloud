@@ -112,7 +112,8 @@ public class AppStore {
     public boolean telegramCommandControl = true;
     public boolean liveRealOrderArmed = false;
     public boolean liveOrderTestMode = true;
-    public double microLiveOrderUsdt = AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT;
+    public double microLiveOrderUsdt = AutoTradingPolicy.MINIMUM_MANUAL_PROTECTED_QUOTE_USDT;
+    public double autoOrderAmountUsdt = AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT;
     public double manualOrderLimitUsdt = 50.0;
     public int maxConsecutiveLosses = 2;
     public int consecutiveLosses = 0;
@@ -289,10 +290,12 @@ public class AppStore {
         telegramCommandControl = sp.getBoolean("telegramCommandControl", true);
         liveRealOrderArmed = sp.getBoolean("liveRealOrderArmed", false);
         liveOrderTestMode = sp.getBoolean("liveOrderTestMode", true);
-        microLiveOrderUsdt = Double.longBitsToDouble(sp.getLong("microLiveOrderUsdt", Double.doubleToRawLongBits(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT)));
+        microLiveOrderUsdt = Double.longBitsToDouble(sp.getLong("microLiveOrderUsdt", Double.doubleToRawLongBits(AutoTradingPolicy.MINIMUM_MANUAL_PROTECTED_QUOTE_USDT)));
+        autoOrderAmountUsdt = Double.longBitsToDouble(sp.getLong("autoOrderAmountUsdt", Double.doubleToRawLongBits(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT)));
         manualOrderLimitUsdt = Double.longBitsToDouble(sp.getLong("manualOrderLimitUsdt", Double.doubleToRawLongBits(50.0)));
         manualOrderLimitUsdt = Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, Math.min(1000.0, manualOrderLimitUsdt));
-        microLiveOrderUsdt = Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, Math.min(manualOrderLimitUsdt, microLiveOrderUsdt));
+        microLiveOrderUsdt = Math.max(AutoTradingPolicy.MINIMUM_MANUAL_PROTECTED_QUOTE_USDT, Math.min(manualOrderLimitUsdt, microLiveOrderUsdt));
+        autoOrderAmountUsdt = Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, Math.min(manualOrderLimitUsdt, autoOrderAmountUsdt));
         maxConsecutiveLosses = sp.getInt("maxConsecutiveLosses", 2);
         consecutiveLosses = sp.getInt("consecutiveLosses", 0);
         dryRunProofRequired = sp.getInt("dryRunProofRequired", 50);
@@ -476,6 +479,7 @@ public class AppStore {
                 .putBoolean("liveRealOrderArmed", liveRealOrderArmed)
                 .putBoolean("liveOrderTestMode", liveOrderTestMode)
                 .putLong("microLiveOrderUsdt", Double.doubleToRawLongBits(microLiveOrderUsdt))
+                .putLong("autoOrderAmountUsdt", Double.doubleToRawLongBits(autoOrderAmountUsdt))
                 .putLong("manualOrderLimitUsdt", Double.doubleToRawLongBits(manualOrderLimitUsdt))
                 .putInt("maxConsecutiveLosses", maxConsecutiveLosses)
                 .putInt("consecutiveLosses", consecutiveLosses)
@@ -715,7 +719,7 @@ public class AppStore {
                 && !binanceRateLimitLock
                 && liveTradesToday < Math.max(1, maxLiveTradesPerDay)
                 && System.currentTimeMillis() >= orderCooldownUntilMs
-                && microLiveOrderUsdt >= Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, minOrderNotionalUsdt);
+                && microLiveOrderUsdt >= Math.max(AutoTradingPolicy.MINIMUM_MANUAL_PROTECTED_QUOTE_USDT, minOrderNotionalUsdt);
     }
 
     public void lockAfterExchangeDanger(int statusCode, String reason) {
@@ -834,13 +838,14 @@ public class AppStore {
         if (!autoLiveArmed) out.append("- Arm Automatic LIVE once for this session.\n");
         if (!AutoTradingPolicy.isStaticIp(autoTrustedStaticIp)) out.append("- Add your expected static public IP.\n");
         if (!portfolioSyncOk || System.currentTimeMillis() - lastPortfolioSyncMs > 5 * 60 * 1000L) out.append("- Sync the Spot portfolio within five minutes.\n");
-        if (microLiveOrderUsdt < Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, minOrderNotionalUsdt)) {
+        if (autoOrderAmountUsdt < Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, minOrderNotionalUsdt)) {
             out.append("- Set an automatic amount of at least ")
                     .append(String.format(Locale.US, "%.2f", Math.max(AutoTradingPolicy.MINIMUM_AUTOMATIC_QUOTE_USDT, minOrderNotionalUsdt)))
-                    .append(" USDT so a Binance stop order remains valid after fees.\n");
+                    .append(" USDT so a Binance OCO/emergency exit has a meaningful safety buffer.\n");
         }
-        if (microLiveOrderUsdt > manualOrderLimitUsdt) out.append("- Raise the order limit or lower the automatic amount.\n");
-        if (!Double.isNaN(spotFreeUsdt) && spotFreeUsdt < microLiveOrderUsdt) out.append("- Free USDT is below the automatic order amount.\n");
+        if (autoOrderAmountUsdt > manualOrderLimitUsdt) out.append("- Raise the order limit or lower the automatic amount.\n");
+        if (!Double.isNaN(spotFreeUsdt) && spotFreeUsdt < autoOrderAmountUsdt) out.append("- Free USDT is below the automatic order amount.\n");
+        if (slippageLimitPct <= 0 || slippageLimitPct > 0.50) out.append("- Set slippage between 0.01% and 0.50% before automatic LIVE.\n");
         if (liveTradesToday >= Math.max(1, maxLiveTradesPerDay)) out.append("- Daily entry limit has been reached.\n");
         if (hasAutoPendingOrder()) out.append("- Resolve the pending automatic BUY in Binance before starting again; use Emergency Close only after checking Binance.\n");
         if (hasPendingProtectionCheck()) out.append("- Inspect and acknowledge the pending Binance protection check.\n");
