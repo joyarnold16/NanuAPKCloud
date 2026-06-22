@@ -41,17 +41,23 @@ public class SecurePrefs {
                 return fallback;
             }
         }
-
         String legacy = sp.getString(key, fallback);
-        if (legacy != null && !legacy.isEmpty()) try { putSecret(key, legacy); } catch (Exception ignored) {}
+        if (legacy != null && !legacy.isEmpty()) {
+            try { putSecret(key, legacy); } catch (RuntimeException ignored) {}
+        }
         return legacy == null ? fallback : legacy;
     }
 
-    public void putSecret(String key, String value) throws Exception {
+    public void putSecret(String key, String value) {
         String safe = value == null ? "" : value;
         SharedPreferences.Editor editor = sp.edit().remove(key);
-        if (safe.isEmpty()) editor.remove(ENC_PREFIX + key);
-        else editor.putString(ENC_PREFIX + key, encrypt(safe));
+        try {
+            if (safe.isEmpty()) editor.remove(ENC_PREFIX + key);
+            else editor.putString(ENC_PREFIX + key, encrypt(safe));
+        } catch (Exception e) {
+            throw new RuntimeException("Keystore: " + e.getClass().getSimpleName()
+                    + (e.getMessage() != null ? ": " + e.getMessage() : ""), e);
+        }
         editor.apply();
     }
 
