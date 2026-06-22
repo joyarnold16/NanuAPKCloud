@@ -43,20 +43,16 @@ public class SecurePrefs {
         }
 
         String legacy = sp.getString(key, fallback);
-        if (legacy != null && !legacy.isEmpty()) putSecret(key, legacy);
+        if (legacy != null && !legacy.isEmpty()) try { putSecret(key, legacy); } catch (Exception ignored) {}
         return legacy == null ? fallback : legacy;
     }
 
-    public void putSecret(String key, String value) {
-        try {
-            String safe = value == null ? "" : value;
-            SharedPreferences.Editor editor = sp.edit().remove(key);
-            if (safe.isEmpty()) editor.remove(ENC_PREFIX + key);
-            else editor.putString(ENC_PREFIX + key, encrypt(safe));
-            editor.apply();
-        } catch (Exception ignored) {
-            // Never write credential values back in plaintext if encryption fails.
-        }
+    public void putSecret(String key, String value) throws Exception {
+        String safe = value == null ? "" : value;
+        SharedPreferences.Editor editor = sp.edit().remove(key);
+        if (safe.isEmpty()) editor.remove(ENC_PREFIX + key);
+        else editor.putString(ENC_PREFIX + key, encrypt(safe));
+        editor.apply();
     }
 
     public static String createPinHash(String pin) {
