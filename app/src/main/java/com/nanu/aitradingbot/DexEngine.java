@@ -9,18 +9,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class DexEngine {
     public static final class Position {
-        public String chain;
-        public String symbol;
-        public String tokenAddress;
-        public double entryPrice;
-        public double markPrice;
-        public double quoteAmount;
-        public double quantity;
-        public double targetPrice;
-        public double stopPrice;
-        public double pnlUsd;
+        public String chain, symbol, tokenAddress, exitReason = "";
+        public double entryPrice, markPrice, quoteAmount, quantity, targetPrice, stopPrice, pnlUsd;
         public long openedAtMs;
-        public String exitReason = "";
     }
 
     private final DexAppStore store;
@@ -38,7 +29,6 @@ public final class DexEngine {
     public List<DexCandidate> candidates() { return new ArrayList<>(candidates); }
     public List<String> events() { return new ArrayList<>(events); }
     public Position position() { return paperPosition; }
-cat >> app/src/main/java/com/nanu/aitradingbot/DexEngine.java << 'EOF'
     public boolean hasPosition() { return paperPosition != null; }
     public boolean isScanning() { return scanInFlight; }
 
