@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -59,9 +60,8 @@ public final class DexActivity extends Activity {
         getWindow().setNavigationBarColor(BG);
         store = DexAppStore.get(this);
         if (Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 71);
-        }
         render(true);
     }
 
@@ -130,7 +130,7 @@ public final class DexActivity extends Activity {
         titleBox.addView(text("NANU AI TRADING BOT", 17, WHITE, true));
         LinearLayout stateRow = row();
         stateRow.setGravity(Gravity.CENTER_VERTICAL);
-        stateRow.addView(text("DEX AUTO  \u2022  PAPER", 10, CYAN, true),
+        stateRow.addView(text("BNB + SOL  \u2022  PAPER", 10, CYAN, true),
             new LinearLayout.LayoutParams(0, -2, 1));
         String state = store.state();
         int sc = "SCANNING".equals(state)||"POSITION OPEN".equals(state) ? GREEN :
@@ -138,19 +138,11 @@ public final class DexActivity extends Activity {
         stateRow.addView(pill(state, sc));
         titleBox.addView(stateRow);
         row.addView(titleBox, new LinearLayout.LayoutParams(0, -2, 1));
-
-        TextView chain = pill("solana".equals(store.activeChain) ? "SOL" : "BNB", CYAN);
-        chain.setOnClickListener(v -> {
-            store.activeChain = "solana".equals(store.activeChain) ? "bsc" : "solana";
-            store.save(); render(false);
-        });
-        row.addView(chain);
         root.addView(row);
     }
 
     private void tabs() {
-        LinearLayout bar = row();
-        bar.setPadding(0, 0, 0, dp(10));
+        LinearLayout bar = row(); bar.setPadding(0, 0, 0, dp(10));
         String[] names = {"Home","Discover","History","Position","Wallet","Control"};
         for (int i = 0; i < names.length; i++) {
             final int idx = i;
@@ -167,7 +159,6 @@ public final class DexActivity extends Activity {
         double totalPnl = 0;
         for (TradeRecord r : store.tradeHistory) totalPnl += r.pnlUsd;
 
-        // Mascot banner
         int mascotId = getResources().getIdentifier("nanu_mascot", "drawable", getPackageName());
         if (mascotId != 0) {
             ImageView banner = new ImageView(this);
@@ -180,12 +171,14 @@ public final class DexActivity extends Activity {
         }
 
         LinearLayout hero = card();
-        hero.addView(text(store.activeChainLabel().toUpperCase(Locale.US) + " BOT WALLET", 11, CYAN, true));
-        hero.addView(text(store.hasWallet() ? shortAddr(store.activeAddress()) :
-            "Wallet not created", 19, WHITE, true));
+        hero.addView(text("BOT WALLET", 11, CYAN, true));
+        hero.addView(text(store.hasWallet() ?
+            shortAddr(store.bscAddress) + "  (BNB)" : "Wallet not created", 16, WHITE, true));
+        if (store.hasWallet())
+            hero.addView(text(shortAddr(store.solanaAddress) + "  (SOL)", 13, MUTED, false));
         hero.addView(text(store.hasWallet() ?
             "Paper scanner active. Mainnet swaps are security-blocked." :
-            "Create a separate bot wallet before funding or scanning.", 12, MUTED, false));
+            "Go to Wallet tab to create a separate bot wallet.", 12, MUTED, false));
         gap(hero, 10);
         LinearLayout metrics = row();
         final double pnl = totalPnl;
@@ -208,8 +201,7 @@ public final class DexActivity extends Activity {
             11, "HALTED".equals(store.state()) ? RED : AMBER, true));
         bot.addView(hdr);
         bot.addView(text(store.lastStatus, 13, MUTED, false));
-        if (!store.lastCritical.isEmpty())
-            bot.addView(text(store.lastCritical, 12, RED, true));
+        if (!store.lastCritical.isEmpty()) bot.addView(text(store.lastCritical, 12, RED, true));
         if (!store.evolutionSummary.isEmpty()) {
             gap(bot, 5);
             bot.addView(text("\u2728 ML Gen " + store.evolutionGeneration +
@@ -239,34 +231,45 @@ public final class DexActivity extends Activity {
 
     private void discover() {
         LinearLayout top = card();
-        top.addView(text("DEX DISCOVERY", 17, WHITE, true));
-        top.addView(text("Candidates screened locally with candlestick pattern analysis.", 12, MUTED, false));
+        top.addView(text("DEX DISCOVERY  \u2014  BNB + SOL", 17, WHITE, true));
+        top.addView(text("Both chains scanned. Candlestick patterns applied. "
+            + "QUALIFIED label is not a scam guarantee.", 12, MUTED, false));
         gap(top, 10);
-        top.addView(command("Refresh " + store.activeChainLabel(), CYAN,
+        top.addView(command("Scan Now (BNB + SOL)", CYAN,
             v -> { store.engine.tick(true); render(false); }),
             new LinearLayout.LayoutParams(-1, dp(50)));
         root.addView(top); gap(10);
 
         List<DexCandidate> items = store.engine.candidates();
-        if (items.isEmpty()) root.addView(empty("No candidates yet. Start scanner or tap Refresh."));
+        if (items.isEmpty()) {
+            root.addView(empty("No candidates yet. Tap Scan Now or start the scanner on Home."));
+            return;
+        }
         for (DexCandidate c : items) {
             List<String> patterns = CandlePatterns.detect(c);
             int adjScore = c.riskScore + CandlePatterns.scoreAdj(patterns);
             LinearLayout box = card();
             LinearLayout titleRow = row();
+            // Chain badge
+            TextView chainBadge = pill("bsc".equals(c.chain) ? "BNB" : "SOL",
+                "bsc".equals(c.chain) ? AMBER : CYAN);
+            titleRow.addView(chainBadge);
+            space(titleRow, 6);
             titleRow.addView(text(c.symbol + "  " + c.priceLabel(), 15, WHITE, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
             int col = "QUALIFIED".equals(c.decision) ? GREEN :
                       "BLOCKED".equals(c.decision) ? RED : AMBER;
             titleRow.addView(pill(c.decision + " " + adjScore, col));
             box.addView(titleRow);
-            box.addView(text(c.liquidityLabel() + "  |  Vol $" + compact(c.volume24hUsd), 12, MUTED, false));
+            box.addView(text(c.liquidityLabel() + "  |  Vol $" + compact(c.volume24hUsd),
+                12, MUTED, false));
             box.addView(text("1h " + signed(c.change1h) + "%  |  24h " + signed(c.change24h) + "%",
                 12, CYAN, true));
             if (!patterns.isEmpty()) {
                 int patColor = CandlePatterns.bullish(patterns) ? GREEN :
                                CandlePatterns.bearish(patterns) ? RED : AMBER;
-                box.addView(text("\u25cf " + CandlePatterns.summary(patterns), 11, patColor, true));
+                box.addView(text("\u25cf " + CandlePatterns.summary(patterns),
+                    11, patColor, true));
             }
             box.addView(text(c.reason, 12, col, false));
             root.addView(box); gap(8);
@@ -277,13 +280,11 @@ public final class DexActivity extends Activity {
         LinearLayout top = card();
         top.addView(text("TRADE HISTORY", 17, WHITE, true));
         List<TradeRecord> records = store.tradeHistory;
-
         if (records.isEmpty()) {
-            top.addView(text("No closed trades yet. Paper positions appear here when they close.", 13, MUTED, false));
-            root.addView(top);
-            return;
+            top.addView(text("No closed trades yet. Paper positions appear here when they close.",
+                13, MUTED, false));
+            root.addView(top); return;
         }
-
         int wins = 0; double totalPnl = 0;
         for (TradeRecord r : records) { if (r.win) wins++; totalPnl += r.pnlUsd; }
         double wr = records.size() > 0 ? wins * 100.0 / records.size() : 0;
@@ -300,21 +301,22 @@ public final class DexActivity extends Activity {
         summary.addView(metric("TOTAL P/L", String.format(Locale.US, "%+.2f", tp), "paper USD",
             tp >= 0 ? GREEN : RED), new LinearLayout.LayoutParams(0, -2, 1));
         top.addView(summary);
-
         if (!store.evolutionSummary.isEmpty()) {
             gap(top, 8);
             top.addView(text("\u2728 ML Gen " + store.evolutionGeneration +
                 ": " + store.evolutionSummary, 11, PURPLE, false));
         }
         gap(top, 10);
-        top.addView(command("Export CSV to Downloads", CARD2,
-            v -> exportCsv(records)), new LinearLayout.LayoutParams(-1, dp(44)));
+        top.addView(command("Export CSV to Downloads", CARD2, v -> exportCsv(records)),
+            new LinearLayout.LayoutParams(-1, dp(44)));
         root.addView(top); gap(10);
-
         for (TradeRecord r : records) {
             LinearLayout box = card();
             LinearLayout titleRow = row();
-            titleRow.addView(text(r.symbol + " / " + r.chain.toUpperCase(Locale.US), 14, WHITE, true),
+            titleRow.addView(pill("bsc".equals(r.chain) ? "BNB" : "SOL",
+                "bsc".equals(r.chain) ? AMBER : CYAN));
+            space(titleRow, 6);
+            titleRow.addView(text(r.symbol, 14, WHITE, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
             titleRow.addView(pill(r.win ? "WIN" : "LOSS", r.win ? GREEN : RED));
             box.addView(titleRow);
@@ -331,11 +333,10 @@ public final class DexActivity extends Activity {
         try {
             StringBuilder sb = new StringBuilder(
                 "symbol,chain,entry_price,exit_price,pnl_usd,pnl_pct,win,exit_reason,opened_ms\n");
-            for (TradeRecord r : records) {
+            for (TradeRecord r : records)
                 sb.append(String.format(Locale.US, "%s,%s,%.8f,%.8f,%.4f,%.2f,%s,%s,%d\n",
                     r.symbol, r.chain, r.entryPrice, r.exitPrice,
                     r.pnlUsd, r.pnlPct, r.win ? "WIN" : "LOSS", r.exitReason, r.openedAtMs));
-            }
             java.io.File dir = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
             java.io.File file = new java.io.File(dir, "nanu_trades.csv");
             java.io.FileWriter fw = new java.io.FileWriter(file);
@@ -349,8 +350,8 @@ public final class DexActivity extends Activity {
         box.addView(text("POSITION MONITOR", 17, WHITE, true));
         DexEngine.Position p = store.engine.position();
         if (p == null) {
-            box.addView(text("No position open. Paper automation is the only execution " +
-                "available until swap signing passes device tests.", 13, MUTED, false));
+            box.addView(text("No position open. Paper automation is the only execution available "
+                + "until swap signing passes device tests.", 13, MUTED, false));
         } else {
             positionSummary(box, p, false);
             gap(box, 10);
@@ -359,60 +360,123 @@ public final class DexActivity extends Activity {
                 new LinearLayout.LayoutParams(-1, dp(50)));
         }
         root.addView(box); gap(10);
-        LinearLayout exit = card();
-        exit.addView(text("DEX EXIT REALITY", 15, AMBER, true));
-        exit.addView(text("DEXs do not offer guaranteed OCO exits. A stop is a monitored " +
-            "sell; it can fail if liquidity, network, gas, or the token contract fails.",
-            13, MUTED, false));
-        root.addView(exit);
+        LinearLayout warn = card();
+        warn.addView(text("DEX EXIT REALITY", 15, AMBER, true));
+        warn.addView(text("DEXs do not guarantee OCO exits. A stop is a monitored sell; "
+            + "it can fail if liquidity, network, gas, or the contract fails.", 13, MUTED, false));
+        root.addView(warn);
     }
 
     private void wallet() {
+        // ── Balances ──────────────────────────────────────────────────────
         LinearLayout box = card();
         box.addView(text("BOT WALLET", 17, WHITE, true));
         if (!store.hasWallet()) {
-            box.addView(text("Create a separate wallet for Nanu. Never paste your existing " +
-                "Trust Wallet recovery phrase into this app.", 13, MUTED, false));
+            box.addView(text("Create a separate wallet for Nanu. Never paste your existing "
+                + "Trust Wallet recovery phrase into this app.", 13, MUTED, false));
             gap(box, 12);
             box.addView(command("Create Bot Wallet", GREEN, v -> createWallet()),
                 new LinearLayout.LayoutParams(-1, dp(52)));
+            root.addView(box);
         } else {
             LinearLayout balRow = row();
-            balRow.addView(metric("BNB",
-                balTxt(balances==null?null:balances.bnb, balances!=null&&balances.bnbOk),
-                "BNB Chain", GREEN), new LinearLayout.LayoutParams(0, -2, 1));
+            balRow.addView(metric("BNB", balTxt(balances==null?null:balances.bnb, balances!=null&&balances.bnbOk), "BNB Chain", GREEN), new LinearLayout.LayoutParams(0, -2, 1));
             space(balRow, 5);
-            balRow.addView(metric("ETH",
-                balTxt(balances==null?null:balances.eth, balances!=null&&balances.ethOk),
-                "Ethereum", CYAN), new LinearLayout.LayoutParams(0, -2, 1));
+            balRow.addView(metric("ETH", balTxt(balances==null?null:balances.eth, balances!=null&&balances.ethOk), "Ethereum",  CYAN),  new LinearLayout.LayoutParams(0, -2, 1));
             space(balRow, 5);
-            balRow.addView(metric("SOL",
-                balTxt(balances==null?null:balances.sol, balances!=null&&balances.solOk),
-                "Solana", AMBER), new LinearLayout.LayoutParams(0, -2, 1));
+            balRow.addView(metric("SOL", balTxt(balances==null?null:balances.sol, balances!=null&&balances.solOk), "Solana",    AMBER), new LinearLayout.LayoutParams(0, -2, 1));
             box.addView(balRow); gap(box, 10);
             box.addView(command(loadingBalances ? "Checking..." : "Refresh Balances",
                 CYAN, v -> refreshBalances()),
-                new LinearLayout.LayoutParams(-1, dp(50)));
-            gap(box, 12);
-            box.addView(text("BNB Chain (also receives ETH / BTCB)", 11, CYAN, true));
-            box.addView(text(store.bscAddress, 13, WHITE, false));
-            gap(box, 8);
-            box.addView(text("Solana", 11, CYAN, true));
-            box.addView(text(store.solanaAddress, 13, WHITE, false));
-            gap(box, 12);
-            box.addView(command("Funding Instructions", CYAN, v -> funding()),
-                new LinearLayout.LayoutParams(-1, dp(50)));
+                new LinearLayout.LayoutParams(-1, dp(48)));
             gap(box, 7);
             box.addView(command("View Backup Phrase", AMBER, v -> showBackup()),
+                new LinearLayout.LayoutParams(-1, dp(48)));
+            root.addView(box); gap(10);
+
+            // ── QR Code — BNB deposit ─────────────────────────────────────
+            LinearLayout qrCard = card();
+            qrCard.addView(text("DEPOSIT — BNB CHAIN", 14, CYAN, true));
+            qrCard.addView(text("Scan QR or copy address below. Send BNB for fees.", 12, MUTED, false));
+            gap(qrCard, 8);
+            Bitmap qrBnb = qrCode(store.bscAddress, dp(200));
+            if (qrBnb != null) {
+                LinearLayout qrWrap = col(); qrWrap.setGravity(Gravity.CENTER);
+                ImageView qrView = new ImageView(this);
+                qrView.setImageBitmap(qrBnb);
+                qrView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                qrView.setPadding(dp(10), dp(10), dp(10), dp(10));
+                qrView.setBackgroundColor(Color.WHITE);
+                qrWrap.addView(qrView, new LinearLayout.LayoutParams(dp(200), dp(200)));
+                qrCard.addView(qrWrap);
+            }
+            gap(qrCard, 6);
+            qrCard.addView(text(store.bscAddress, 12, WHITE, false));
+            gap(qrCard, 12);
+
+            qrCard.addView(text("DEPOSIT — SOLANA", 14, CYAN, true));
+            qrCard.addView(text("Scan QR or copy address below. Send SOL for fees.", 12, MUTED, false));
+            gap(qrCard, 8);
+            Bitmap qrSol = qrCode(store.solanaAddress, dp(200));
+            if (qrSol != null) {
+                LinearLayout qrWrap2 = col(); qrWrap2.setGravity(Gravity.CENTER);
+                ImageView qrView2 = new ImageView(this);
+                qrView2.setImageBitmap(qrSol);
+                qrView2.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                qrView2.setPadding(dp(10), dp(10), dp(10), dp(10));
+                qrView2.setBackgroundColor(Color.WHITE);
+                qrWrap2.addView(qrView2, new LinearLayout.LayoutParams(dp(200), dp(200)));
+                qrCard.addView(qrWrap2);
+            }
+            gap(qrCard, 6);
+            qrCard.addView(text(store.solanaAddress, 12, WHITE, false));
+            gap(qrCard, 10);
+            qrCard.addView(command("Funding Instructions", CARD2, v -> funding()),
+                new LinearLayout.LayoutParams(-1, dp(44)));
+            root.addView(qrCard); gap(10);
+
+            // ── Withdraw ─────────────────────────────────────────────────
+            LinearLayout wdCard = card();
+            wdCard.addView(text("WITHDRAW", 15, AMBER, true));
+            wdCard.addView(text("Enter details below. Real signing is not yet enabled — "
+                + "this will confirm once Trust Wallet Core signing passes device tests.",
+                12, MUTED, false));
+            gap(wdCard, 10);
+
+            wdCard.addView(text("Destination Address", 11, CYAN, true));
+            EditText destAddr = new EditText(this);
+            destAddr.setHint("0x... or Sol address");
+            destAddr.setTextColor(WHITE); destAddr.setHintTextColor(MUTED);
+            destAddr.setBackground(background(CARD2, CYAN, 6));
+            destAddr.setPadding(dp(10), dp(10), dp(10), dp(10));
+            wdCard.addView(destAddr); gap(wdCard, 8);
+
+            wdCard.addView(text("Amount", 11, CYAN, true));
+            EditText amtField = new EditText(this);
+            amtField.setHint("0.00");
+            amtField.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            amtField.setTextColor(WHITE); amtField.setHintTextColor(MUTED);
+            amtField.setBackground(background(CARD2, CYAN, 6));
+            amtField.setPadding(dp(10), dp(10), dp(10), dp(10));
+            wdCard.addView(amtField); gap(wdCard, 12);
+
+            wdCard.addView(command("Withdraw (Signing Not Yet Active)", RED, v ->
+                alert("Withdrawal Not Yet Enabled",
+                    "Live wallet signing is deliberately disabled pending Trust Wallet Core "
+                    + "integration tests. This feature will be unlocked after paper trading "
+                    + "is proven with real market data.\n\n"
+                    + "Destination entered: " + destAddr.getText().toString() + "\n"
+                    + "Amount entered: " + amtField.getText().toString())),
                 new LinearLayout.LayoutParams(-1, dp(50)));
+            root.addView(wdCard); gap(10);
         }
-        root.addView(box); gap(10);
-        LinearLayout info = card();
-        info.addView(text("FUNDING SAFETY", 15, AMBER, true));
-        info.addView(text("Use the exact displayed network. BNB Chain needs BNB for fees; " +
-            "Solana needs SOL for fees. Do not fund until backup phrase is stored offline.",
+
+        LinearLayout safety = card();
+        safety.addView(text("FUNDING SAFETY", 14, AMBER, true));
+        safety.addView(text("Use the exact displayed network. BNB Chain needs BNB for gas; "
+            + "Solana needs SOL for fees. Do not fund until recovery phrase is stored offline.",
             13, MUTED, false));
-        root.addView(info);
+        root.addView(safety);
     }
 
     private void refreshBalances() {
@@ -434,8 +498,8 @@ public final class DexActivity extends Activity {
     private void control() {
         LinearLayout box = card();
         box.addView(text("RISK CONTROLS", 17, WHITE, true));
-        box.addView(text("These limits control paper decisions and will stay as hard limits " +
-            "if live execution is ever enabled.", 12, MUTED, false));
+        box.addView(text("These limits control paper decisions and will remain hard limits "
+            + "if live execution is ever enabled.", 12, MUTED, false));
         gap(box, 8);
         setting(box, "Trade amount", money(store.maxTradeUsd) + " USD",
             v -> editNum("Max paper trade", store.maxTradeUsd, 1, 10_000, x -> store.maxTradeUsd = x));
@@ -446,7 +510,7 @@ public final class DexActivity extends Activity {
         setting(box, "Minimum liquidity", money(store.minLiquidityUsd),
             v -> editNum("Min liquidity", store.minLiquidityUsd, 1_000, 10_000_000, x -> store.minLiquidityUsd = x));
         setting(box, "Minimum pair age", store.minPairAgeHours + " hours",
-            v -> editNum("Min pair age", store.minPairAgeHours, 1, 720, x -> store.minPairAgeHours = (int)x));
+            v -> editNum("Min pair age hours", store.minPairAgeHours, 1, 720, x -> store.minPairAgeHours = (int)x));
         setting(box, "Stop / target", store.stopLossPercent + "% / " + store.takeProfitPercent + "%",
             v -> editStopTarget());
         root.addView(box); gap(10);
@@ -454,17 +518,16 @@ public final class DexActivity extends Activity {
         if (!store.evolutionSummary.isEmpty()) {
             LinearLayout ml = card();
             ml.addView(text("ML EVOLUTION", 15, PURPLE, true));
-            ml.addView(text("Gen " + store.evolutionGeneration + ": " + store.evolutionSummary,
-                12, WHITE, false));
-            ml.addView(text("Strategies tested: BALANCED, MOMENTUM, CONSERVATIVE, VOLUME_SPIKE, " +
-                "ACCUMULATION, SNIPER, SAFE_LARGE, ANTI_DUMP", 11, MUTED, false));
+            ml.addView(text("Gen " + store.evolutionGeneration + ": " + store.evolutionSummary, 12, WHITE, false));
+            ml.addView(text("Strategies: BALANCED · MOMENTUM · CONSERVATIVE · VOLUME_SPIKE\n"
+                + "ACCUMULATION · SNIPER · SAFE_LARGE · ANTI_DUMP", 11, MUTED, false));
             root.addView(ml); gap(10);
         }
 
         LinearLayout live = card();
         live.addView(text("LIVE DEX EXECUTION", 15, RED, true));
-        live.addView(text("Blocked in this build. Real swap signing needs complete device " +
-            "integration tests before any real balance is exposed.", 13, MUTED, false));
+        live.addView(text("Blocked in this build. Real swap signing needs complete device "
+            + "integration tests before any real balance is exposed.", 13, MUTED, false));
         root.addView(live); gap(10);
 
         LinearLayout log = card();
@@ -481,11 +544,24 @@ public final class DexActivity extends Activity {
             15, CYAN, true));
         box.addView(text("Entry " + dollar(p.entryPrice) + "  |  Mark " + dollar(p.markPrice),
             13, WHITE, false));
-        box.addView(text("P/L " + money(p.pnlUsd) + "  |  Target " + dollar(p.targetPrice) +
-            "  |  Stop " + dollar(p.stopPrice), 13, p.pnlUsd >= 0 ? GREEN : RED, true));
+        box.addView(text("P/L " + money(p.pnlUsd) + "  |  Target " + dollar(p.targetPrice)
+            + "  |  Stop " + dollar(p.stopPrice), 13, p.pnlUsd >= 0 ? GREEN : RED, true));
         if (!compact)
-            box.addView(text("Paper-only. No token was purchased; no blockchain transaction exists.",
+            box.addView(text("Paper-only. No token purchased; no blockchain transaction exists.",
                 12, AMBER, false));
+    }
+
+    private Bitmap qrCode(String text, int size) {
+        try {
+            com.google.zxing.qrcode.QRCodeWriter w = new com.google.zxing.qrcode.QRCodeWriter();
+            com.google.zxing.common.BitMatrix m =
+                w.encode(text, com.google.zxing.BarcodeFormat.QR_CODE, size, size);
+            Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565);
+            for (int x = 0; x < size; x++)
+                for (int y = 0; y < size; y++)
+                    bmp.setPixel(x, y, m.get(x, y) ? Color.BLACK : Color.WHITE);
+            return bmp;
+        } catch (Exception e) { return null; }
     }
 
     private void startScanner() {
@@ -497,19 +573,17 @@ public final class DexActivity extends Activity {
     }
 
     private void pauseScanner() {
-        store.engine.stop("Scanner paused.");
-        stopService(new Intent(this, DexBotService.class)); render(false);
+        store.engine.stop("Scanner paused."); stopService(new Intent(this, DexBotService.class)); render(false);
     }
 
     private void panic() {
-        store.engine.panic();
-        stopService(new Intent(this, DexBotService.class)); render(false);
+        store.engine.panic(); stopService(new Intent(this, DexBotService.class)); render(false);
     }
 
     private void createWallet() {
         new AlertDialog.Builder(this).setTitle("Create Nanu Bot Wallet")
-            .setMessage("This creates a NEW wallet. It does NOT connect to your existing Trust Wallet. " +
-                "Back up the recovery phrase offline before funding.")
+            .setMessage("This creates a NEW separate wallet. It does NOT connect to your existing "
+                + "Trust Wallet. Back up the recovery phrase offline before funding.")
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Create", (d, w) -> {
                 try {
@@ -528,35 +602,33 @@ public final class DexActivity extends Activity {
     }
 
     private void showBackup() {
-        String w = store.getMnemonic();
-        if (w.isEmpty()) { toast("No wallet backup available."); return; }
+        String words = store.getMnemonic();
+        if (words.isEmpty()) { toast("No wallet backup available."); return; }
         alert("Bot Wallet Recovery Phrase",
-            "Write these words offline in order. Do NOT screenshot, share, or paste them anywhere.\n\n" + w);
+            "Write these words offline in order. Do NOT screenshot, share, or paste them "
+            + "into any website or app.\n\n" + words);
     }
 
     private void funding() {
         alert("Fund Nanu Bot Wallet",
-            "BNB Chain:\n" + store.bscAddress +
-            "\n\nSend only BNB Chain assets. Keep BNB for fees.\n\n" +
-            "Solana:\n" + store.solanaAddress +
-            "\n\nSend only Solana assets. Keep SOL for fees.\n\n" +
-            "Start with a tiny test transfer after saving backup phrase offline.");
+            "BNB Chain:\n" + store.bscAddress
+            + "\n\nSend BNB Chain assets only. Keep BNB for gas fees.\n\n"
+            + "Solana:\n" + store.solanaAddress
+            + "\n\nSend Solana assets only. Keep SOL for transaction fees.\n\n"
+            + "Always start with a tiny test transfer first.");
     }
 
     private interface NS { void save(double v); }
     private void editNum(String title, double old, double min, double max, NS cb) {
         EditText et = new EditText(this);
         et.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        et.setText(String.format(Locale.US, "%.2f", old));
-        et.setSelectAllOnFocus(true);
+        et.setText(String.format(Locale.US, "%.2f", old)); et.setSelectAllOnFocus(true);
         new AlertDialog.Builder(this).setTitle(title).setView(et)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Save", (d, w) -> {
                 try {
                     double v = Double.parseDouble(et.getText().toString().trim());
-                    if (!DexSafetyPolicy.validAmount(v, min, max)) {
-                        toast("Value must be " + min + " – " + max); return;
-                    }
+                    if (!DexSafetyPolicy.validAmount(v, min, max)) { toast("Value must be " + min + "–" + max); return; }
                     cb.save(v); store.save(); render(false);
                 } catch (Exception ignored) { toast("Enter a valid number."); }
             }).show();
@@ -574,7 +646,7 @@ public final class DexActivity extends Activity {
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Save", (d, w) -> {
                 try {
-                    store.stopLossPercent = Double.parseDouble(stop.getText().toString());
+                    store.stopLossPercent  = Double.parseDouble(stop.getText().toString());
                     store.takeProfitPercent = Double.parseDouble(tgt.getText().toString());
                     store.save(); render(false);
                 } catch (Exception ignored) { toast("Enter valid percentages."); }
@@ -582,18 +654,15 @@ public final class DexActivity extends Activity {
     }
 
     private LinearLayout metric(String label, String value, String note, int color) {
-        LinearLayout box = col();
-        box.setPadding(dp(10), dp(9), dp(10), dp(9));
-        box.setBackground(background(CARD2, CYAN, 8));
-        box.addView(text(label, 10, MUTED, true));
-        box.addView(text(value, 16, color, true));
-        box.addView(text(note, 10, MUTED, false));
-        return box;
+        LinearLayout b = col(); b.setPadding(dp(10), dp(9), dp(10), dp(9));
+        b.setBackground(background(CARD2, CYAN, 8));
+        b.addView(text(label, 10, MUTED, true)); b.addView(text(value, 16, color, true));
+        b.addView(text(note, 10, MUTED, false)); return b;
     }
-    private void setting(LinearLayout parent, String label, String value, View.OnClickListener l) {
+    private void setting(LinearLayout p, String label, String value, View.OnClickListener l) {
         TextView v = command(label + "\n" + value, CARD2, l);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(56));
-        lp.topMargin = dp(7); parent.addView(v, lp);
+        lp.topMargin = dp(7); p.addView(v, lp);
     }
     private LinearLayout card() {
         LinearLayout b = col(); b.setPadding(dp(14), dp(14), dp(14), dp(14));
@@ -602,31 +671,20 @@ public final class DexActivity extends Activity {
     private LinearLayout empty(String msg) {
         LinearLayout b = card(); b.addView(text(msg, 13, MUTED, false)); return b;
     }
-    private LinearLayout row() {
-        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.HORIZONTAL); return v;
-    }
-    private LinearLayout col() {
-        LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); return v;
-    }
-    private void gap(int value) {
-        View v = new View(this); root.addView(v, new LinearLayout.LayoutParams(1, dp(value)));
-    }
-    private void gap(LinearLayout p, int value) {
-        View v = new View(this); p.addView(v, new LinearLayout.LayoutParams(1, dp(value)));
-    }
-    private void space(LinearLayout row, int value) {
-        View v = new View(this); row.addView(v, new LinearLayout.LayoutParams(dp(value), 1));
-    }
+    private LinearLayout row() { LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.HORIZONTAL); return v; }
+    private LinearLayout col() { LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); return v; }
+    private void gap(int value) { View v = new View(this); root.addView(v, new LinearLayout.LayoutParams(1, dp(value))); }
+    private void gap(LinearLayout p, int value) { View v = new View(this); p.addView(v, new LinearLayout.LayoutParams(1, dp(value))); }
+    private void space(LinearLayout row, int value) { View v = new View(this); row.addView(v, new LinearLayout.LayoutParams(dp(value), 1)); }
     private TextView text(String value, int size, int color, boolean bold) {
-        TextView v = new TextView(this);
-        v.setText(value == null ? "" : value); v.setTextColor(color); v.setTextSize(size);
+        TextView v = new TextView(this); v.setText(value == null ? "" : value);
+        v.setTextColor(color); v.setTextSize(size);
         v.setTypeface(Typeface.DEFAULT, bold ? Typeface.BOLD : Typeface.NORMAL);
         v.setLineSpacing(dp(2), 1f); return v;
     }
     private TextView pill(String value, int color) {
         TextView v = text(value, 10, BG, true); v.setGravity(Gravity.CENTER);
-        v.setPadding(dp(9), dp(5), dp(9), dp(5));
-        v.setBackground(background(color, color, 12)); return v;
+        v.setPadding(dp(9), dp(5), dp(9), dp(5)); v.setBackground(background(color, color, 12)); return v;
     }
     private TextView button(String label, int fill, int ink, int size) {
         TextView v = text(label, size, ink, true); v.setGravity(Gravity.CENTER);
@@ -643,27 +701,18 @@ public final class DexActivity extends Activity {
     }
     private void footer() {
         gap(16);
-        TextView note = text("NANU AI  \u2022  DEX ML Evolution  \u2022  Paper Mode  \u2022  v10.0",
+        TextView note = text("NANU AI  \u2022  BNB + SOL  \u2022  ML Evolution  \u2022  Paper Mode  \u2022  v10.0",
             10, MUTED, false);
         note.setGravity(Gravity.CENTER); root.addView(note);
     }
     private void alert(String title, String body) {
-        new AlertDialog.Builder(this).setTitle(title).setMessage(body)
-            .setPositiveButton("OK", null).show();
+        new AlertDialog.Builder(this).setTitle(title).setMessage(body).setPositiveButton("OK", null).show();
     }
     private void toast(String msg) { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show(); }
-    private static String readable(Throwable e) {
-        String v = e.getMessage(); return v == null || v.trim().isEmpty() ? e.getClass().getSimpleName() : v;
-    }
-    private static String shortAddr(String v) {
-        return v == null || v.length() < 14 ? v : v.substring(0, 7) + "..." + v.substring(v.length()-5);
-    }
-    private static String compact(double v) {
-        return v >= 1_000d ? String.format(Locale.US, "%,.0f", v) : String.format(Locale.US, "%.2f", v);
-    }
-    private static String signed(double v) { return String.format(Locale.US, "%+.2f", v); }
-    private static String money(double v)  { return String.format(Locale.US, "$%,.2f", v); }
-    private static String dollar(double v) {
-        return v >= 1d ? String.format(Locale.US, "$%.4f", v) : String.format(Locale.US, "$%.8f", v);
-    }
+    private static String readable(Throwable e) { String v = e.getMessage(); return v == null || v.trim().isEmpty() ? e.getClass().getSimpleName() : v; }
+    private static String shortAddr(String v) { return v == null || v.length() < 14 ? v : v.substring(0, 7) + "..." + v.substring(v.length()-5); }
+    private static String compact(double v) { return v >= 1_000d ? String.format(Locale.US, "%,.0f", v) : String.format(Locale.US, "%.2f", v); }
+    private static String signed(double v)  { return String.format(Locale.US, "%+.2f", v); }
+    private static String money(double v)   { return String.format(Locale.US, "$%,.2f", v); }
+    private static String dollar(double v)  { return v >= 1d ? String.format(Locale.US, "$%.4f", v) : String.format(Locale.US, "$%.8f", v); }
 }
