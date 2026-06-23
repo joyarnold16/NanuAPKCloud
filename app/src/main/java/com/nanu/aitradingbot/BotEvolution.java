@@ -1,6 +1,5 @@
 package com.nanu.aitradingbot;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -13,111 +12,68 @@ public final class BotEvolution {
     }
 
     public static Result evolve(List<TradeRecord> history, DexAppStore store) {
-        Result result = new Result();
-        if (history.size() < MIN_TRADES) {
-            result.summary = "Need " + MIN_TRADES + " paper trades to evolve. Have " + history.size() + ".";
-            return result;
+        Result r = new Result();
+        if (history == null || history.size() < MIN_TRADES) {
+            r.summary = "Not enough trades for evolution."; return r;
         }
-        List<String> changes = new ArrayList<>();
-        int wins = countWins(history);
-        int winPct = wins * 100 / history.size();
+        double curRate = winRate(history);
+        double origMom = store.minMomentumPercent;
+        double origStop = store.stopLossPercent;
+        double origTarget = store.takeProfitPercent;
+        double bestRate = curRate, bestMom = origMom, bestStop = origStop, bestTarget = origTarget;
 
-        // Evolve minLiquidityUsd
-        {
-            double cur = store.minLiquidityUsd;
-            List<TradeRecord> above = new ArrayList<>(), below = new ArrayList<>();
-            for (TradeRecord r : history) { if (r.liquidityUsd >= cur) above.add(r); else below.add(r); }
-            if (above.size() >= 2 && below.size() >= 2) {
-                double diff = winRate(above) - winRate(below);
-                if (Math.abs(diff) >= 0.15) {
-                    double next = diff > 0 ? Math.min(500_000, cur * 1.15) : Math.max(5_000, cur * 0.85);
-                    if (Math.abs(next - cur) >= cur * 0.02) {
-                        store.minLiquidityUsd = next;
-                        changes.add(String.format(Locale.US, "liq $%.0f→$%.0f", cur, next));
-                    }
-                }
-            }
+        for (double m : new double[]{origMom * 1.2, origMom * 0.8, origMom + 0.5, Math.max(0.1, origMom - 0.25)}) {
+            if (m < 0.1 || m > 20) continue;
+            double rate = simulate(history, m, bestStop, bestTarget);
+            if (rate > bestRate) { bestRate = rate; bestMom = m; }
+        }
+        for (double[] st : new double[][]{{origStop * 0.8, origTarget * 1.2}, {origStop * 1.2, origTarget * 0.8}, {origStop, origTarget * 1.1}, {origStop * 0.9, origTarget}}) {
+            if (st[0] < 0.5 || st[0] > 50 || st[1] < 0.5 || st[1] > 100) continue;
+            double rate = simulate(history, bestMom, st[0], st[1]);
+            if (rate > bestRate) { bestRate = rate; bestStop = st[0]; bestTarget = st[1]; }
         }
 
-        // Evolve minVolumeUsd
-        {
-            double cur = store.minVolumeUsd;
-            List<TradeRecord> above = new ArrayList<>(), below = new ArrayList<>();
-            for (TradeRecord r : history) { if (r.volume24hUsd >= cur) above.add(r); else below.add(r); }
-            if (above.size() >= 2 && below.size() >= 2) {
-                double diff = winRate(above) - winRate(below);
-                if (Math.abs(diff) >= 0.15) {
-                    double next = diff > 0 ? Math.min(200_000, cur * 1.15) : Math.max(1_000, cur * 0.85);
-                    if (Math.abs(next - cur) >= cur * 0.02) {
-                        store.minVolumeUsd = next;
-                        changes.add(String.format(Locale.US, "vol $%.0f→$%.0f", cur, next));
-                    }
-                }
-            }
+        StringBuilder sb = new StringBuilder("Gen ").append(store.evolutionGeneration + 1).append(": ");
+        boolean changed = false;
+        if (Math.abs(bestMom - origMom) > 0.01) {
+            store.minMomentumPercent = bestMom;
+            sb.append(String.format(Locale.US, "mom %.1f\u2192%.1f%% ", origMom, bestMom)); changed = true;
         }
-
-        // Evolve minMomentumPercent
-        {
-            double cur = store.minMomentumPercent;
-            List<TradeRecord> above = new ArrayList<>(), below = new ArrayList<>();
-            for (TradeRecord r : history) { if (r.change1h >= cur) above.add(r); else below.add(r); }
-            if (above.size() >= 2 && below.size() >= 2) {
-                double diff = winRate(above) - winRate(below);
-                if (Math.abs(diff) >= 0.15) {
-                    double next = diff > 0 ? Math.min(15.0, cur * 1.15) : Math.max(0.2, cur * 0.85);
-                    if (Math.abs(next - cur) >= cur * 0.02) {
-                        store.minMomentumPercent = next;
-                        changes.add(String.format(Locale.US, "momentum %.1f%%→%.1f%%", cur, next));
-                    }
-                }
-            }
+        if (Math.abs(bestStop - origStop) > 0.01) {
+            store.stopLossPercent = bestStop;
+            sb.append(String.format(Locale.US, "stop %.1f\u2192%.1f%% ", origStop, bestStop)); changed = true;
         }
-
-        // Evolve stop/target from actual P&L outcomes
-        {
-            List<TradeRecord> wL = new ArrayList<>(), lL = new ArrayList<>();
-            for (TradeRecord r : history) { if (r.win) wL.add(r); else lL.add(r); }
-            if (wL.size() >= 2 && lL.size() >= 2) {
-                double avgWin = 0; for (TradeRecord r : wL) avgWin += r.pnlPct; avgWin /= wL.size();
-                double avgLoss = 0; for (TradeRecord r : lL) avgLoss += Math.abs(r.pnlPct); avgLoss /= lL.size();
-                if (avgLoss > store.stopLossPercent * 1.2 && store.stopLossPercent > 3) {
-                    double ns = Math.max(3, store.stopLossPercent * 0.9);
-                    changes.add(String.format(Locale.US, "stop %.1f%%→%.1f%%", store.stopLossPercent, ns));
-                    store.stopLossPercent = ns;
-                }
-                if (avgWin > store.takeProfitPercent * 0.8 && store.takeProfitPercent < 40) {
-                    double nt = Math.min(40, store.takeProfitPercent * 1.1);
-                    changes.add(String.format(Locale.US, "target %.1f%%→%.1f%%", store.takeProfitPercent, nt));
-                    store.takeProfitPercent = nt;
-                }
-            }
+        if (Math.abs(bestTarget - origTarget) > 0.01) {
+            store.takeProfitPercent = bestTarget;
+            sb.append(String.format(Locale.US, "target %.1f\u2192%.1f%% ", origTarget, bestTarget)); changed = true;
         }
-
-        result.evolved = !changes.isEmpty();
-        if (result.evolved) {
+        if (changed) {
             store.evolutionGeneration++;
-            result.summary = String.format(Locale.US,
-                "Gen %d | %d%% win from %d trades | %s",
-                store.evolutionGeneration, winPct, history.size(), join(changes));
+            r.evolved = true;
+            r.summary = sb.append(String.format(Locale.US, "(%.0f%%\u2192%.0f%%)", curRate * 100, bestRate * 100)).toString().trim();
         } else {
-            result.summary = String.format(Locale.US,
-                "Gen %d stable | %d%% win from %d trades | params unchanged",
-                store.evolutionGeneration, winPct, history.size());
+            r.summary = String.format(Locale.US, "Gen %d: no improvement (%.0f%% win rate, %d trades).", store.evolutionGeneration, curRate * 100, history.size());
         }
-        return result;
+        return r;
     }
 
     public static int countWins(List<TradeRecord> records) {
-        int c = 0; for (TradeRecord r : records) if (r.win) c++; return c;
+        int w = 0;
+        for (TradeRecord r : records) if (r.win) w++;
+        return w;
     }
 
     private static double winRate(List<TradeRecord> records) {
         return records.isEmpty() ? 0 : (double) countWins(records) / records.size();
     }
 
-    private static String join(List<String> items) {
-        StringBuilder sb = new StringBuilder();
-        for (String s : items) { if (sb.length() > 0) sb.append(", "); sb.append(s); }
-        return sb.toString();
+    private static double simulate(List<TradeRecord> records, double mom, double stop, double target) {
+        int wins = 0, total = 0;
+        for (TradeRecord r : records) {
+            if (r.change1h < mom) continue;
+            total++;
+            if (r.pnlPct >= target || r.pnlPct > -stop) wins++;
+        }
+        return total == 0 ? winRate(records) : (double) wins / total;
     }
 }
