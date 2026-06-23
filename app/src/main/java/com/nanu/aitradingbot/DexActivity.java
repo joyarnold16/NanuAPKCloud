@@ -66,6 +66,7 @@ public final class DexActivity extends Activity {
     @Override protected void onResume() { super.onResume(); if (!refreshing) { refreshing = true; handler.post(refresh); } }
     @Override protected void onPause() { refreshing = false; handler.removeCallbacks(refresh); super.onPause(); }
 
+    private int statusBarHeight() { int id = getResources().getIdentifier("status_bar_height", "dimen", "android"); return id > 0 ? getResources().getDimensionPixelSize(id) : dp(24); }
     private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
 
     private void render(boolean top) {
@@ -73,7 +74,7 @@ public final class DexActivity extends Activity {
         if (scroll == null) {
             scroll = new ScrollView(this); scroll.setBackgroundColor(BG);
             scroll.setFillViewport(false); scroll.setVerticalScrollBarEnabled(false);
-            root = col(); root.setPadding(dp(14), dp(18), dp(14), dp(26));
+            root = col(); root.setPadding(dp(14), statusBarHeight() + dp(4), dp(14), dp(26));
             scroll.addView(root, new ScrollView.LayoutParams(-1, -2));
             setContentView(scroll);
         } else root.removeAllViews();
