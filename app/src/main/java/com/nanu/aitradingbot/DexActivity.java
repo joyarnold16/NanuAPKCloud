@@ -16,7 +16,6 @@ import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -136,7 +135,7 @@ public final class DexActivity extends Activity {
         root.addView(hero); gap(10);
 
         LinearLayout bot = card();
-        LinearLayout line = row();
+        LinearLayout line = row(); line.setGravity(Gravity.CENTER_VERTICAL);
         line.addView(text("MARKET SCANNER", 16, WHITE, true), new LinearLayout.LayoutParams(0, -2, 1));
         line.addView(text(store.engine.isScanning() ? "CHECKING" : store.state(), 11, "HALTED".equals(store.state()) ? RED : AMBER, true));
         bot.addView(line);
@@ -152,7 +151,6 @@ public final class DexActivity extends Activity {
         bot.addView(controls);
         root.addView(bot); gap(10);
 
-        // ML Evolution card
         LinearLayout evol = card();
         LinearLayout evolHdr = row(); evolHdr.setGravity(Gravity.CENTER_VERTICAL);
         evolHdr.addView(text("ML EVOLUTION", 16, WHITE, true), new LinearLayout.LayoutParams(0, -2, 1));
@@ -162,7 +160,7 @@ public final class DexActivity extends Activity {
         if (!hist.isEmpty()) {
             int w = BotEvolution.countWins(hist);
             int wr = w * 100 / hist.size();
-            evol.addView(text(w + "W / " + (hist.size()-w) + "L  |  " + wr + "% win rate  |  " + hist.size() + " trades", 13, wr >= 50 ? GREEN : AMBER, true));
+            evol.addView(text(w + "W / " + (hist.size() - w) + "L  |  " + wr + "% win rate  |  " + hist.size() + " trades", 13, wr >= 50 ? GREEN : AMBER, true));
         } else {
             evol.addView(text("No paper trades yet. Start the scanner to collect evolution data.", 12, MUTED, false));
         }
@@ -275,20 +273,22 @@ public final class DexActivity extends Activity {
         layout.addView(text("BNB Chain  (also receives ETH / BTCB)", 11, CYAN, true));
         Bitmap bscBmp = qrBitmap(store.bscAddress, qrPx);
         if (bscBmp != null) { ImageView iv = new ImageView(this); iv.setImageBitmap(bscBmp); layout.addView(iv, new LinearLayout.LayoutParams(qrPx, qrPx)); }
-        layout.addView(text(store.bscAddress, 11, WHITE, false)); gap(layout, 14);
+        TextView bscTv = text(store.bscAddress, 11, WHITE, false); bscTv.setTextIsSelectable(true);
+        layout.addView(bscTv); gap(layout, 14);
         layout.addView(text("Solana", 11, CYAN, true));
         Bitmap solBmp = qrBitmap(store.solanaAddress, qrPx);
         if (solBmp != null) { ImageView iv2 = new ImageView(this); iv2.setImageBitmap(solBmp); layout.addView(iv2, new LinearLayout.LayoutParams(qrPx, qrPx)); }
-        layout.addView(text(store.solanaAddress, 11, WHITE, false));
+        TextView solTv = text(store.solanaAddress, 11, WHITE, false); solTv.setTextIsSelectable(true);
+        layout.addView(solTv);
         ScrollView sv = new ScrollView(this); sv.addView(layout);
         new AlertDialog.Builder(this).setTitle("Deposit to Bot Wallet").setView(sv).setPositiveButton("OK", null).show();
     }
 
     private void withdraw() {
         alert("Withdraw — Coming Soon",
-            "Withdraw signing is being integrated with Trust Wallet Core signing and will be available in the next update.\n\n" +
+            "Withdraw signing is being integrated with Trust Wallet Core and will be available in the next update.\n\n" +
             "To withdraw now: import your backup phrase into the Trust Wallet app and send from there.\n\n" +
-            "Your BNB Chain address:\n" + store.bscAddress + "\n\nYour Solana address:\n" + store.solanaAddress);
+            "BNB Chain address:\n" + store.bscAddress + "\n\nSolana address:\n" + store.solanaAddress);
     }
 
     private void refreshBalances() {
@@ -315,13 +315,13 @@ public final class DexActivity extends Activity {
         setting(box, "Daily trade limit", String.valueOf(store.maxTradesPerDay), v -> editNumber("Maximum daily trades", store.maxTradesPerDay, 1, 20, x -> store.maxTradesPerDay = (int) x));
         setting(box, "Min liquidity", money(store.minLiquidityUsd), v -> editNumber("Minimum liquidity", store.minLiquidityUsd, 1_000, 10_000_000, x -> store.minLiquidityUsd = x));
         setting(box, "Min pair age", store.minPairAgeHours + " hours", v -> editNumber("Minimum pair age", store.minPairAgeHours, 1, 720, x -> store.minPairAgeHours = (int) x));
-        setting(box, "Min momentum", String.format(Locale.US, "%.1f%%", store.minMomentumPercent), v -> editNumber("Minimum 1h momentum %", store.minMomentumPercent, 0.1, 20, x -> store.minMomentumPercent = x));
+        setting(box, "Min momentum", String.format(Locale.US, "%.1f%%", store.minMomentumPercent), v -> editNumber("Min 1h momentum %", store.minMomentumPercent, 0.1, 20, x -> store.minMomentumPercent = x));
         setting(box, "Stop / target", store.stopLossPercent + "% / " + store.takeProfitPercent + "%", v -> editStopTarget());
         root.addView(box); gap(10);
 
         LinearLayout evolBox = card();
         evolBox.addView(text("EVOLUTION STATUS", 16, CYAN, true));
-        evolBox.addView(text("Gen " + store.evolutionGeneration + " — " + store.tradeHistory.size() + " trades recorded. Evolution runs every " + BotEvolution.MIN_TRADES + " completed trades.", 12, WHITE, false));
+        evolBox.addView(text("Gen " + store.evolutionGeneration + " — " + store.tradeHistory.size() + " trades recorded. Evolves every " + BotEvolution.MIN_TRADES + " completed trades.", 12, WHITE, false));
         if (!store.evolutionSummary.isEmpty()) { gap(evolBox, 4); evolBox.addView(text(store.evolutionSummary, 11, MUTED, false)); }
         gap(evolBox, 8);
         evolBox.addView(command("Force Evolve Now", CYAN, v -> {
@@ -449,7 +449,7 @@ public final class DexActivity extends Activity {
     private void alert(String title, String body) { new AlertDialog.Builder(this).setTitle(title).setMessage(body).setPositiveButton("OK", null).show(); }
     private void toast(String msg) { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show(); }
     private static String readable(Throwable e) { String v = e.getMessage(); return v == null || v.trim().isEmpty() ? e.getClass().getSimpleName() : v; }
-    private static String shortAddress(String v) { return v == null || v.length() < 14 ? v : v.substring(0, 7) + "…" + v.substring(v.length() - 5); }
+    private static String shortAddress(String v) { return v == null || v.length() < 14 ? v : v.substring(0, 7) + "..." + v.substring(v.length() - 5); }
     private static String compact(double v) { return v >= 1000 ? String.format(Locale.US, "%,.0f", v) : String.format(Locale.US, "%.2f", v); }
     private static String signed(double v) { return String.format(Locale.US, "%+.2f", v); }
     private static String money(double v) { return String.format(Locale.US, "$%,.2f", v); }

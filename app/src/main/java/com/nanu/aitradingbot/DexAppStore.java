@@ -167,7 +167,7 @@ public final class DexAppStore {
 
     public boolean hasWallet() { return !bscAddress.isEmpty() && !solanaAddress.isEmpty() && !getMnemonic().isEmpty(); }
     public String getMnemonic() { return secure.getSecret("dexWalletMnemonic", ""); }
-    public void putMnemonic(String mnemonic) { try { secure.putSecret("dexWalletMnemonic", mnemonic); } catch (Exception e) { throw new RuntimeException(e.getClass().getSimpleName() + (e.getMessage() != null ? ": " + e.getMessage() : ""), e); } }
+    public void putMnemonic(String mnemonic) { secure.putSecret("dexWalletMnemonic", mnemonic); }
     public void clearWallet() { putMnemonic(""); bscAddress = ""; solanaAddress = ""; walletCreatedAt = ""; save(); }
     public String activeAddress() { return "solana".equals(activeChain) ? solanaAddress : bscAddress; }
     public String activeChainLabel() { return "solana".equals(activeChain) ? "Solana" : "BNB Chain"; }
