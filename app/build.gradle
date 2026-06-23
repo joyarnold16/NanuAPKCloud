@@ -7,8 +7,8 @@ android {
         applicationId 'com.nanu.aitradingbot'
         minSdk 23
         targetSdk 35
-        versionCode 34
-        versionName '9.0-ml-evolution'
+        versionCode 35
+        versionName '10.0-nanu'
     }
     signingConfigs {
         release {
