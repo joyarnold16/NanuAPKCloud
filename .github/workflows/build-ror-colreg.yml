@@ -7,6 +7,11 @@ on:
     paths:
       - 'ROR-COLREG/**'
       - '.github/workflows/build-ror-colreg.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ROR-COLREG/**'
+      - '.github/workflows/build-ror-colreg.yml'
 
 permissions:
   contents: write
@@ -213,6 +218,7 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
