@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>ROR Visual Deck</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>⚓ ROR Visual Deck</h1>
+  <div class="sub">Offline COLREG trainer • Rules, lights, shapes, sound signals, IALA and quiz</div>
+</header>
+<nav id="nav"></nav>
+<main>
+<section id="home" class="active">
+  <div class="card"><h2>Bridge quick start</h2><p class="note">Use this as a revision aid, not as a substitute for the official COLREG text, flag-state requirements, company procedures or the Master’s standing orders.</p></div>
+  <div class="grid">
+    <div class="kpi"><b>41</b><div>Rules indexed</div></div>
+    <div class="kpi"><b>20</b><div>Exam questions</div></div>
+    <div class="kpi"><b>6</b><div>Study modules</div></div>
+  </div>
+  <div class="card"><h3>Collision-avoidance memory chain</h3><p><span class="badge">LOOK OUT</span> → <span class="badge">RISK</span> → <span class="badge">EARLY ACTION</span> → <span class="badge">SAFE PASSING</span> → <span class="badge">CHECK EFFECT</span></p></div>
+  <div class="card"><h3>Scenario drill</h3>
+    <select id="scenario">
+      <option value="cross">Power-driven crossing: target on starboard bow</option>
+      <option value="head">Power-driven head-on</option>
+      <option value="overtake">You are overtaking</option>
+      <option value="fog">Target detected forward of beam in restricted visibility</option>
+    </select>
+    <button class="btn primary" onclick="solveScenario()">Show recommended action</button>
+    <div id="scenarioOut" class="result">Select a scenario.</div>
+  </div>
+</section>
+
+<section id="rules">
+  <h2>Rules 1–41</h2>
+  <input id="ruleSearch" placeholder="Search rule number or keyword…" oninput="renderRules()">
+  <div id="ruleList"></div>
+</section>
+
+<section id="lights">
+  <h2>Lights & day shapes</h2>
+  <div class="card"><h3>Power-driven underway</h3><div class="signal white">● masthead &nbsp; ● sidelights &nbsp; ● sternlight</div><p class="note">Masthead light or lights, red and green sidelights, and a white sternlight.</p></div>
+  <div class="card"><h3>Fishing</h3><p><b class="green">GREEN</b> over <b>WHITE</b> = trawling</p><p><b class="red">RED</b> over <b>WHITE</b> = fishing other than trawling</p></div>
+  <div class="card"><h3>NUC / RAM / constrained by draught</h3><p><b class="red">RED over RED</b> = not under command; day shape: two balls.</p><p><b class="red">RED</b>–<b>WHITE</b>–<b class="red">RED</b> = restricted in ability to manoeuvre; day shape: ball-diamond-ball.</p><p>Constrained by draught may show three red lights; day shape: cylinder.</p></div>
+  <div class="card"><h3>Anchor / aground / pilot</h3><p>Anchor: all-round white light or lights, one ball by day.</p><p>Aground: anchor signals plus red over red and three balls.</p><p>Pilot: <b>WHITE over <span class="red">RED</span></b> — “white cap, red nose”.</p></div>
+</section>
+
+<section id="sound">
+  <h2>Sound signals</h2>
+  <div class="grid">
+    <div class="card"><h3>Manoeuvring</h3><p>• One short: altering starboard</p><p>•• Two short: altering port</p><p>••• Three short: operating astern propulsion</p><p>••••• Five short: doubt or danger</p></div>
+    <div class="card"><h3>Restricted visibility</h3><p>Making way: one prolonged blast at intervals not over two minutes</p><p>Underway but stopped: two prolonged blasts at intervals not over two minutes</p><p>NUC, RAM, sailing, fishing or towing: one prolonged plus two short</p></div>
+  </div>
+</section>
+
+<section id="iala">
+  <h2>IALA buoyage</h2>
+  <div class="card"><h3>Region A</h3><p>Entering from seaward: <b class="red">red to port</b>, <b class="green">green to starboard</b>.</p></div>
+  <div class="card"><h3>Region B</h3><p>Entering from seaward: <b class="red">red to starboard</b>, <b class="green">green to port</b> — “red right returning”.</p></div>
+  <div class="card"><h3>Cardinal marks</h3><p>North: cones up/up; East: apart; South: down/down; West: points together.</p><p class="note">Quick flashes: North continuous, East 3, South 6 plus long, West 9.</p></div>
+  <div class="card"><h3>Other marks</h3><p>Isolated danger: black-red-black, two black balls, white group flashing 2.</p><p>Safe water: red-white vertical stripes, red sphere.</p><p>Special mark: yellow, X topmark.</p></div>
+</section>
+
+<section id="quiz">
+  <h2>Exam mode</h2>
+  <div class="card">
+    <div id="score" class="badge">Score 0 / 0</div>
+    <h3 id="question"></h3>
+    <div id="answers"></div>
+    <div id="explain" class="note"></div>
+    <button class="btn primary" id="nextBtn" onclick="nextQuestion()" style="display:none">Next question</button>
+  </div>
+</section>
+</main>
+<footer>ROR Visual Deck • Educational revision aid • Always consult the official COLREG publication.</footer>
+<script src="app.js"></script>
+</body>
+</html>
