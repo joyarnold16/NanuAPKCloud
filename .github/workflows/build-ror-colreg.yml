@@ -46,7 +46,9 @@ jobs:
           mkdir -p ror-build/app/src/main/res/values
 
           cat ROR-COLREG/payload/part00.b64 \
-              ROR-COLREG/payload/part01.b64 \
+              ROR-COLREG/payload/part01a.b64 \
+              ROR-COLREG/payload/part01b.b64 \
+              ROR-COLREG/payload/part01c.b64 \
               ROR-COLREG/payload/part02.b64 \
               ROR-COLREG/payload/part03.b64 \
               ROR-COLREG/payload/part04.b64 > /tmp/ror-app.b64
