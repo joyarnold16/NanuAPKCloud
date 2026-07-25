@@ -6,11 +6,13 @@ on:
     branches: [main]
     paths:
       - 'ROR-COLREG/**'
+      - 'ror-colreg/**'
       - '.github/workflows/build-ror-colreg.yml'
   pull_request:
     branches: [main]
     paths:
       - 'ROR-COLREG/**'
+      - 'ror-colreg/**'
       - '.github/workflows/build-ror-colreg.yml'
 
 permissions:
@@ -20,6 +22,7 @@ jobs:
   build:
     name: Build ROR Visual Deck APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
