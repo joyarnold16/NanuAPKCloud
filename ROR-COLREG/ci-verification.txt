@@ -1,0 +1,1 @@
+Temporary CI verification marker for the ROR Visual Deck APK build.
