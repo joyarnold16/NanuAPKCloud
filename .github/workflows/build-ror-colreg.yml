@@ -64,6 +64,31 @@ jobs:
           gzip --decompress --stdout /tmp/ror-app.html.gz > ror-build/app/src/main/assets/index.html
           echo '686f150e35f8fbb30dd1d1ad7aa89bf085aec1832b335cca64590651cda67b76  ror-build/app/src/main/assets/index.html' | sha256sum --check
 
+          base64 --decode ROR-COLREG/audio/ship-whistle-short.wav.b64 > /tmp/ship-whistle-short.wav
+          echo '6b0538471c26faef4f23e39ae152a5e20cff042d2cc425d6acae444d4409608c  /tmp/ship-whistle-short.wav' | sha256sum --check
+          base64 --decode ROR-COLREG/audio/ship-whistle-prolonged.wav.b64 > /tmp/ship-whistle-prolonged.wav
+          echo 'c38fb7af1ed48462d9cf9528b82b8e22a6a7817cc4ccf27ec4fe5b1dfd5f3995  /tmp/ship-whistle-prolonged.wav' | sha256sum --check
+          {
+            printf 'window.ROR_SHIP_WHISTLE_SHORT_BASE64="'
+            tr -d '\r\n' < ROR-COLREG/audio/ship-whistle-short.wav.b64
+            printf '";\n'
+            printf 'window.ROR_SHIP_WHISTLE_PROLONGED_BASE64="'
+            tr -d '\r\n' < ROR-COLREG/audio/ship-whistle-prolonged.wav.b64
+            printf '";\n'
+            cat ROR-COLREG/audio/ship-whistle-patch.js
+          } > /tmp/ship-whistle-injection.js
+          awk '
+            {
+              print
+              if ($0 == "document.addEventListener('\''DOMContentLoaded'\'',init);") {
+                while ((getline line < "/tmp/ship-whistle-injection.js") > 0) print line
+                close("/tmp/ship-whistle-injection.js")
+              }
+            }
+          ' ror-build/app/src/main/assets/index.html > /tmp/ror-index-with-whistle.html
+          mv /tmp/ror-index-with-whistle.html ror-build/app/src/main/assets/index.html
+          test "$(grep -c 'function playRealisticWhistleSignal' ror-build/app/src/main/assets/index.html)" -eq 1
+
           cat > ror-build/settings.gradle <<'EOF'
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -112,6 +137,7 @@ jobs:
           cat > ror-build/app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.VIBRATE" />
               <application
                   android:allowBackup="true"
                   android:label="ROR Visual Deck"
