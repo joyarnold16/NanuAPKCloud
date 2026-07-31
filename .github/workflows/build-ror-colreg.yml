@@ -64,6 +64,26 @@ jobs:
           gzip --decompress --stdout /tmp/ror-app.html.gz > ror-build/app/src/main/assets/index.html
           echo '686f150e35f8fbb30dd1d1ad7aa89bf085aec1832b335cca64590651cda67b76  ror-build/app/src/main/assets/index.html' | sha256sum --check
 
+          base64 --decode ROR-COLREG/audio/ship-whistle-loop.wav.b64 > /tmp/ship-whistle-loop.wav
+          echo 'f0562ecd64d98c23de0be62f5c9b8e33dea27c3b9c56e6083357807f95a56d58  /tmp/ship-whistle-loop.wav' | sha256sum --check
+          {
+            printf 'window.ROR_SHIP_WHISTLE_WAV_BASE64="'
+            tr -d '\r\n' < ROR-COLREG/audio/ship-whistle-loop.wav.b64
+            printf '";\n'
+            cat ROR-COLREG/audio/ship-whistle-patch.js
+          } > /tmp/ship-whistle-injection.js
+          awk '
+            {
+              print
+              if ($0 == "document.addEventListener('\''DOMContentLoaded'\'',init);") {
+                while ((getline line < "/tmp/ship-whistle-injection.js") > 0) print line
+                close("/tmp/ship-whistle-injection.js")
+              }
+            }
+          ' ror-build/app/src/main/assets/index.html > /tmp/ror-index-with-whistle.html
+          mv /tmp/ror-index-with-whistle.html ror-build/app/src/main/assets/index.html
+          test "$(grep -c 'function playRealisticWhistleSignal' ror-build/app/src/main/assets/index.html)" -eq 1
+
           cat > ror-build/settings.gradle <<'EOF'
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -112,6 +132,7 @@ jobs:
           cat > ror-build/app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.VIBRATE" />
               <application
                   android:allowBackup="true"
                   android:label="ROR Visual Deck"
