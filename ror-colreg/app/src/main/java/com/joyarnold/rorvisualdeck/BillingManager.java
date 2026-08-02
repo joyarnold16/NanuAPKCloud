@@ -80,8 +80,7 @@ public final class BillingManager implements PurchasesUpdatedListener {
         QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
                 .setProductList(Collections.singletonList(product))
                 .build();
-        billingClient.queryProductDetailsAsync(params, (billingResult, result) -> {
-            List<ProductDetails> productDetailsList = result.getProductDetailsList();
+        billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsList) -> {
             if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK
                     && !productDetailsList.isEmpty()) {
                 premiumProductDetails = productDetailsList.get(0);
