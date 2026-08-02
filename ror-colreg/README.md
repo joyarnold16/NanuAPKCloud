@@ -6,6 +6,13 @@ simulator with live give-way/stand-on verdicts, a radar/CPA plotting tool,
 exercises, and an exam question bank. The whole app is a single self-contained
 `index.html` (inline CSS/JS, no external assets) shown in a `WebView`.
 
+Freemium: the reference material (Rules, Lights & Shapes, Sound & Light,
+Distress, IALA, Annexes, Radar Plotting, Flashcards, Progress) is free. A
+single one-time in-app purchase (Google Play Billing, product ID
+`ror_premium_unlock`) unlocks the Encounter Lab, Oral Practice, and Exam
+Mode. `BillingManager`/`WebAppBridge` on the Android side talk to a JS
+paywall in the web app via `window.AndroidBilling`.
+
 This folder is the sole source of the app and is built independently from the
 Nanu AI Trading Bot project by `.github/workflows/build-ror-colreg.yml`
 (`gradle -p ror-colreg assembleDebug`).

@@ -22,11 +22,19 @@ CI job or AI agent can complete it for you).
   links — nothing else requested, which keeps the permissions review and
   the Data Safety form simple.
 - **`PRIVACY.md`** in this folder — a plain-language privacy policy
-  reflecting exactly what the app does (nothing collected, everything
-  local). You still need to host it at a public URL (see below).
-- **Phone-sized screenshots** generated from the live app — delivered to
-  you separately — usable as a starting point for the store listing.
-- Version bumped to **3.2** consistently across the app, `build.gradle`,
+  reflecting exactly what the app does, including the in-app purchase (see
+  "In-app purchases" in that file). You still need to host it at a public
+  URL (see below).
+- **Phone-sized screenshots and feature graphic** generated from the live
+  app — delivered to you separately — usable as-is or as a starting point
+  for the store listing.
+- **Freemium in-app purchase** — Google Play Billing is wired up
+  end-to-end: `BillingManager`/`WebAppBridge` on the Android side, and a
+  paywall in the web app gating the Encounter Lab, Oral Practice, and Exam
+  Mode behind a single one-time product (`ror_premium_unlock`). You still
+  need to create that product in Play Console (see "In-app product" below)
+  — the code has nothing to sell until you do.
+- Version bumped to **3.3** consistently across the app, `build.gradle`,
   and the release workflow.
 
 ## What only you can do
@@ -73,7 +81,27 @@ manager — back them up before deleting the machine you generated them on.**
 One-time $25 registration fee, identity verification (can take a few days
 for new accounts), at https://play.google.com/console.
 
-### 3. Host the privacy policy at a public URL
+### 3. Create the in-app product
+
+The app is already wired to sell one product with the ID
+`ror_premium_unlock` (see `BillingManager.PREMIUM_PRODUCT_ID` in the Java
+source) — this ID must match exactly what you create in Play Console, or
+the app will never find a price and the paywall's "Unlock premium" button
+will just show a "store connection not ready" error.
+
+You'll need the app created in Play Console first (step 2's account plus
+at least a draft app listing), then:
+
+1. Play Console → your app → Monetize → Products → In-app products
+2. Create product, **Product ID**: `ror_premium_unlock` (must match exactly)
+3. Set a name/description (shown to buyers) and a price
+4. Activate it
+
+The app also needs to actually be installed via a Play-associated build
+(internal testing track or later) for the purchase flow to work at all —
+Play Billing doesn't function against a sideloaded debug APK.
+
+### 4. Host the privacy policy at a public URL
 
 `PRIVACY.md` is ready to publish as-is — fill in the contact email at the
 bottom first. Easiest options: enable GitHub Pages for this repo and link
@@ -81,7 +109,7 @@ the rendered page, or link the raw file directly
 (`https://raw.githubusercontent.com/joyarnold16/NanuAPKCloud/main/ror-colreg/PRIVACY.md`).
 Play Console requires this URL in the store listing.
 
-### 4. Store listing content
+### 5. Store listing content
 
 Drafted for you — trim/adjust freely:
 
@@ -106,9 +134,15 @@ Drafted for you — trim/adjust freely:
 > Risk of collision and close-quarters situations are flagged in real
 > time.
 >
-> Everything works with no internet connection and no account: all content
-> is bundled in the app, and your exam history, favourites, and progress
-> stay on your device. Nothing is collected or transmitted.
+> Rules, Lights & Shapes, Sound & Light, Distress, IALA Buoyage, Annexes,
+> Radar Plotting, Flashcards, and Progress are free, always. A single
+> one-time purchase unlocks the Encounter Lab bridge simulator, Oral
+> Practice, and Exam Mode.
+>
+> Outside of that one optional purchase, everything works with no internet
+> connection and no account: all content is bundled in the app, and your
+> exam history, favourites, and progress stay on your device. Nothing is
+> collected or transmitted.
 >
 > This is a training and revision aid only. It does not replace the
 > official COLREG text, flag-State examinations, or approved courses, and
@@ -119,36 +153,42 @@ Drafted for you — trim/adjust freely:
 
 **Contact email / website**: your choice — required by Play Console.
 
-### 5. Graphics
+### 6. Graphics
 
 - **App icon (hi-res, 512×512 PNG)** — delivered to you separately,
   generated from the same artwork as the in-app icon.
-- **Feature graphic (1024×500 PNG)** — not generated; needed for the store
-  listing banner. A plain dark-navy background with the app name and the
-  anchor mark would match the in-app look.
+- **Feature graphic (1024×500 PNG)** — delivered to you separately,
+  matching the in-app dark-navy/cyan look.
 - **Phone screenshots** (min 2, recommend 4-8) — delivered to you
   separately, captured directly from the running app at phone size.
 
-### 6. Play Console forms (must be filled in by the account holder)
+### 7. Play Console forms (must be filled in by the account holder)
 
-- **Data safety form**: answer "No" to collecting/sharing user data — the
-  app genuinely collects nothing. `PRIVACY.md` backs this up.
+- **Data safety form**: the app collects no personal data itself. It does
+  process one in-app purchase through Google Play Billing — declare that
+  under "financial info" per Play's current in-app-purchase disclosure
+  requirements; `PRIVACY.md`'s "In-app purchases" section backs this up.
 - **Content rating questionnaire**: answer honestly; this is a
   no-violence, no-gambling reference/training app.
 - **Target audience & content**: set per your judgement (this is a
   professional/maritime-training tool, not aimed at children).
-- **App content declarations** (ads, in-app purchases): none of either —
-  answer "No" / "None".
+- **App content declarations — ads**: none — answer "No".
+- **App content declarations — in-app purchases**: **Yes** — one
+  non-consumable product (`ror_premium_unlock`).
 
-### 7. Upload and release
+### 8. Upload and release
 
 1. Push to `main` with the four `ROR_RELEASE_*` secrets in place so CI
-   produces `ROR-Visual-Deck-v3.2.aab`.
+   produces `ROR-Visual-Deck-v3.3.aab`.
 2. Download that `.aab` from the GitHub Release or Actions artifact.
-3. In Play Console, create the app, complete the setup checklist, and
-   upload the `.aab` to an **Internal testing** track first — test it on a
-   real device before ever touching Production.
-4. Once happy, promote through Closed/Open testing (optional) to
+3. In Play Console, create the app, complete the setup checklist, create
+   the `ror_premium_unlock` in-app product (step 3 above), and upload the
+   `.aab` to an **Internal testing** track first.
+4. Add yourself as a license tester (Play Console → Setup → License
+   testing) so you can actually complete a test purchase without being
+   charged, and verify the unlock works on a real device before ever
+   touching Production.
+5. Once happy, promote through Closed/Open testing (optional) to
    Production.
 
 Play Console review for a new app/developer account commonly takes

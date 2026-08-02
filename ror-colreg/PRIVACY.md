@@ -2,17 +2,19 @@
 
 _Last updated: 2026-08-02_
 
-ROR Visual Deck ("the app") is an offline training reference for the
+ROR Visual Deck ("the app") is a mostly-offline training reference for the
 International Regulations for Preventing Collisions at Sea (COLREG). This
 policy explains what the app does — and does not do — with your data.
 
 ## Summary
 
-**The app collects no personal data and has no account, login, analytics, or
-advertising SDKs.** Everything you enter (exam history, flashcard ratings,
-favourites, simulator statistics, and the name you type for a completion
-certificate) is written only to local storage on your own device and is never
-transmitted anywhere.
+**The app collects no personal data itself, and has no account, login,
+analytics, or advertising SDKs.** Everything you enter (exam history,
+flashcard ratings, favourites, simulator statistics, and the name you type
+for a completion certificate) is written only to local storage on your own
+device and is never transmitted anywhere. The one exception is the optional
+in-app purchase, which is processed entirely by Google Play Billing — see
+"In-app purchases" below.
 
 ## What the app stores, and where
 
@@ -32,21 +34,37 @@ You can delete all of this at any time from the app's Progress screen
 system settings. You can also export this data as a JSON file for backup and
 re-import it later — that file only ever goes where you choose to save it.
 
+## In-app purchases
+
+A single one-time purchase unlocks the Encounter Lab bridge simulator, Oral
+Practice, and Exam Mode. That purchase is handled entirely by **Google Play
+Billing** — the app itself never sees your payment details (card number,
+billing address, etc.); Google processes the transaction and only tells the
+app whether it succeeded. Whether you're unlocked is then cached locally on
+your device so the app can check it instantly, without a network round trip,
+every time it starts. As the developer we only see standard Play Console
+transaction records (order ID, amount, date) that Google provides to every
+app for accounting purposes — the same as any other Play Store purchase.
+This is governed by Google's own Play Billing / Google Play privacy terms,
+not by this app.
+
 ## Network access
 
-The app requests the `INTERNET` permission for exactly one purpose: the
-"About" screen links out to official public reference pages (IMO, IALA,
-USCG). Those pages only load if you deliberately tap a link, opening it in
-your device's browser. The app itself makes no background network requests,
-does not phone home, and does not fetch remote content on startup — all
-training content (rules, lights, signals, buoyage, question bank) is bundled
-inside the app.
+The app requests the `INTERNET` permission for two purposes: completing the
+in-app purchase above via Google Play Billing, and the "About" screen's
+links out to official public reference pages (IMO, IALA, USCG), which only
+load if you deliberately tap one, opening it in your device's browser.
+Outside of an active purchase, the app makes no background network requests
+and does not fetch remote content on startup — all training content (rules,
+lights, signals, buoyage, question bank) is bundled inside the app and
+works fully offline.
 
 ## Third parties
 
-The app does not integrate any third-party analytics, advertising, crash
-reporting, or tracking SDKs, and does not share data with any third party,
-because it does not collect any data to share.
+The only third-party service the app integrates with is Google Play Billing,
+used solely to process the optional in-app purchase described above. The app
+does not integrate any analytics, advertising, or tracking SDKs, and does
+not share your study data, favourites, or progress with anyone.
 
 ## Children's privacy
 
