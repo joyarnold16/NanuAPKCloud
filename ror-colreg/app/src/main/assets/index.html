@@ -62,6 +62,15 @@ body.reduced-motion *,body.reduced-motion *::before,body.reduced-motion *::after
 }
 .readout strong,.hero-stat strong,.big-stat strong,.progress-ring strong,.sim-stats b,.cert-name,.verdict-role,output{font-variant-numeric:tabular-nums}
 .page-title h1,.hero-copy h2,.panel-head h3{letter-spacing:-.01em}
+.progress-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.risk-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.risk-dot.safe{background:var(--green);box-shadow:0 0 6px var(--green)}
+.risk-dot.caution{background:var(--yellow);box-shadow:0 0 6px var(--yellow)}
+.risk-dot.danger{background:var(--red);box-shadow:0 0 6px var(--red)}
+.verdict-watch{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px;font-size:.68rem;color:var(--muted)}
+.watch-chip{border:1px solid var(--line);border-radius:999px;padding:3px 9px;font-size:.66rem;font-weight:800;cursor:pointer}
+.watch-chip.caution{color:var(--yellow);border-color:rgba(255,213,104,.35);background:rgba(255,213,104,.08)}
+.watch-chip.danger{color:var(--red);border-color:rgba(255,104,122,.35);background:rgba(255,104,122,.08)}
 .control-group{border-top:1px solid var(--line);padding-top:13px;margin-top:12px}.control-group h4{font-size:.76rem;margin:0 0 10px;color:var(--cyan2)}.control-group label{display:grid;grid-template-columns:1fr auto;gap:5px;font-size:.7rem;color:var(--muted);margin-bottom:12px}.control-group output{color:var(--text)}.control-group input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--cyan)}.control-actions{display:flex;gap:8px}.decision-card{margin-top:14px;padding:14px;border:1px solid var(--line);background:rgba(255,255,255,.025);border-radius:14px}.decision-card h4{font-size:.8rem;margin:0 0 7px}.decision-card p{font-size:.7rem;color:var(--muted);margin:6px 0;line-height:1.5}.decision-card b{color:var(--text)}
 .trainer-layout{display:grid;grid-template-columns:minmax(290px,.46fr) minmax(0,1.54fr);gap:18px;align-items:start}.catalogue-item{align-items:center}.catalogue-item .mini-lights{display:flex;gap:4px;align-items:center;width:52px;justify-content:center;flex:none}.lamp-mini{width:7px;height:7px;border-radius:50%;box-shadow:0 0 9px currentColor}.visual-stage{min-height:670px}.visual-stage-head{display:flex;justify-content:space-between;align-items:flex-start;gap:15px}.visual-stage-head h3{font-size:clamp(1.4rem,3vw,2.25rem);margin:5px 0}.visual-stage-head p{color:var(--muted);font-size:.75rem;margin:0}.aspect-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:16px 0}.ship-stage{min-height:390px;display:grid;place-items:center;border:1px solid var(--line);border-radius:20px;background:radial-gradient(circle at 50% 35%,rgba(20,72,91,.42),rgba(2,13,22,.83) 70%);position:relative;overflow:hidden}.ship-stage:before{content:"";position:absolute;left:0;right:0;bottom:0;height:31%;background:linear-gradient(180deg,rgba(19,77,101,.2),rgba(5,39,58,.65));clip-path:polygon(0 14%,12% 6%,25% 16%,39% 5%,53% 17%,66% 7%,79% 15%,100% 4%,100% 100%,0 100%)}.ship-visual{position:relative;width:min(600px,92%);height:340px;z-index:2}.hull{position:absolute;left:15%;right:15%;bottom:49px;height:52px;background:linear-gradient(180deg,#2a5c70,#0c2d3d);clip-path:polygon(4% 0,96% 0,87% 100%,16% 100%);border-top:2px solid rgba(155,238,255,.25)}.mast{position:absolute;left:50%;bottom:98px;width:4px;height:175px;background:#4b7586;transform:translateX(-50%)}.yard{position:absolute;left:31%;right:31%;bottom:201px;height:3px;background:#4b7586}.light-node{position:absolute;width:18px;height:18px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 14px 4px currentColor,0 0 35px currentColor;border:2px solid rgba(255,255,255,.55);animation:pulseLamp 2.5s ease-in-out infinite}.light-node.hidden{opacity:.08;box-shadow:none;filter:grayscale(1)}.light-node.flash{animation:flashLamp 1.7s steps(1) infinite}@keyframes pulseLamp{50%{filter:brightness(1.25)}}@keyframes flashLamp{0%,42%{opacity:1}43%,100%{opacity:.08}}.light-label{position:absolute;transform:translate(-50%,0);font-size:.62rem;color:var(--muted);white-space:nowrap}.shape-stack{display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;height:100%;position:relative;z-index:2}.shape-glyph{width:58px;height:58px;display:grid;place-items:center;color:#02080c}.shape-ball{border-radius:50%;background:#02080c}.shape-diamond{background:#02080c;transform:rotate(45deg);width:43px;height:43px}.shape-cone-up{width:0;height:0;border-left:28px solid transparent;border-right:28px solid transparent;border-bottom:54px solid #02080c}.shape-cone-down{width:0;height:0;border-left:28px solid transparent;border-right:28px solid transparent;border-top:54px solid #02080c}.shape-cylinder{width:46px;height:78px;background:#02080c;border-radius:4px}.shape-label{font-size:.68rem;color:var(--muted);max-width:260px;text-align:center}.info-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.info-cards article{border:1px solid var(--line);background:rgba(255,255,255,.025);border-radius:14px;padding:12px}.info-cards span{font-size:.62rem;color:var(--cyan2);text-transform:uppercase;letter-spacing:.09em}.info-cards p{font-size:.71rem;color:var(--muted);line-height:1.5;margin:6px 0 0}.identify-cover{position:absolute;inset:0;z-index:5;background:rgba(3,16,26,.72);backdrop-filter:blur(3px);display:grid;place-items:center;text-align:center;padding:20px}.identify-cover h4{font-size:1.25rem;margin:0 0 12px}
 .signal-player{display:grid;grid-template-columns:1fr 1.4fr 70px;gap:18px;align-items:center;margin-bottom:17px}.signal-player h3{margin:4px 0}.signal-player p{color:var(--muted);font-size:.72rem;margin:4px 0}.timeline-wrap{min-width:0}.signal-timeline{height:58px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2);position:relative;overflow:hidden;display:flex;align-items:center;padding:8px;gap:5px}.timeline-event{height:30px;border-radius:7px;min-width:10px;background:rgba(70,220,255,.7);position:relative}.timeline-event.gap{background:transparent;border:1px dashed rgba(255,255,255,.08)}.timeline-event.bell{background:rgba(255,213,104,.72)}.timeline-event.gong{background:rgba(170,140,255,.72)}.playhead{position:absolute;left:0;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 12px #fff;z-index:3;opacity:0}.timeline-scale{display:flex;justify-content:space-between;color:var(--faint);font-size:.58rem;margin-top:4px}.flash-lamp{width:58px;height:58px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:grid;place-items:center;font-size:1.5rem;color:#345260;background:rgba(0,0,0,.2)}.flash-lamp.on{color:#fff;box-shadow:0 0 28px #fff;background:#fff}.card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.signal-card,.distress-card,.buoy-card,.oral-card,.scope-card{border:1px solid var(--line);background:linear-gradient(145deg,rgba(12,40,58,.86),rgba(7,25,38,.88));border-radius:17px;padding:15px}.signal-card h4,.distress-card h4,.buoy-card h4,.oral-card h4{font-size:.83rem;margin:8px 0 5px}.signal-card p,.distress-card p,.buoy-card p,.oral-card p{font-size:.69rem;color:var(--muted);line-height:1.5;margin:5px 0}.signal-code{display:flex;align-items:center;gap:5px;height:27px;margin:9px 0}.blast{display:inline-block;height:8px;border-radius:999px;background:var(--cyan);box-shadow:0 0 8px rgba(70,220,255,.4)}.blast.short{width:20px}.blast.long{width:55px}.blast.bell{width:40px;background:var(--yellow)}.blast.gong{width:50px;background:var(--violet)}.card-actions{display:flex;gap:7px;margin-top:10px}.tag{display:inline-flex;padding:5px 8px;border-radius:999px;background:rgba(70,220,255,.07);border:1px solid rgba(70,220,255,.16);font-size:.59rem;color:var(--cyan2)}
@@ -308,6 +317,29 @@ function buildQuestionBank(){
 const QUESTION_BANK=buildQuestionBank();
 function getProgress(){return store.get('ror_v3_progress',{history:[],topics:{},study:{hard:0,again:0,good:0},daily:{date:'',answered:false}})}
 function saveProgress(p){store.set('ror_v3_progress',p)}
+const BACKUP_KEYS=['ror_v3_progress','ror_v3_favorites','ror_v3_sim_stats','ror_v3_cert_name'];
+function exportBackup(){
+  const data={};
+  BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)try{data[k]=JSON.parse(v)}catch{}});
+  data._meta={app:'ROR Visual Deck',version:D.meta.version,exported:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`ror-visual-deck-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  toast('Backup exported.')
+}
+function importBackupFromFile(file){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      if(typeof data!=='object'||!data)throw new Error('bad shape');
+      BACKUP_KEYS.forEach(k=>{if(k in data)localStorage.setItem(k,JSON.stringify(data[k]))});
+      renderHome();renderProgress();renderRules();renderLightList();renderSignals();renderSimStats();
+      toast('Backup restored.')
+    }catch(e){toast('That file is not a valid ROR Visual Deck backup.')}
+  };
+  reader.readAsText(file)
+}
 function overallProgress(){const p=getProgress();const best=p.history.reduce((m,x)=>Math.max(m,x.pct),0);const studied=p.study.hard+p.study.again+p.study.good;const completed=Math.min(100,Math.round(best*.55+Math.min(studied,60)/60*25+Math.min(p.history.length,10)/10*20));return {completed,best,studied,attempts:p.history.length}}
 
 function renderHome(){
@@ -388,22 +420,29 @@ function renderVerdict(){
   else if(c.tcpa>0&&c.tcpa<45&&c.cpa<2){risk='caution';riskText='Close approach'}
   const roleLabel={'give-way':'GIVE WAY','stand-on':'STAND ON','none':'MONITOR'}[v.ownRole]||'MONITOR';
   const roleClass={'give-way':'role-giveway','stand-on':'role-standon','none':'role-monitor'}[v.ownRole]||'role-monitor';
+  const others=sim.targets.map((x,i)=>({i,risk:targetRisk(x)})).filter(x=>x.i!==sim.selected&&x.risk!=='safe');
+  const watchLine=others.length?`<div class="verdict-watch">⚠ Also watch ${others.map(o=>`<button data-target-tab="${o.i}" class="watch-chip ${o.risk}">T${o.i+1}</button>`).join('')}</div>`:'';
   const el=$('#verdictCard');if(!el)return;
-  el.innerHTML=`<div class="verdict-role ${roleClass}">${roleLabel}</div><div class="verdict-rule">${esc(v.rule)}</div><p class="verdict-text">${esc(v.text)}</p><div class="verdict-risk ${risk}">${esc(riskText)}</div>`
+  el.innerHTML=`<div class="verdict-role ${roleClass}">${roleLabel}</div><div class="verdict-rule">${esc(v.rule)}</div><p class="verdict-text">${esc(v.text)}</p><div class="verdict-risk ${risk}">${esc(riskText)}</div>${watchLine}`
 }
 function simStatsDefault(){return{encounters:0,safe:0,collisions:0}}
 function recordSimResult(safe){const s=store.get('ror_v3_sim_stats',simStatsDefault());s.encounters++;if(safe)s.safe++;else s.collisions++;store.set('ror_v3_sim_stats',s);renderSimStats()}
 function renderSimStats(){const s=store.get('ror_v3_sim_stats',simStatsDefault()),el=$('#simStats');if(!el)return;el.innerHTML=`<span>Encounters <b>${s.encounters}</b></span><span>Clear passages <b>${s.safe}</b></span><span>Collisions <b>${s.collisions}</b></span>`}
 function checkCollisionRisk(){
-  const t=selectedTarget();if(!t)return false;
-  const ownNow=simPosition(sim.own,sim.t),tgtNow=simPosition(t,sim.t),dist=Math.hypot(tgtNow.x-ownNow.x,tgtNow.y-ownNow.y);
-  if(dist<(sim._minDist??Infinity))sim._minDist=dist;
-  if(dist<0.08&&!sim._collided){
+  if(!sim.targets.length)return false;
+  const ownNow=simPosition(sim.own,sim.t);
+  let minDist=Infinity,hitIndex=-1;
+  sim.targets.forEach((t,i)=>{
+    const tgtNow=simPosition(t,sim.t),dist=Math.hypot(tgtNow.x-ownNow.x,tgtNow.y-ownNow.y);
+    if(dist<minDist){minDist=dist;hitIndex=i}
+  });
+  if(minDist<(sim._minDist??Infinity))sim._minDist=minDist;
+  if(minDist<0.08&&!sim._collided){
     sim._collided=true;sim.playing=false;
     const pb=$('#simPlay');if(pb)pb.textContent='▶ Play';
-    const v=classifyPair(sim.own,t);
+    const t=sim.targets[hitIndex],v=classifyPair(sim.own,t);
     recordSimResult(false);
-    toast(`Collision. ${v.ownRole==='give-way'?'As give-way vessel ('+v.rule+') you needed earlier, more substantial action.':'As stand-on vessel, Rule 17 requires you to act once the give-way vessel alone can no longer avoid collision.'}`);
+    toast(`Collision with T${hitIndex+1}. ${v.ownRole==='give-way'?'As give-way vessel ('+v.rule+') you needed earlier, more substantial action.':'As stand-on vessel, Rule 17 requires you to act once the give-way vessel alone can no longer avoid collision.'}`);
     return true
   }
   return false
@@ -414,8 +453,9 @@ function simLapComplete(){
   sim._minDist=Infinity
 }
 function selectedTarget(){return sim.targets[sim.selected]}
+function targetRisk(t){const c=cpaData(sim.own,t);if(c.tcpa>0&&c.tcpa<30&&c.cpa<1)return'danger';if(c.tcpa>0&&c.tcpa<45&&c.cpa<2)return'caution';return'safe'}
 function renderTargetTabs(){
- $('#targetTabs').innerHTML=sim.targets.map((t,i)=>`<button data-target-tab="${i}" class="${i===sim.selected?'active':''}">T${i+1}</button>`).join('');
+ $('#targetTabs').innerHTML=sim.targets.map((t,i)=>`<button data-target-tab="${i}" class="${i===sim.selected?'active':''}"><i class="risk-dot ${targetRisk(t)}"></i>T${i+1}</button>`).join('');
  $('#removeTarget').disabled=sim.targets.length<=1;
 }
 function updateSimControls(){const t=selectedTarget(),br=brgRange(sim.own,t);$('#ownCourse').value=sim.own.course;$('#ownSpeed').value=sim.own.speed;$('#ownType').value=sim.own.type||'pvd-u50';$('#targetBearing').value=Math.round(br.bearing);$('#targetRange').value=br.range.toFixed(1);$('#targetCourse').value=t.course;$('#targetSpeed').value=t.speed;$('#targetType').value=t.type||'pvd-u50';$('#ownCourseOut').textContent=fmtDeg(sim.own.course);$('#ownSpeedOut').textContent=`${sim.own.speed.toFixed(1)} kn`;$('#targetBearingOut').textContent=fmtDeg(br.bearing);$('#targetRangeOut').textContent=`${br.range.toFixed(1)} NM`;$('#targetCourseOut').textContent=fmtDeg(t.course);$('#targetSpeedOut').textContent=`${t.speed.toFixed(1)} kn`;$$('[data-daynight]').forEach(b=>b.classList.toggle('active',b.dataset.daynight===sim.dayNight))}
@@ -538,7 +578,7 @@ function answerExam(i){if(exam.answered)return;exam.answered=true;const q=exam.q
 function finishExam(){const pct=Math.round(exam.score/exam.questions.length*100),p=getProgress(),topic={};exam.answers.forEach(a=>{topic[a.topic]??={correct:0,total:0};topic[a.topic].total++;if(a.ok)topic[a.topic].correct++});p.history.unshift({date:new Date().toISOString(),pct,score:exam.score,total:exam.questions.length,topic:exam.topic,seconds:Math.round((Date.now()-exam.started)/1000),breakdown:topic});p.history=p.history.slice(0,30);Object.entries(topic).forEach(([k,v])=>{p.topics[k]??={correct:0,total:0};p.topics[k].correct+=v.correct;p.topics[k].total+=v.total});saveProgress(p);exam.active=false;$('#examShell').innerHTML=`<div class="exam-result"><span class="section-kicker">Examination complete</span><div class="score-big">${pct}%</div><h2>${exam.score} / ${exam.questions.length}</h2><p class="muted">${pct>=85?'Strong result. Review the missed explanations before increasing difficulty.':pct>=70?'Usable base, but weak topics still need targeted revision.':'Do not rely on recall yet. Return to the modules shown below and retest.'}</p><div class="topic-bars">${Object.entries(topic).map(([k,v])=>{const pc=Math.round(v.correct/v.total*100);return `<div class="topic-bar"><div class="row"><span>${k}</span><b>${pc}%</b></div><div class="bar"><span style="width:${pc}%"></span></div></div>`}).join('')}</div><div class="hero-actions" style="justify-content:center"><button class="primary-btn" id="restartExam">New exam</button><button class="secondary-btn" data-go="progress">View analytics</button></div></div>`;renderHome()}
 
 // ---------- Progress/About/Search ----------
-function renderProgress(){const p=getProgress(),o=overallProgress(),topics=Object.entries(p.topics);$('#progressOverview').innerHTML=`<span class="section-kicker">Overall</span><h3>Learning record</h3><div class="big-stat-row"><div class="big-stat"><strong>${o.best}%</strong><span>Best exam</span></div><div class="big-stat"><strong>${o.attempts}</strong><span>Attempts</span></div><div class="big-stat"><strong>${o.studied}</strong><span>Cards rated</span></div></div><button class="small-btn danger" id="resetProgress" style="margin-top:14px">Reset progress</button>`;$('#topicPerformance').innerHTML=`<span class="section-kicker">Topic accuracy</span><h3>Weakness map</h3>${topics.length?`<div class="topic-bars">${topics.sort((a,b)=>a[1].correct/a[1].total-b[1].correct/b[1].total).map(([k,v])=>{const pc=Math.round(v.correct/v.total*100);return `<div class="topic-bar"><div class="row"><span>${k}</span><b>${pc}% (${v.total})</b></div><div class="bar"><span style="width:${pc}%"></span></div></div>`}).join('')}</div>`:'<div class="empty-state">Complete an exam to build your topic map.</div>'}`;$('#attemptHistory').innerHTML=`<span class="section-kicker">Recent attempts</span><h3>Exam history</h3>${p.history.length?`<div style="overflow:auto"><table class="history-table"><thead><tr><th>Date</th><th>Topic</th><th>Score</th><th>Time</th></tr></thead><tbody>${p.history.map(x=>`<tr><td>${new Date(x.date).toLocaleDateString()}</td><td>${x.topic}</td><td>${x.score}/${x.total} (${x.pct}%)</td><td>${Math.floor(x.seconds/60)}m ${x.seconds%60}s</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state">No examinations completed yet.</div>'}`;$('#studyStats').innerHTML=`<span class="section-kicker">Flashcards</span><h3>Confidence ratings</h3><div class="big-stat-row" style="grid-template-columns:1fr"><div class="big-stat"><strong>${p.study.hard}</strong><span>Hard</span></div><div class="big-stat"><strong>${p.study.again}</strong><span>Again</span></div><div class="big-stat"><strong>${p.study.good}</strong><span>Good</span></div></div>`;renderCertificate()}
+function renderProgress(){const p=getProgress(),o=overallProgress(),topics=Object.entries(p.topics);$('#progressOverview').innerHTML=`<span class="section-kicker">Overall</span><h3>Learning record</h3><div class="big-stat-row"><div class="big-stat"><strong>${o.best}%</strong><span>Best exam</span></div><div class="big-stat"><strong>${o.attempts}</strong><span>Attempts</span></div><div class="big-stat"><strong>${o.studied}</strong><span>Cards rated</span></div></div><div class="progress-actions"><button class="small-btn" id="exportBackup">⬇ Export backup</button><button class="small-btn" id="importBackupBtn">⬆ Import backup</button><input type="file" id="importBackupFile" accept="application/json" hidden><button class="small-btn danger" id="resetProgress">Reset progress</button></div>`;$('#topicPerformance').innerHTML=`<span class="section-kicker">Topic accuracy</span><h3>Weakness map</h3>${topics.length?`<div class="topic-bars">${topics.sort((a,b)=>a[1].correct/a[1].total-b[1].correct/b[1].total).map(([k,v])=>{const pc=Math.round(v.correct/v.total*100);return `<div class="topic-bar"><div class="row"><span>${k}</span><b>${pc}% (${v.total})</b></div><div class="bar"><span style="width:${pc}%"></span></div></div>`}).join('')}</div>`:'<div class="empty-state">Complete an exam to build your topic map.</div>'}`;$('#attemptHistory').innerHTML=`<span class="section-kicker">Recent attempts</span><h3>Exam history</h3>${p.history.length?`<div style="overflow:auto"><table class="history-table"><thead><tr><th>Date</th><th>Topic</th><th>Score</th><th>Time</th></tr></thead><tbody>${p.history.map(x=>`<tr><td>${new Date(x.date).toLocaleDateString()}</td><td>${x.topic}</td><td>${x.score}/${x.total} (${x.pct}%)</td><td>${Math.floor(x.seconds/60)}m ${x.seconds%60}s</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state">No examinations completed yet.</div>'}`;$('#studyStats').innerHTML=`<span class="section-kicker">Flashcards</span><h3>Confidence ratings</h3><div class="big-stat-row" style="grid-template-columns:1fr"><div class="big-stat"><strong>${p.study.hard}</strong><span>Hard</span></div><div class="big-stat"><strong>${p.study.again}</strong><span>Again</span></div><div class="big-stat"><strong>${p.study.good}</strong><span>Good</span></div></div>`;renderCertificate()}
 function certThreshold(){return 70}
 function renderCertificate(){
   const o=overallProgress(),el=$('#certificatePanel');if(!el)return;
@@ -607,7 +647,12 @@ function bindEvents(){
  $('#stopAudio').onclick=stopAudio;$('#distressDrill').onclick=startDistressDrill;$('#ialaChallenge').onclick=makeRouteChallenge;$('#radarExample').onclick=()=>{$('#radOwnCourse').value=0;$('#radOwnSpeed').value=12;$('#radTime1').value=0;$('#radBearing1').value=45;$('#radRange1').value=8;$('#radTime2').value=6;$('#radBearing2').value=45;$('#radRange2').value=6.4;calculateRadar()};$('#calculateRadar').onclick=calculateRadar;
  $('#flashcard').onclick=()=>{cardFlipped=!cardFlipped;renderCard()};$('#flipCard').onclick=()=>{cardFlipped=!cardFlipped;renderCard()};$('#prevCard').onclick=()=>moveCard(-1);$('#nextCard').onclick=()=>moveCard(1);$('#shuffleCards').onclick=()=>{cards=shuffle(cards);cardIndex=0;cardFlipped=false;renderCard()};$('#shuffleOral').onclick=()=>{oralOrder=shuffle(oralOrder);renderOral()};
  $('#examShell').addEventListener('click',e=>{if(e.target.id==='startExam')startExam();if(e.target.id==='nextExam'){exam.i++;exam.answered=false;renderExamQuestion()}if(e.target.id==='quitExam'){if(confirm('Quit this examination?'))renderExamStart()}if(e.target.id==='restartExam')renderExamStart()});
- $('#progressOverview').addEventListener('click',e=>{if(e.target.id==='resetProgress'&&confirm('Delete all saved exam and flashcard progress?')){localStorage.removeItem('ror_v3_progress');renderProgress();renderHome();toast('Progress reset.')}});
+ $('#progressOverview').addEventListener('click',e=>{
+  if(e.target.id==='resetProgress'&&confirm('Delete all saved exam and flashcard progress?')){localStorage.removeItem('ror_v3_progress');renderProgress();renderHome();toast('Progress reset.')}
+  if(e.target.id==='exportBackup')exportBackup();
+  if(e.target.id==='importBackupBtn')$('#importBackupFile').click();
+ });
+ $('#progressOverview').addEventListener('change',e=>{if(e.target.id==='importBackupFile'&&e.target.files[0]){importBackupFromFile(e.target.files[0]);e.target.value=''}});
  $('#certificatePanel').addEventListener('input',e=>{if(e.target.id==='certName'){store.set('ror_v3_cert_name',e.target.value);renderCertPreview()}});
  $('#certificatePanel').addEventListener('click',e=>{if(e.target.id==='printCert')window.print()});
  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;$('#installBtn').hidden=false});$('#installBtn').onclick=async()=>{if(!deferredInstall)return;deferredInstall.prompt();await deferredInstall.userChoice;deferredInstall=null;$('#installBtn').hidden=true};window.addEventListener('online',updateOnline);window.addEventListener('offline',updateOnline);

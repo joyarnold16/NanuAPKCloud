@@ -12,14 +12,25 @@ android {
         versionName '3.2'
     }
 
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('ROR_RELEASE_KEYSTORE_PATH') ?: "${rootDir}/ror-release.keystore")
+            storePassword System.getenv('ROR_RELEASE_KEYSTORE_PASSWORD')
+            keyAlias System.getenv('ROR_RELEASE_KEY_ALIAS')
+            keyPassword System.getenv('ROR_RELEASE_KEY_PASSWORD')
+        }
+    }
+
     buildTypes {
         debug {
             debuggable true
         }
         release {
+            debuggable false
             minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            signingConfig signingConfigs.release
         }
     }
 

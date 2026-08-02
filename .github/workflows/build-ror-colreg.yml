@@ -71,3 +71,73 @@ jobs:
             --title "ROR Visual Deck v3.2" \
             --notes "Offline Android APK for COLREG/ROR training. Includes the V3.2 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exercises and exam question bank. This is a debug-signed testing build; a Play Store upload requires a release-signed AAB." \
             --latest
+
+  build-release-bundle:
+    name: Build signed release AAB for Play Store
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ github.event_name == 'push' && secrets.ROR_RELEASE_KEYSTORE_B64 != '' }}
+    env:
+      ROR_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/ror-release.keystore
+      ROR_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ROR_RELEASE_KEYSTORE_PASSWORD }}
+      ROR_RELEASE_KEY_ALIAS: ${{ secrets.ROR_RELEASE_KEY_ALIAS }}
+      ROR_RELEASE_KEY_PASSWORD: ${{ secrets.ROR_RELEASE_KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Decode release keystore
+        env:
+          ROR_RELEASE_KEYSTORE_B64: ${{ secrets.ROR_RELEASE_KEYSTORE_B64 }}
+        run: |
+          test -n "$ROR_RELEASE_KEYSTORE_B64" || (echo "Missing ROR_RELEASE_KEYSTORE_B64 secret" && exit 1)
+          test -n "$ROR_RELEASE_KEYSTORE_PASSWORD" || (echo "Missing ROR_RELEASE_KEYSTORE_PASSWORD secret" && exit 1)
+          test -n "$ROR_RELEASE_KEY_ALIAS" || (echo "Missing ROR_RELEASE_KEY_ALIAS secret" && exit 1)
+          test -n "$ROR_RELEASE_KEY_PASSWORD" || (echo "Missing ROR_RELEASE_KEY_PASSWORD secret" && exit 1)
+          printf '%s' "$ROR_RELEASE_KEYSTORE_B64" | base64 -d > "$ROR_RELEASE_KEYSTORE_PATH"
+
+      - name: Build signed release AAB
+        working-directory: ror-colreg
+        run: gradle --no-daemon clean bundleRelease --stacktrace
+
+      - name: Prepare AAB
+        run: |
+          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v3.2.aab
+          sha256sum ROR-Visual-Deck-v3.2.aab
+          ls -lh ROR-Visual-Deck-v3.2.aab
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ROR-Visual-Deck-v3.2-AAB
+          path: ROR-Visual-Deck-v3.2.aab
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ror-visual-deck-release-v3.2-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v3.2.aab \
+            --title "ROR Visual Deck v3.2 (Play Store bundle)" \
+            --notes "Signed Android App Bundle (.aab) for Google Play Console upload. Not for direct installation on a device — use the debug APK from the other workflow run for that." \
+            --latest=false
