@@ -53,6 +53,11 @@ public final class BillingManager implements PurchasesUpdatedListener {
     }
 
     public boolean isPremiumUnlocked() {
+        // Debug builds (sideloaded test APKs) always unlock: Play Billing purchases
+        // only function once the app is distributed through a Play Console track,
+        // so there is no real purchase to gate here. Release builds (bundleRelease,
+        // what actually ships to Play Store) go through the real check below.
+        if (BuildConfig.DEBUG) return true;
         return prefs.getBoolean(PREF_UNLOCKED, false);
     }
 

@@ -8,6 +8,10 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import org.json.JSONObject;
 
 public final class MainActivity extends Activity implements BillingManager.Listener {
@@ -18,11 +22,21 @@ public final class MainActivity extends Activity implements BillingManager.Liste
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         getWindow().setStatusBarColor(Color.rgb(7, 17, 31));
         getWindow().setNavigationBarColor(Color.rgb(7, 17, 31));
 
         webView = new WebView(this);
         setContentView(webView);
+
+        // Android 15+ (targetSdk 35) forces edge-to-edge, which would otherwise draw
+        // the WebView's content under the status bar and gesture nav bar. Pad the
+        // WebView itself by the system bar insets so its rendered viewport avoids them.
+        ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
