@@ -5,13 +5,11 @@ on:
   push:
     branches: [main]
     paths:
-      - 'ROR-COLREG/**'
       - 'ror-colreg/**'
       - '.github/workflows/build-ror-colreg.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'ROR-COLREG/**'
       - 'ror-colreg/**'
       - '.github/workflows/build-ror-colreg.yml'
 
@@ -45,170 +43,13 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Reconstruct ROR Visual Deck and Android project
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p ror-build/app/src/main/java/com/joyarnold/rorvisualdeck
-          mkdir -p ror-build/app/src/main/assets
-          mkdir -p ror-build/app/src/main/res/values
-
-          cat ROR-COLREG/payload/part00.b64 \
-              ROR-COLREG/payload/part01a.b64 \
-              ROR-COLREG/payload/part01b.b64 \
-              ROR-COLREG/payload/part01c.b64 \
-              ROR-COLREG/payload/part02.b64 \
-              ROR-COLREG/payload/part03.b64 \
-              ROR-COLREG/payload/part04.b64 > /tmp/ror-app.b64
-          base64 --decode /tmp/ror-app.b64 > /tmp/ror-app.html.gz
-          gzip --decompress --stdout /tmp/ror-app.html.gz > ror-build/app/src/main/assets/index.html
-          echo '686f150e35f8fbb30dd1d1ad7aa89bf085aec1832b335cca64590651cda67b76  ror-build/app/src/main/assets/index.html' | sha256sum --check
-
-          cat > ror-build/settings.gradle <<'EOF'
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
-          }
-          rootProject.name = 'RORVisualDeck'
-          include ':app'
-          EOF
-
-          cat > ror-build/build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application' version '8.7.3' apply false
-          }
-          EOF
-
-          cat > ror-build/app/build.gradle <<'EOF'
-          plugins { id 'com.android.application' }
-
-          android {
-              namespace 'com.joyarnold.rorvisualdeck'
-              compileSdk 35
-
-              defaultConfig {
-                  applicationId 'com.joyarnold.rorvisualdeck'
-                  minSdk 23
-                  targetSdk 35
-                  versionCode 31
-                  versionName '3.1'
-              }
-
-              buildTypes {
-                  debug {
-                      debuggable true
-                  }
-                  release {
-                      minifyEnabled false
-                      shrinkResources false
-                  }
-              }
-          }
-          EOF
-
-          cat > ror-build/app/src/main/AndroidManifest.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application
-                  android:allowBackup="true"
-                  android:label="ROR Visual Deck"
-                  android:theme="@style/AppTheme"
-                  android:usesCleartextTraffic="false">
-                  <activity
-                      android:name=".MainActivity"
-                      android:configChanges="keyboardHidden|orientation|screenSize"
-                      android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          cat > ror-build/app/src/main/res/values/styles.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-                  <item name="android:fontFamily">sans</item>
-                  <item name="android:windowLightStatusBar">false</item>
-                  <item name="android:statusBarColor">#07111F</item>
-                  <item name="android:navigationBarColor">#07111F</item>
-                  <item name="android:windowActionModeOverlay">true</item>
-              </style>
-          </resources>
-          EOF
-
-          cat > ror-build/app/src/main/java/com/joyarnold/rorvisualdeck/MainActivity.java <<'EOF'
-          package com.joyarnold.rorvisualdeck;
-
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.view.Window;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-
-          public final class MainActivity extends Activity {
-              private WebView webView;
-
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  requestWindowFeature(Window.FEATURE_NO_TITLE);
-
-                  webView = new WebView(this);
-                  setContentView(webView);
-
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setDatabaseEnabled(true);
-                  settings.setAllowFileAccess(true);
-                  settings.setAllowContentAccess(true);
-                  settings.setBuiltInZoomControls(false);
-                  settings.setDisplayZoomControls(false);
-                  settings.setLoadWithOverviewMode(true);
-                  settings.setUseWideViewPort(true);
-                  settings.setMediaPlaybackRequiresUserGesture(false);
-
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.setWebChromeClient(new WebChromeClient());
-                  webView.loadUrl("file:///android_asset/index.html");
-              }
-
-              @Override
-              public void onBackPressed() {
-                  if (webView != null && webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
-                  }
-              }
-
-              @Override
-              protected void onDestroy() {
-                  if (webView != null) {
-                      webView.destroy();
-                      webView = null;
-                  }
-                  super.onDestroy();
-              }
-          }
-          EOF
-
       - name: Build debug APK
-        working-directory: ror-build
+        working-directory: ror-colreg
         run: gradle --no-daemon clean assembleDebug --stacktrace
 
       - name: Prepare APK
         run: |
-          cp ror-build/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v3.1.apk
+          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v3.1.apk
           sha256sum ROR-Visual-Deck-v3.1.apk
           ls -lh ROR-Visual-Deck-v3.1.apk
 
