@@ -72,11 +72,30 @@ jobs:
             --notes "Offline Android APK for COLREG/ROR training. Includes the V3.2 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exercises and exam question bank. This is a debug-signed testing build; a Play Store upload requires a release-signed AAB." \
             --latest
 
+  check-release-secret:
+    name: Check for release signing secret
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    outputs:
+      has_secret: ${{ steps.check.outputs.has_secret }}
+    steps:
+      - name: Check whether ROR_RELEASE_KEYSTORE_B64 is set
+        id: check
+        env:
+          ROR_RELEASE_KEYSTORE_B64: ${{ secrets.ROR_RELEASE_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$ROR_RELEASE_KEYSTORE_B64" ]; then
+            echo "has_secret=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_secret=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build-release-bundle:
     name: Build signed release AAB for Play Store
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: ${{ github.event_name == 'push' && secrets.ROR_RELEASE_KEYSTORE_B64 != '' }}
+    needs: check-release-secret
+    if: needs.check-release-secret.outputs.has_secret == 'true'
     env:
       ROR_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/ror-release.keystore
       ROR_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ROR_RELEASE_KEYSTORE_PASSWORD }}
