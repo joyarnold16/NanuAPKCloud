@@ -8,6 +8,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -27,16 +28,24 @@ public final class MainActivity extends Activity implements BillingManager.Liste
         getWindow().setNavigationBarColor(Color.rgb(7, 17, 31));
 
         webView = new WebView(this);
-        setContentView(webView);
 
-        // Android 15+ (targetSdk 35) forces edge-to-edge, which would otherwise draw
-        // the WebView's content under the status bar and gesture nav bar. Pad the
-        // WebView itself by the system bar insets so its rendered viewport avoids them.
-        ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
-            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+        // Android 15+ (targetSdk 35) forces edge-to-edge, which would otherwise draw the
+        // page under the status bar and gesture nav bar. The insets are applied to a
+        // container rather than to the WebView, because WebView ignores its own padding
+        // when laying out web content and renders into the padded region anyway.
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.rgb(7, 17, 31));
+        root.addView(webView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets bars = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             return WindowInsetsCompat.CONSUMED;
         });
+        ViewCompat.requestApplyInsets(root);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
