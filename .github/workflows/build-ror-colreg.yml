@@ -72,6 +72,63 @@ jobs:
             --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v3.6 stops the app opting itself into edge-to-edge: v3.4 and v3.5 called setDecorFitsSystemWindows(false) and then tried to compensate with padding, when leaving the window in its default mode lets the system inset the content correctly on its own. Android 15 additionally opts out of edge-to-edge enforcement, and the window-insets listener remains as a fallback for Android 16+. Also scrolls the Distress stage into view on mobile so the recognition drill is visible when started, and clears the sidebar footer from the floating bottom nav. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
             --latest
 
+  verify-release-build:
+    name: Verify release AAB compiles (throwaway key)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The real release job only runs once the signing secrets exist, which means the
+    # release build path can sit broken and unnoticed. This job compiles bundleRelease
+    # on every run against a disposable key so a breakage surfaces here rather than
+    # after someone has set up their keystore. Its output is never uploaded or
+    # published: an AAB signed with this key is worthless and must not reach Play.
+    env:
+      ROR_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/throwaway-ci.keystore
+      ROR_RELEASE_KEYSTORE_PASSWORD: throwaway
+      ROR_RELEASE_KEY_ALIAS: throwaway
+      ROR_RELEASE_KEY_PASSWORD: throwaway
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Generate a disposable signing key
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$ROR_RELEASE_KEYSTORE_PATH" \
+            -alias "$ROR_RELEASE_KEY_ALIAS" \
+            -keyalg RSA -keysize 2048 -validity 30 \
+            -storepass "$ROR_RELEASE_KEYSTORE_PASSWORD" \
+            -keypass "$ROR_RELEASE_KEY_PASSWORD" \
+            -dname "CN=throwaway-ci, OU=ci, O=ci, L=ci, ST=ci, C=GB"
+
+      - name: Build release AAB
+        working-directory: ror-colreg
+        run: gradle --no-daemon clean bundleRelease --stacktrace
+
+      - name: Report bundle and discard
+        run: |
+          ls -lh ror-colreg/app/build/outputs/bundle/release/app-release.aab
+          echo "Release build path is sound."
+          echo "This bundle is signed with a disposable CI key and is deliberately not uploaded."
+          rm -f "$ROR_RELEASE_KEYSTORE_PATH" ror-colreg/app/build/outputs/bundle/release/app-release.aab
+
   check-release-secret:
     name: Check for release signing secret
     runs-on: ubuntu-latest
