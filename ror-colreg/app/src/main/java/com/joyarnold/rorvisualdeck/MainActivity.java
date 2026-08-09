@@ -8,9 +8,9 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import org.json.JSONObject;
 
@@ -22,21 +22,35 @@ public final class MainActivity extends Activity implements BillingManager.Liste
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         getWindow().setStatusBarColor(Color.rgb(7, 17, 31));
         getWindow().setNavigationBarColor(Color.rgb(7, 17, 31));
 
         webView = new WebView(this);
-        setContentView(webView);
 
-        // Android 15+ (targetSdk 35) forces edge-to-edge, which would otherwise draw
-        // the WebView's content under the status bar and gesture nav bar. Pad the
-        // WebView itself by the system bar insets so its rendered viewport avoids them.
-        ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
-            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+        // The window is left in its default "decor fits system windows" mode, so on
+        // Android 14 and below - and on Android 15 via windowOptOutEdgeToEdgeEnforcement
+        // in values-v35 - the system insets the content and the page never draws under
+        // the status bar or gesture nav.
+        //
+        // The listener below is the fallback for platforms that force edge-to-edge
+        // regardless (Android 16+, where the opt-out is gone). When the system has
+        // already inset the content, the insets that reach this container are zero and
+        // the padding is a no-op, so the two mechanisms cannot double up. The padding is
+        // applied to a container rather than to the WebView because WebView ignores its
+        // own padding when laying out web content.
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.rgb(7, 17, 31));
+        root.addView(webView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets bars = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             return WindowInsetsCompat.CONSUMED;
         });
+        ViewCompat.requestApplyInsets(root);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
