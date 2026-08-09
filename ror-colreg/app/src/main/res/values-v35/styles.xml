@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Android 15 (API 35) enforces edge-to-edge for apps targeting SDK 35. This app is a
+         single full-bleed WebView with no native chrome to draw behind the system bars, so
+         it opts out and lets the system inset the content as it does on earlier releases.
+         The attribute is gone in Android 16+, where MainActivity's window-insets listener
+         pads the WebView's container instead. -->
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
@@ -7,5 +12,6 @@
         <item name="android:navigationBarColor">#07111F</item>
         <item name="android:windowBackground">#07111F</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     </style>
 </resources>
