@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy — ROR Visual Deck</title>
+<style>
+  :root{--bg:#03101a;--panel:#071d2b;--line:rgba(255,255,255,.1);--text:#e8f4fb;--muted:#9fb8c8;--cyan:#46dcff}
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#03101a,#061927 50%,#03101a);color:var(--text);
+       font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.6;padding:32px 16px}
+  main{max-width:760px;margin:0 auto;background:var(--panel);border:1px solid var(--line);
+       border-radius:18px;padding:clamp(22px,5vw,44px)}
+  h1{font-size:clamp(1.5rem,4vw,2.1rem);margin:0 0 6px}
+  .kicker{color:var(--cyan);letter-spacing:.14em;text-transform:uppercase;font-size:.66rem;font-weight:700}
+  .updated{color:var(--muted);font-size:.82rem;margin:0 0 26px}
+  h2{font-size:1.06rem;margin:30px 0 8px;color:var(--cyan)}
+  p,li{color:#d5e6f0;font-size:.94rem}
+  ul{padding-left:20px}
+  strong{color:#fff}
+  a{color:var(--cyan)}
+  footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:.78rem}
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">Nanu · ROR Visual Deck</div>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: 10 August 2026</p>
+
+  <p>ROR Visual Deck (“the app”) is a mostly-offline training reference for the International
+  Regulations for Preventing Collisions at Sea (COLREG). This policy explains what the app does —
+  and does not do — with your data.</p>
+
+  <h2>Summary</h2>
+  <p><strong>The app collects no personal data itself, and has no account, login, analytics, or
+  advertising SDKs.</strong> Everything you enter (exam history, flashcard ratings, favourites,
+  simulator statistics, and the name you type for a completion certificate) is written only to
+  local storage on your own device and is never transmitted anywhere. The one exception is the
+  optional in-app purchase, which is processed entirely by Google Play Billing — see
+  “In-app purchases” below.</p>
+
+  <h2>What the app stores, and where</h2>
+  <p>All of the following stays in the device’s local storage, inside the app’s own private storage
+  sandbox. It is never sent to a server, because the app has no server or backend:</p>
+  <ul>
+    <li>Exam attempt history and scores</li>
+    <li>Flashcard confidence ratings</li>
+    <li>Favourited rules, lights, and signals</li>
+    <li>Encounter-simulator statistics (encounters, clear passages, collisions)</li>
+    <li>The name typed into the completion-certificate field</li>
+    <li>A “reduced motion” display preference</li>
+  </ul>
+  <p>You can delete all of this at any time from the app’s Progress screen (“Reset progress”), or by
+  clearing the app’s storage/data in your device’s system settings. You can also export this data as
+  a JSON file for backup and re-import it later — that file only ever goes where you choose to save it.</p>
+
+  <h2>In-app purchases</h2>
+  <p>A single one-time purchase unlocks the Encounter Lab bridge simulator, Oral Practice, and Exam
+  Mode. That purchase is handled entirely by <strong>Google Play Billing</strong> — the app itself
+  never sees your payment details (card number, billing address, etc.); Google processes the
+  transaction and only tells the app whether it succeeded. Whether you’re unlocked is then cached
+  locally on your device so the app can check it instantly, without a network round trip, every time
+  it starts. As the developer we only see standard Play Console transaction records (order ID,
+  amount, date) that Google provides to every app for accounting purposes — the same as any other
+  Play Store purchase. This is governed by Google’s own Play Billing / Google Play privacy terms,
+  not by this app.</p>
+
+  <h2>Network access</h2>
+  <p>The app requests the <code>INTERNET</code> permission for two purposes: completing the in-app
+  purchase above via Google Play Billing, and the “About” screen’s links out to official public
+  reference pages (IMO, IALA, USCG), which only load if you deliberately tap one, opening it in your
+  device’s browser. Outside of an active purchase, the app makes no background network requests and
+  does not fetch remote content on startup — all training content (rules, lights, signals, buoyage,
+  question bank) is bundled inside the app and works fully offline.</p>
+
+  <h2>Third parties</h2>
+  <p>The only third-party service the app integrates with is Google Play Billing, used solely to
+  process the optional in-app purchase described above. The app does not integrate any analytics,
+  advertising, or tracking SDKs, and does not share your study data, favourites, or progress with
+  anyone.</p>
+
+  <h2>Children’s privacy</h2>
+  <p>The app does not knowingly collect personal information from anyone, including children,
+  because it does not collect personal information from anyone.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If this policy changes, the date at the top of this page will be updated. Material changes will
+  also be reflected in the app’s release notes.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy can be sent to
+  <a href="mailto:nanuai.1991@gmail.com">nanuai.1991@gmail.com</a>.</p>
+
+  <footer>ROR Visual Deck is a training and revision aid only. It does not replace the official
+  COLREG text, flag-State requirements, charts, or approved bridge equipment.</footer>
+</main>
+</body>
+</html>
