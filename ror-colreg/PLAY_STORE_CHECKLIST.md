@@ -103,11 +103,15 @@ Play Billing doesn't function against a sideloaded debug APK.
 
 ### 4. Host the privacy policy at a public URL
 
-`PRIVACY.md` is ready to publish as-is — fill in the contact email at the
-bottom first. Easiest options: enable GitHub Pages for this repo and link
-the rendered page, or link the raw file directly
-(`https://raw.githubusercontent.com/joyarnold16/NanuAPKCloud/main/ror-colreg/PRIVACY.md`).
-Play Console requires this URL in the store listing.
+Done — `docs/privacy-policy.html` is in the repo, ready for GitHub Pages.
+Enable it once: **Settings → Pages → Source: Deploy from a branch →
+Branch: `main`, Folder: `/docs` → Save**. After a minute the policy is live at:
+
+`https://joyarnold16.github.io/NanuAPKCloud/privacy-policy.html`
+
+That is the URL to paste into Play Console. The support address on the page
+is `nanuai.1991@gmail.com` (matching the Blastgrid listing) — change it in
+`docs/privacy-policy.html` if you'd rather use a different one.
 
 ### 5. Store listing content
 
@@ -176,10 +180,27 @@ Drafted for you — trim/adjust freely:
 - **App content declarations — in-app purchases**: **Yes** — one
   non-consumable product (`ror_premium_unlock`).
 
+### 7b. Two deadlines/requirements that are easy to miss
+
+- **Android developer verification.** Google now requires identity
+  verification on the developer account before an app can be published.
+  Start it early — it can take days and blocks everything behind it.
+
+- **14-day closed testing (new personal developer accounts).** A personal
+  account created recently must run a closed test with at least 12 testers
+  opted in continuously for 14 days before it can apply for production
+  access. Budget for this: it is calendar time you cannot compress, and it
+  is why the API 36 deadline below bites sooner than it looks.
+
+- **targetSdk 36 from 31 Aug 2026.** Play requires new app submissions to
+  target Android 16. The app was moved to `compileSdk`/`targetSdk` 36 in
+  v3.8 (with AGP 8.13.0 / Gradle 8.13, since AGP 8.7.x cannot compile
+  against API 36), so this is already satisfied — just don't regress it.
+
 ### 8. Upload and release
 
 1. Push to `main` with the four `ROR_RELEASE_*` secrets in place so CI
-   produces `ROR-Visual-Deck-v3.3.aab`.
+   produces `ROR-Visual-Deck-v<current>.aab`.
 2. Download that `.aab` from the GitHub Release or Actions artifact.
 3. In Play Console, create the app, complete the setup checklist, create
    the `ror_premium_unlock` in-app product (step 3 above), and upload the
