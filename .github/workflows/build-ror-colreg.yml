@@ -36,12 +36,12 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK packages
-        run: sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+        run: sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.10.2'
+          gradle-version: '8.13'
 
       - name: Build debug APK
         working-directory: ror-colreg
@@ -49,15 +49,15 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v3.7.apk
-          sha256sum ROR-Visual-Deck-v3.7.apk
-          ls -lh ROR-Visual-Deck-v3.7.apk
+          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v3.8.apk
+          sha256sum ROR-Visual-Deck-v3.8.apk
+          ls -lh ROR-Visual-Deck-v3.8.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v3.7-APK
-          path: ROR-Visual-Deck-v3.7.apk
+          name: ROR-Visual-Deck-v3.8-APK
+          path: ROR-Visual-Deck-v3.8.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -66,10 +66,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-v3.7-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v3.7.apk \
-            --title "ROR Visual Deck v3.7" \
-            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v3.7 resynchronises the sound signal player with its timeline. The playhead and flash lamp are now driven from the Web Audio clock rather than the wall clock and are offset by the output latency, so the cursor follows what is audible instead of what has merely been scheduled; playback also waits for the AudioContext to actually resume, which on Android leaves the audio clock frozen and previously let the cursor run ahead of the sound. The timeline length now ends at the last blast instead of overshooting it by the trailing inter-blast gap. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
+          TAG="ror-visual-deck-v3.8-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v3.8.apk \
+            --title "ROR Visual Deck v3.8" \
+            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v3.8 resynchronises the sound signal player with its timeline. The playhead and flash lamp are now driven from the Web Audio clock rather than the wall clock and are offset by the output latency, so the cursor follows what is audible instead of what has merely been scheduled; playback also waits for the AudioContext to actually resume, which on Android leaves the audio clock frozen and previously let the cursor run ahead of the sound. The timeline length now ends at the last blast instead of overshooting it by the trailing inter-blast gap. v3.8 also targets Android 16 (API 36), which Google Play requires for new app submissions from 31 Aug 2026; this moves AGP to 8.13.0 and Gradle to 8.13 because AGP 8.7.x cannot compile against API 36. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
             --latest
 
   verify-release-build:
@@ -101,12 +101,12 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK packages
-        run: sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+        run: sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.10.2'
+          gradle-version: '8.13'
 
       - name: Generate a disposable signing key
         run: |
@@ -173,12 +173,12 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK packages
-        run: sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+        run: sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.10.2'
+          gradle-version: '8.13'
 
       - name: Decode release keystore
         env:
@@ -196,15 +196,15 @@ jobs:
 
       - name: Prepare AAB
         run: |
-          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v3.7.aab
-          sha256sum ROR-Visual-Deck-v3.7.aab
-          ls -lh ROR-Visual-Deck-v3.7.aab
+          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v3.8.aab
+          sha256sum ROR-Visual-Deck-v3.8.aab
+          ls -lh ROR-Visual-Deck-v3.8.aab
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v3.7-AAB
-          path: ROR-Visual-Deck-v3.7.aab
+          name: ROR-Visual-Deck-v3.8-AAB
+          path: ROR-Visual-Deck-v3.8.aab
           if-no-files-found: error
           retention-days: 90
 
@@ -212,8 +212,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-release-v3.7-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v3.7.aab \
-            --title "ROR Visual Deck v3.7 (Play Store bundle)" \
+          TAG="ror-visual-deck-release-v3.8-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v3.8.aab \
+            --title "ROR Visual Deck v3.8 (Play Store bundle)" \
             --notes "Signed Android App Bundle (.aab) for Google Play Console upload. Not for direct installation on a device — use the debug APK from the other workflow run for that." \
             --latest=false
