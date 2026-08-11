@@ -132,7 +132,10 @@ jobs:
   check-release-secret:
     name: Check for release signing secret
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    # Also runs on workflow_dispatch so the release bundle can be re-triggered
+    # from the Actions tab after adding or rotating the signing secrets,
+    # without having to invent a commit to push.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     outputs:
       has_secret: ${{ steps.check.outputs.has_secret }}
     steps:
