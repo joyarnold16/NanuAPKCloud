@@ -39,42 +39,32 @@ CI job or AI agent can complete it for you).
 
 ## What only you can do
 
-### 1. Create the signing key (do this yourself — don't hand a real private key to any AI session)
+### 1. Create the signing key (do this yourself — the private key must not
+### pass through an AI session, a CI log, or the repo)
 
-Play Console strongly recommends **Play App Signing**: you generate an
-"upload key" yourself, Google holds the actual app-signing key, and if you
-ever lose the upload key you can ask Google to reset it — you're not
-permanently locked out the way you would be with a self-managed key.
-
-Generate it locally, on your own machine:
+Run the helper, which generates the keystore *and* installs all four GitHub
+secrets in one go:
 
 ```
-keytool -genkeypair -v -storetype PKCS12 \
-  -keystore ror-release.keystore \
-  -alias ror-upload -keyalg RSA -keysize 2048 -validity 10000
+cd ror-colreg
+./setup-release-signing.sh
 ```
 
-It'll prompt for a keystore password, a key password, and your
-name/organization details (these go into the certificate, not the app).
+It needs `keytool` (any JDK) and the GitHub CLI logged in (`gh auth login`).
+It refuses to overwrite an existing keystore, strips trailing newlines from
+every secret (a stray newline is a classic cause of "keystore was tampered
+with" and alias-mismatch failures), and prints the password once at the end.
 
-Then base64-encode it and add four **GitHub repo secrets**
-(Settings → Secrets and variables → Actions):
+**Save the keystore file and that password to a password manager immediately.**
+GitHub will not show the secrets again, and the keystore cannot be
+regenerated. With Play App Signing a lost *upload* key can be reset by Google,
+but that costs days you will not want to spend mid-launch.
 
-```
-base64 -w0 ror-release.keystore        # Linux; use `base64 -i ror-release.keystore` on macOS
-```
-
-| Secret name | Value |
-|---|---|
-| `ROR_RELEASE_KEYSTORE_B64` | the base64 output above |
-| `ROR_RELEASE_KEYSTORE_PASSWORD` | the keystore password you chose |
-| `ROR_RELEASE_KEY_ALIAS` | `ror-upload` (or whatever alias you used) |
-| `ROR_RELEASE_KEY_PASSWORD` | the key password you chose |
-
-Once those exist, the next push to `main` that touches `ror-colreg/**` will
-also run `build-release-bundle` and publish a signed `.aab` as a GitHub
-Release asset. **Keep the keystore file and both passwords in a password
-manager — back them up before deleting the machine you generated them on.**
+If you would rather do it by hand, the equivalent is `keytool -genkeypair -v
+-keystore ror-release.keystore -alias ror -keyalg RSA -keysize 2048 -validity
+10000`, then set `ROR_RELEASE_KEYSTORE_B64` (base64 of the keystore, no line
+wraps), `ROR_RELEASE_KEYSTORE_PASSWORD`, `ROR_RELEASE_KEY_ALIAS`, and
+`ROR_RELEASE_KEY_PASSWORD` under Settings → Secrets and variables → Actions.
 
 ### 2. Google Play Developer account
 
