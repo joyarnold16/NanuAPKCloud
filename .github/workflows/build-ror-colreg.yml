@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   build:
-    name: Build ROR Visual Deck APK
+    name: Build Nanu ROR Visual Deck APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -49,15 +49,15 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v3.9.apk
-          sha256sum ROR-Visual-Deck-v3.9.apk
-          ls -lh ROR-Visual-Deck-v3.9.apk
+          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.0.apk
+          sha256sum ROR-Visual-Deck-v4.0.apk
+          ls -lh ROR-Visual-Deck-v4.0.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v3.9-APK
-          path: ROR-Visual-Deck-v3.9.apk
+          name: ROR-Visual-Deck-v4.0-APK
+          path: ROR-Visual-Deck-v4.0.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -66,10 +66,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-v3.9-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v3.9.apk \
-            --title "ROR Visual Deck v3.9" \
-            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v3.9 resynchronises the sound signal player with its timeline. The playhead and flash lamp are now driven from the Web Audio clock rather than the wall clock and are offset by the output latency, so the cursor follows what is audible instead of what has merely been scheduled; playback also waits for the AudioContext to actually resume, which on Android leaves the audio clock frozen and previously let the cursor run ahead of the sound. The timeline length now ends at the last blast instead of overshooting it by the trailing inter-blast gap. v3.9 pins the Sound & Light 'Selected sequence' panel below the top bar so the timeline and playhead stay visible while scrolling the signal list. v3.9 also targets Android 16 (API 36), which Google Play requires for new app submissions from 31 Aug 2026; this moves AGP to 8.13.0 and Gradle to 8.13 because AGP 8.7.x cannot compile against API 36. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
+          TAG="ror-visual-deck-v4.0-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.0.apk \
+            --title "Nanu ROR Visual Deck v4.0" \
+            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.0 resynchronises the sound signal player with its timeline. The playhead and flash lamp are now driven from the Web Audio clock rather than the wall clock and are offset by the output latency, so the cursor follows what is audible instead of what has merely been scheduled; playback also waits for the AudioContext to actually resume, which on Android leaves the audio clock frozen and previously let the cursor run ahead of the sound. The timeline length now ends at the last blast instead of overshooting it by the trailing inter-blast gap. v4.0 pins the Sound & Light 'Selected sequence' panel below the top bar so the timeline and playhead stay visible while scrolling the signal list. v4.0 also targets Android 16 (API 36), which Google Play requires for new app submissions from 31 Aug 2026; this moves AGP to 8.13.0 and Gradle to 8.13 because AGP 8.7.x cannot compile against API 36. v4.0 renames the app to Nanu ROR Visual Deck and hardens the in-app purchase path: the billing client now reconnects with backoff when Play drops the connection (previously it stayed dead for the rest of the process, so the paywall never got a price and entitlements never restored); a failed purchase query no longer revokes a paying customer's unlock; pending payments such as cash or bank transfer are now reported instead of appearing to fail silently; and a failed acknowledgement is retried, since Google auto-refunds purchases left unacknowledged for three days. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
             --latest
 
   verify-release-build:
@@ -199,15 +199,15 @@ jobs:
 
       - name: Prepare AAB
         run: |
-          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v3.9.aab
-          sha256sum ROR-Visual-Deck-v3.9.aab
-          ls -lh ROR-Visual-Deck-v3.9.aab
+          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.0.aab
+          sha256sum ROR-Visual-Deck-v4.0.aab
+          ls -lh ROR-Visual-Deck-v4.0.aab
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v3.9-AAB
-          path: ROR-Visual-Deck-v3.9.aab
+          name: ROR-Visual-Deck-v4.0-AAB
+          path: ROR-Visual-Deck-v4.0.aab
           if-no-files-found: error
           retention-days: 90
 
@@ -215,8 +215,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-release-v3.9-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v3.9.aab \
-            --title "ROR Visual Deck v3.9 (Play Store bundle)" \
+          TAG="ror-visual-deck-release-v4.0-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.0.aab \
+            --title "Nanu ROR Visual Deck v4.0 (Play Store bundle)" \
             --notes "Signed Android App Bundle (.aab) for Google Play Console upload. Not for direct installation on a device — use the debug APK from the other workflow run for that." \
             --latest=false

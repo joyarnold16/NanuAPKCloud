@@ -1,4 +1,4 @@
-# ROR Visual Deck (ROR / COLREG Android App)
+# Nanu ROR Visual Deck (ROR / COLREG Android App)
 
 Offline Android training app for COLREG/ROR: rules, lights and shapes, sound
 signals, distress signals, IALA buoyage, a vessel-type/day-night bridge

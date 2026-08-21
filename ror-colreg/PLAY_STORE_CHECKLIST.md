@@ -1,4 +1,4 @@
-# Google Play publishing checklist — ROR Visual Deck
+# Google Play publishing checklist — Nanu ROR Visual Deck
 
 This splits the work into what's already done in this repo, and what only
 you can do (Play Console is a human-verified, account-bound process — no
@@ -107,13 +107,13 @@ is `nanuai.1991@gmail.com` (matching the Blastgrid listing) — change it in
 
 Drafted for you — trim/adjust freely:
 
-**App name** (30 char max): `ROR Visual Deck`
+**App name** (30 char max): `Nanu ROR Visual Deck`
 
 **Short description** (80 char max):
 `Offline COLREG trainer: rules, lights, signals, buoyage, bridge simulator.`
 
 **Full description** (4000 char max):
-> ROR Visual Deck is a complete, fully offline training reference for the
+> Nanu ROR Visual Deck is a complete, fully offline training reference for the
 > International Regulations for Preventing Collisions at Sea (COLREG /
 > "Rules of the Road"). Study all 41 rules with plain-language explanations
 > and bridge application notes, drill navigation lights and day shapes

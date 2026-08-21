@@ -1,8 +1,8 @@
-# Privacy Policy — ROR Visual Deck
+# Privacy Policy — Nanu ROR Visual Deck
 
 _Last updated: 2026-08-02_
 
-ROR Visual Deck ("the app") is a mostly-offline training reference for the
+Nanu ROR Visual Deck ("the app") is a mostly-offline training reference for the
 International Regulations for Preventing Collisions at Sea (COLREG). This
 policy explains what the app does — and does not do — with your data.
 

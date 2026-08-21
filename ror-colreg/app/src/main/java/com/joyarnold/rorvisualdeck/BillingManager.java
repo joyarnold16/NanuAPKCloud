@@ -3,6 +3,8 @@ package com.joyarnold.rorvisualdeck;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.android.billingclient.api.AcknowledgePurchaseParams;
 import com.android.billingclient.api.BillingClient;
@@ -38,6 +40,9 @@ public final class BillingManager implements PurchasesUpdatedListener {
     private final Activity activity;
     private final SharedPreferences prefs;
     private final Listener listener;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private int reconnectDelayMs = 1000;
+    private boolean destroyed = false;
     private final BillingClient billingClient;
     private ProductDetails premiumProductDetails;
 
@@ -62,10 +67,12 @@ public final class BillingManager implements PurchasesUpdatedListener {
     }
 
     public void start() {
+        if (destroyed) return;
         billingClient.startConnection(new BillingClientStateListener() {
             @Override
             public void onBillingSetupFinished(BillingResult billingResult) {
                 if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                    reconnectDelayMs = 1000;
                     queryProductDetails();
                     queryExistingPurchases();
                 }
@@ -73,8 +80,25 @@ public final class BillingManager implements PurchasesUpdatedListener {
 
             @Override
             public void onBillingServiceDisconnected() {
+                // Play drops this connection routinely - the Play Store updating itself
+                // is enough. Without reconnecting, the client stays dead for the rest of
+                // the process: the paywall never gets a price, purchases cannot launch,
+                // and an existing entitlement is never restored. Backs off to a minute so
+                // a genuinely unavailable service is not hammered.
+                scheduleReconnect();
             }
         });
+    }
+
+    private void scheduleReconnect() {
+        if (destroyed) return;
+        final int delay = reconnectDelayMs;
+        reconnectDelayMs = Math.min(reconnectDelayMs * 2, 60000);
+        handler.postDelayed(() -> {
+            if (!destroyed && !billingClient.isReady()) {
+                start();
+            }
+        }, delay);
     }
 
     private void queryProductDetails() {
@@ -104,17 +128,30 @@ public final class BillingManager implements PurchasesUpdatedListener {
                 .setProductType(BillingClient.ProductType.INAPP)
                 .build();
         billingClient.queryPurchasesAsync(params, (billingResult, purchases) -> {
+            // Only trust an OK result. A failed query returns an empty list, and
+            // treating that as "no purchase" would revoke a paying customer's unlock
+            // on any transient network or service error.
+            if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+                return;
+            }
             boolean unlocked = false;
+            boolean pending = false;
             for (Purchase purchase : purchases) {
-                if (purchase.getProducts().contains(PREMIUM_PRODUCT_ID)
-                        && purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                if (!purchase.getProducts().contains(PREMIUM_PRODUCT_ID)) continue;
+                if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
                     unlocked = true;
                     if (!purchase.isAcknowledged()) {
                         acknowledgePurchase(purchase);
                     }
+                } else if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING) {
+                    pending = true;
                 }
             }
             setUnlocked(unlocked);
+            if (!unlocked && pending && listener != null) {
+                activity.runOnUiThread(() -> listener.onPurchaseError(
+                        "Your purchase is still pending payment. It will unlock automatically once Google confirms it."));
+            }
         });
     }
 
@@ -140,12 +177,18 @@ public final class BillingManager implements PurchasesUpdatedListener {
         int code = billingResult.getResponseCode();
         if (code == BillingClient.BillingResponseCode.OK && purchases != null) {
             for (Purchase purchase : purchases) {
-                if (purchase.getProducts().contains(PREMIUM_PRODUCT_ID)
-                        && purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+                if (!purchase.getProducts().contains(PREMIUM_PRODUCT_ID)) continue;
+                if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
                     setUnlocked(true);
                     if (!purchase.isAcknowledged()) {
                         acknowledgePurchase(purchase);
                     }
+                } else if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING
+                        && listener != null) {
+                    // Cash, bank transfer and parental-approval payments land here. Saying
+                    // nothing looks to the buyer like the payment silently failed.
+                    activity.runOnUiThread(() -> listener.onPurchaseError(
+                            "Payment started but is awaiting confirmation. Premium unlocks automatically once Google completes it."));
                 }
             }
         } else if (code != BillingClient.BillingResponseCode.USER_CANCELED && listener != null) {
@@ -157,7 +200,17 @@ public final class BillingManager implements PurchasesUpdatedListener {
         AcknowledgePurchaseParams params = AcknowledgePurchaseParams.newBuilder()
                 .setPurchaseToken(purchase.getPurchaseToken())
                 .build();
-        billingClient.acknowledgePurchase(params, billingResult -> { });
+        billingClient.acknowledgePurchase(params, billingResult -> {
+            // Google refunds a purchase that is not acknowledged within three days, so a
+            // silent failure here costs the sale. Retries once shortly after.
+            if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK && !destroyed) {
+                handler.postDelayed(() -> {
+                    if (!destroyed && billingClient.isReady()) {
+                        billingClient.acknowledgePurchase(params, r -> { });
+                    }
+                }, 5000);
+            }
+        });
     }
 
     private void setUnlocked(boolean unlocked) {
@@ -168,6 +221,8 @@ public final class BillingManager implements PurchasesUpdatedListener {
     }
 
     public void destroy() {
+        destroyed = true;
+        handler.removeCallbacksAndMessages(null);
         if (billingClient.isReady()) {
             billingClient.endConnection();
         }
