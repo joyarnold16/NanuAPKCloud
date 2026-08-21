@@ -7,6 +7,12 @@ on:
       - main
     paths:
       - '.github/workflows/build-nanu-local-ai-main.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'nanu-local-ai/**'
+      - '.github/workflows/build-nanu-local-ai.yml'
 
 permissions:
   contents: read
