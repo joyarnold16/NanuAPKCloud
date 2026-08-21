@@ -1,0 +1,95 @@
+name: Build Nanu Local AI APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/nanu-local-ai-v1
+    paths:
+      - 'nanu-local-ai/**'
+      - '.github/workflows/build-nanu-local-ai.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build arm64 local-AI APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Nanu project
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build dependencies
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;29.0.13113456" \
+            "cmake;3.31.6"
+
+      - name: Fetch pinned llama.cpp Android engine
+        run: |
+          git clone https://github.com/ggml-org/llama.cpp.git llama-upstream
+          cd llama-upstream
+          git checkout 9a286ac98d2cab74231bd3f1fc3f2b8bdf05422e
+
+      - name: Apply Nanu Local AI branding and tablet optimizations
+        run: |
+          cp nanu-local-ai/strings.xml llama-upstream/examples/llama.android/app/src/main/res/values/strings.xml
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app_gradle = Path('llama-upstream/examples/llama.android/app/build.gradle.kts')
+          text = app_gradle.read_text()
+          text = text.replace('applicationId = "com.example.llama.aichat"', 'applicationId = "com.nanu.localai"')
+          text = text.replace('versionName = "1.0"', 'versionName = "0.1.0"')
+          app_gradle.write_text(text)
+
+          lib_gradle = Path('llama-upstream/examples/llama.android/lib/build.gradle.kts')
+          text = lib_gradle.read_text()
+          text = text.replace('abiFilters += listOf("arm64-v8a", "x86_64")', 'abiFilters += listOf("arm64-v8a")')
+          lib_gradle.write_text(text)
+
+          activity = Path('llama-upstream/examples/llama.android/app/src/main/java/com/example/llama/MainActivity.kt')
+          text = activity.read_text()
+          text = text.replace('Type and send a message!', 'Ask Nanu anything...')
+          text = text.replace('Parsing GGUF...', 'Reading your GGUF model...')
+          text = text.replace('Copying file...', 'Importing model to Nanu...')
+          text = text.replace('Loading model...', 'Loading local AI...')
+          activity.write_text(text)
+          PY
+
+      - name: Build debug APK
+        working-directory: llama-upstream/examples/llama.android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :app:assembleDebug --stacktrace
+
+      - name: Prepare APK
+        run: |
+          mkdir -p out
+          cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v0.1-debug.apk
+          sha256sum out/nanu-local-ai-v0.1-debug.apk | tee out/SHA256SUMS.txt
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nanu-local-ai-v0.1-debug
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
