@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="14dp">
+        android:padding="16dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -24,7 +24,7 @@
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="44dp"
-                android:text="‹ Chat"
+                android:text="Back"
                 android:textAllCaps="false"
                 android:textColor="@color/nanu_accent_2" />
 
@@ -32,32 +32,36 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical"
-                android:paddingStart="8dp">
+                android:gravity="center"
+                android:orientation="vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="NANU Trading Lab"
+                    android:text="Nanu Markets"
                     android:textColor="@color/nanu_text"
-                    android:textSize="22sp"
+                    android:textSize="23sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Forex + Crypto • deterministic technical analysis"
+                    android:text="Forex + Crypto analysis"
                     android:textColor="@color/nanu_muted"
                     android:textSize="12sp" />
             </LinearLayout>
+
+            <Space
+                android:layout_width="64dp"
+                android:layout_height="1dp" />
         </LinearLayout>
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="14dp"
             app:cardBackgroundColor="@color/nanu_panel"
-            app:cardCornerRadius="18dp"
+            app:cardCornerRadius="20dp"
             app:strokeColor="@color/nanu_border"
             app:strokeWidth="1dp">
 
@@ -65,18 +69,27 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="14dp">
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Market setup"
+                    android:textColor="@color/nanu_text"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/market_type_button"
-                        android:layout_width="wrap_content"
-                        android:layout_height="44dp"
+                        android:layout_width="104dp"
+                        android:layout_height="52dp"
                         android:text="Crypto"
                         android:textAllCaps="false"
                         android:textColor="@android:color/white"
@@ -85,159 +98,143 @@
                     <EditText
                         android:id="@+id/trading_symbol"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_marginStart="8dp"
+                        android:layout_height="52dp"
+                        android:layout_marginStart="10dp"
                         android:layout_weight="1"
-                        android:background="@android:color/transparent"
+                        android:background="@color/nanu_input"
                         android:hint="BTC/USD"
-                        android:padding="10dp"
+                        android:paddingHorizontal="14dp"
                         android:singleLine="true"
                         android:textColor="@color/nanu_text"
-                        android:textColorHint="@color/nanu_muted" />
+                        android:textColorHint="@color/nanu_muted"
+                        android:textSize="16sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Timeframe"
+                        android:textColor="@color/nanu_muted"
+                        android:textSize="12sp" />
 
                     <EditText
                         android:id="@+id/trading_timeframe"
-                        android:layout_width="82dp"
-                        android:layout_height="48dp"
-                        android:background="@android:color/transparent"
+                        android:layout_width="88dp"
+                        android:layout_height="44dp"
+                        android:layout_marginStart="10dp"
+                        android:background="@color/nanu_input"
+                        android:gravity="center"
                         android:hint="15m"
-                        android:padding="10dp"
                         android:singleLine="true"
                         android:text="15m"
                         android:textColor="@color/nanu_text"
                         android:textColorHint="@color/nanu_muted" />
+
+                    <Space
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Tap Crypto / Forex to switch"
+                        android:textColor="@color/nanu_muted"
+                        android:textSize="11sp" />
                 </LinearLayout>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="Paste OHLCV candles"
-                    android:textColor="@color/nanu_text"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="Format: time,open,high,low,close,volume — one candle per line. Time and volume are optional."
-                    android:textColor="@color/nanu_muted"
-                    android:textSize="11sp" />
-
-                <EditText
-                    android:id="@+id/candle_input"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/live_snapshot_button"
                     android:layout_width="match_parent"
-                    android:layout_height="190dp"
-                    android:layout_marginTop="8dp"
-                    android:background="@color/nanu_input"
-                    android:gravity="top|start"
-                    android:hint="2026-08-22 10:00,65000,65200,64800,65120,1250\n2026-08-22 10:15,65120,65310,65050,65280,1410"
-                    android:inputType="textMultiLine|textNoSuggestions"
-                    android:padding="12dp"
-                    android:scrollbars="vertical"
-                    android:textColor="@color/nanu_text"
-                    android:textColorHint="@color/nanu_muted"
-                    android:textSize="12sp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/analyze_chart_button"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="Analyze chart"
-                        android:textAllCaps="false"
-                        android:textColor="@android:color/white"
-                        app:backgroundTint="@color/nanu_accent" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/live_snapshot_button"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        android:text="Live snapshot"
-                        android:textAllCaps="false"
-                        android:textColor="@color/nanu_text" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/scan_button"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="0dp"
-                        android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:text="Scanner"
-                        android:textAllCaps="false"
-                        android:textColor="@color/nanu_accent_2" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/risk_button"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="0dp"
-                        android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:text="Risk calculator"
-                        android:textAllCaps="false"
-                        android:textColor="@color/nanu_accent_2" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/patterns_button"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="0dp"
-                        android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:text="Patterns"
-                        android:textAllCaps="false"
-                        android:textColor="@color/nanu_accent_2" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/journal_button"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="0dp"
-                        android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:text="Trade journal"
-                        android:textAllCaps="false"
-                        android:textColor="@color/nanu_accent_2" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/chart_image_button"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="0dp"
-                        android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:text="Chart image"
-                        android:textAllCaps="false"
-                        android:textColor="@color/nanu_accent_2" />
-                </LinearLayout>
+                    android:layout_height="54dp"
+                    android:layout_marginTop="14dp"
+                    android:text="Get live market snapshot"
+                    android:textAllCaps="false"
+                    android:textColor="@android:color/white"
+                    android:textSize="15sp"
+                    app:backgroundTint="@color/nanu_accent" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:layout_marginStart="2dp"
+            android:text="Quick tools"
+            android:textColor="@color/nanu_text"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/risk_button"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_weight="1"
+                android:text="Risk calculator"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/scan_button"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Setup scanner"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/patterns_button"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_weight="1"
+                android:text="Pattern guide"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/journal_button"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Trade journal"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text" />
+        </LinearLayout>
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:layout_marginBottom="18dp"
+            android:layout_marginTop="16dp"
             app:cardBackgroundColor="@color/nanu_panel_2"
-            app:cardCornerRadius="18dp"
+            app:cardCornerRadius="20dp"
             app:strokeColor="@color/nanu_border"
             app:strokeWidth="1dp">
 
@@ -245,14 +242,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="14dp">
+                android:padding="16dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Nanu analysis"
                     android:textColor="@color/nanu_text"
-                    android:textSize="16sp"
+                    android:textSize="17sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -260,21 +257,90 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:minHeight="180dp"
-                    android:text="Paste candles and tap Analyze chart. Calculations happen locally on your device."
+                    android:minHeight="130dp"
+                    android:text="Enter a market and tap Get live market snapshot. For deeper technical analysis, use Advanced chart analysis below."
                     android:textColor="@color/nanu_text"
                     android:textIsSelectable="true"
-                    android:textSize="13sp" />
+                    android:textSize="14sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="@color/nanu_panel"
+            app:cardCornerRadius="20dp"
+            app:strokeColor="@color/nanu_border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Advanced chart analysis"
+                    android:textColor="@color/nanu_text"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Educational analysis only. Markets are probabilistic; Nanu does not guarantee profits or place trades in this release."
-                    android:textColor="@color/nanu_danger"
+                    android:layout_marginTop="3dp"
+                    android:text="Optional • paste OHLCV candles when you want full indicators, patterns, structure and levels."
+                    android:textColor="@color/nanu_muted"
                     android:textSize="11sp" />
+
+                <EditText
+                    android:id="@+id/candle_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="150dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@color/nanu_input"
+                    android:gravity="top|start"
+                    android:hint="time,open,high,low,close,volume\n2026-08-22 10:00,65000,65200,64800,65120,1250"
+                    android:inputType="textMultiLine|textNoSuggestions"
+                    android:padding="12dp"
+                    android:scrollbars="vertical"
+                    android:textColor="@color/nanu_text"
+                    android:textColorHint="@color/nanu_muted"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/analyze_chart_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="10dp"
+                    android:text="Analyze candles locally"
+                    android:textAllCaps="false"
+                    android:textColor="@android:color/white"
+                    app:backgroundTint="@color/nanu_accent" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/chart_image_button"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="Choose chart screenshot"
+                    android:textAllCaps="false"
+                    android:textColor="@color/nanu_accent_2" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="22dp"
+            android:gravity="center"
+            android:text="Analysis is informational. Nanu does not guarantee profits or place trades in this build."
+            android:textColor="@color/nanu_muted"
+            android:textSize="11sp" />
 
     </LinearLayout>
 </ScrollView>
