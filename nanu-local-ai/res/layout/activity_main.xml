@@ -138,6 +138,16 @@
             </LinearLayout>
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/trading_button"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:onClick="openTrading"
+                android:text="Trading"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_success" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/mode_button"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
