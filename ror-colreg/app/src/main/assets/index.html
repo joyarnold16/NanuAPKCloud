@@ -109,7 +109,7 @@ button.wrong,.wrong[role="button"]{border-color:rgba(255,104,122,.58)!important;
 .buoy-rhythm-player{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:center;margin:13px 0 16px}.buoy-rhythm-player .small-btn{grid-column:1/-1}.buoy-live-lamp{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.22);background:#132a38;transition:.08s ease;box-shadow:inset 0 0 12px rgba(0,0,0,.6)}.buoy-live-lamp.on{background:var(--lamp-colour,#f5fbff);box-shadow:0 0 14px 4px var(--lamp-colour,#f5fbff),0 0 34px var(--lamp-colour,#f5fbff)}#buoyRhythmStrip{position:relative;margin:0}.rhythm-playhead{position:absolute;z-index:4;left:0;top:3px;bottom:3px;width:2px;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
 
   </style>
-  <title>Nanu ROR Visual Deck — Complete Edition V4.2 (Standalone)</title>
+  <title>Nanu ROR Visual Deck — Complete Edition V4.3 (Standalone)</title>
 </head>
 <body>
 <div class="app-shell">
@@ -118,7 +118,7 @@ button.wrong,.wrong[role="button"]{border-color:rgba(255,104,122,.58)!important;
       <div class="brand-logo" aria-hidden="true">
         <svg viewBox="0 0 64 64"><path d="M32 7v42M18 20h28M12 39c2 11 10 17 20 17s18-6 20-17M22 39c0 6 4 10 10 10s10-4 10-10" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="32" cy="12" r="4" fill="currentColor"/></svg>
       </div>
-      <div><strong>Nanu ROR Visual Deck</strong><span>Complete Edition · V4.2</span></div>
+      <div><strong>Nanu ROR Visual Deck</strong><span>Complete Edition · V4.3</span></div>
     </div>
     <nav class="nav-list" id="desktopNav" aria-label="Main navigation"></nav>
     <div class="sidebar-card">
@@ -292,7 +292,7 @@ function favStar(key){return `<button class="fav-star ${isFavorite(key)?'active'
 const NAV=[
  ['home','⌂','Command Centre'],['rules','▤','Rules 1–41'],['encounters','◎','Encounter Lab'],['lights','✦','Lights & Shapes'],['signals','◖','Sound & Light'],['distress','!','Distress'],['iala','◆','IALA Buoyage'],['annexes','§','Annexes I–IV'],['radar','⊕','Radar Plotting'],['study','▱','Flashcards'],['oral','◉','Oral Practice'],['exam','✓','Exam Mode'],['progress','▥','Progress'],['about','i','About']
 ];
-const META={home:['Bridge learning system','Command Centre'],rules:['COLREG reference','Rules 1–41'],encounters:['Live vector calculation','Encounter Laboratory'],lights:['Part C','Lights and Shapes'],signals:['Parts D and Annex III','Sound and Light Signals'],distress:['Annex IV','Distress Recognition'],iala:['IALA R1001','Maritime Buoyage'],annexes:['Technical reference','Annexes I–IV'],radar:['Relative motion','Radar Plotting'],study:['Active recall','Flashcard Deck'],oral:['OOW examination','Oral Practice'],exam:['Mixed assessment','Exam Mode'],progress:['Learning analytics','Progress'],about:['Release information','About V4.2']};
+const META={home:['Bridge learning system','Command Centre'],rules:['COLREG reference','Rules 1–41'],encounters:['Live vector calculation','Encounter Laboratory'],lights:['Part C','Lights and Shapes'],signals:['Parts D and Annex III','Sound and Light Signals'],distress:['Annex IV','Distress Recognition'],iala:['IALA R1001','Maritime Buoyage'],annexes:['Technical reference','Annexes I–IV'],radar:['Relative motion','Radar Plotting'],study:['Active recall','Flashcard Deck'],oral:['OOW examination','Oral Practice'],exam:['Mixed assessment','Exam Mode'],progress:['Learning analytics','Progress'],about:['Release information','About V4.3']};
 const MODULES=[
  ['rules','▤','41 rules','Bridge meaning, exact rule number and oral traps.'],['encounters','◎','Encounter lab','Vessel-type selection, day/night lights and shapes, live give-way/stand-on verdicts and collision-risk scoring.'],['lights','✦',`${D.lights.length} vessel profiles`,'Night aspects, day shapes and identification drills.'],['signals','◖','Sound & light','Rule 34/35 whistle, bell, gong and flashes.'],['distress','!','Annex IV','Visual and audio distress recognition.'],['iala','◆','IALA trainer','Region A/B, cardinal rhythms and route challenges.'],['annexes','§','Four annexes','Technical tables, fishing signals and distress.'],['radar','⊕','Radar plotting','Two-observation relative and true-vector solution.'],['study','▱','Flashcards','Active recall across every module.'],['oral','◉','Oral practice','36 model answers with rule references.'],['exam','✓','Exam mode','Large generated visual and theory question bank.'],['progress','▥','Analytics','Attempts, topic weakness and study confidence.']
 ];
@@ -411,7 +411,7 @@ function importBackupFromFile(file){
 function overallProgress(){const p=getProgress();const best=p.history.reduce((m,x)=>Math.max(m,x.pct),0);const studied=p.study.hard+p.study.again+p.study.good;const completed=Math.min(100,Math.round(best*.55+Math.min(studied,60)/60*25+Math.min(p.history.length,10)/10*20));return {completed,best,studied,attempts:p.history.length}}
 
 function renderHome(){
- $('#heroStats').innerHTML=[['41','Rules'],[D.lights.length,'Vessel profiles'],[QUESTION_BANK.length,'Exam questions'],['Offline','PWA']].map(x=>`<div class="hero-stat"><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('');
+ $('#heroStats').innerHTML=[['41','Rules'],[D.lights.length,'Vessel profiles'],[QUESTION_BANK.length,'Exam questions'],['Offline','No account needed']].map(x=>`<div class="hero-stat"><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('');
  $('#moduleCount').textContent=`${MODULES.length} touch-first modules`;
  $('#moduleGrid').innerHTML=MODULES.map(([id,ic,t,d])=>`<article class="module-card" data-go="${id}">${isLockedView(id)?'<span class="module-lock">🔒 Premium</span>':''}<div class="micon">${ic}</div><h4>${t}</h4><p>${d}</p></article>`).join('');
  const pg=overallProgress();

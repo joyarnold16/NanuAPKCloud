@@ -191,8 +191,24 @@ Drafted for you — trim/adjust freely:
   generated from the same artwork as the in-app icon.
 - **Feature graphic (1024×500 PNG)** — delivered to you separately,
   matching the in-app dark-navy/cyan look.
-- **Phone screenshots** (min 2, recommend 4-8) — delivered to you
-  separately, captured directly from the running app at phone size.
+- **Phone screenshots** (min 2, recommend 4-8) — four in
+  `store-assets/`, 824x1830, captured from the running app.
+
+  Regenerate them after any UI change rather than recapturing by hand:
+
+  ```
+  npm i playwright
+  node test/screenshots.js app/src/main/assets/index.html store-assets
+  ```
+
+  The script sets the dev-unlock key so the premium views render instead of
+  their paywall, sets up a starboard crossing in the Encounter Lab (the
+  default head-on at 10.8 NM pins both vessels to the rim and leaves the plot
+  looking empty), and works around two capture traps: headless Chromium
+  renders the top bar's `backdrop-filter` over scrolled content as a white
+  band rather than a blur, and the app scrolls smoothly, so a measurement
+  taken straight after `scrollTo` still reports the pre-scroll position.
+  Both are neutralised for the capture only, not in the app.
 
 ### 7. Play Console forms (must be filled in by the account holder)
 
