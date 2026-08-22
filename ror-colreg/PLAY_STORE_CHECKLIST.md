@@ -131,15 +131,42 @@ without being charged.
 
 ### 4. Host the privacy policy at a public URL
 
-Done — `docs/privacy-policy.html` is in the repo, ready for GitHub Pages.
-Enable it once: **Settings → Pages → Source: Deploy from a branch →
-Branch: `main`, Folder: `/docs` → Save**. After a minute the policy is live at:
+Play requires a publicly reachable privacy policy URL. There are two ways to
+get one here, and **the first works right now with nothing to configure**.
 
-`https://joyarnold16.github.io/NanuAPKCloud/privacy-policy.html`
+**Option A — the rendered Markdown file (available immediately)**
 
-That is the URL to paste into Play Console. The support address on the page
-is `nanuai.1991@gmail.com` (matching the Blastgrid listing) — change it in
-`docs/privacy-policy.html` if you'd rather use a different one.
+```
+https://github.com/joyarnold16/NanuAPKCloud/blob/main/ror-colreg/PRIVACY.md
+```
+
+GitHub renders that page publicly, with no login, for anyone. It is a stable
+URL, it is not editable by the public, and it carries the full policy. Paste it
+into Play Console and the listing requirement is met. Plenty of published apps
+use exactly this.
+
+**Option B — GitHub Pages (nicer, needs one setting)**
+
+`docs/privacy-policy.html` is a styled standalone page ready to serve. Enable
+it once: **Settings → Pages → Source: Deploy from a branch → Branch: `main`,
+Folder: `/docs` → Save**, which publishes it at:
+
+```
+https://joyarnold16.github.io/NanuAPKCloud/privacy-policy.html
+```
+
+You will know the save took because a **pages-build-deployment** run appears
+under Actions within seconds and the settings page shows a green
+"Your site is live at" banner. If neither appears, it did not save.
+
+As of the last check Pages was **not** enabled on this repository — GitHub's
+API answered `Get Pages site failed: Not Found`. Note that a workflow cannot
+turn it on for you: `actions/configure-pages` with `enablement: true` is
+refused here with `Create Pages site failed: Resource not accessible by
+integration`, so the settings page is the only route.
+
+Keep both files in step if you edit one. The support address in both is
+`nanuai.1991@gmail.com`.
 
 ### 5. Store listing content
 

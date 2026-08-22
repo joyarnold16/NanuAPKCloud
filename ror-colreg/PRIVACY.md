@@ -1,6 +1,6 @@
 # Privacy Policy — Nanu ROR Visual Deck
 
-_Last updated: 2026-08-02_
+_Last updated: 2026-08-22_
 
 Nanu ROR Visual Deck ("the app") is a mostly-offline training reference for the
 International Regulations for Preventing Collisions at Sea (COLREG). This
@@ -79,5 +79,4 @@ Material changes will also be reflected in the app's release notes.
 
 ## Contact
 
-Questions about this policy can be sent to: **[replace with your contact
-email before publishing]**
+Questions about this policy can be sent to: **nanuai.1991@gmail.com**
