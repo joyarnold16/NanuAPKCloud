@@ -38,9 +38,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run build-nanu-local-ai.yml --repo "$GITHUB_REPOSITORY" --ref feature/nanu-local-ai-v1
+          gh workflow run build-nanu-local-ai-main.yml --repo "$GITHUB_REPOSITORY" --ref main
           sleep 8
-          BUILD_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build-nanu-local-ai.yml --branch feature/nanu-local-ai-v1 --limit 1 --json databaseId --jq '.[0].databaseId')
+          BUILD_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build-nanu-local-ai-main.yml --branch main --limit 1 --json databaseId,event --jq '.[0].databaseId')
           test -n "$BUILD_ID"
           echo "Actual RC5 build run: $BUILD_ID"
           python3 - "$BUILD_ID" <<'PY'
