@@ -1,0 +1,26 @@
+name: Dispatch Nanu RC5 Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/nanu-local-ai-v1
+    paths:
+      - 'nanu-local-ai/RC5_DISPATCH_TRIGGER.txt'
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch final RC5 build on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build-nanu-local-ai-main.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main
+          echo "Final RC5 build dispatched."
