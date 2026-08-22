@@ -51,9 +51,37 @@ cd ror-colreg
 ```
 
 It needs `keytool` (any JDK) and the GitHub CLI logged in (`gh auth login`).
-It refuses to overwrite an existing keystore, strips trailing newlines from
-every secret (a stray newline is a classic cause of "keystore was tampered
-with" and alias-mismatch failures), and prints the password once at the end.
+
+> **If you ran an earlier copy of this script and no secrets appeared, that
+> was a bug in the script, not something you did wrong.** It generated its
+> password with `tr -dc … </dev/urandom | head -c 32`. `head` exits after 32
+> bytes, `tr` dies of SIGPIPE, and under `set -euo pipefail` that killed the
+> run on that very line — before creating the key, before uploading anything,
+> and without printing an error. It failed this way every time, not
+> intermittently. Fixed by reading a fixed number of bytes with `od`.
+
+The script now:
+
+- confirms which GitHub account it is authenticated as and that the account
+  is an **admin** of the target repo, before generating anything;
+- asks you to confirm the target repo;
+- checks the new keystore can actually be opened with the password it just set;
+- round-trips the base64 and byte-compares it with the keystore, so an
+  encoding problem surfaces here rather than as Gradle's unhelpful "keystore
+  was tampered with" in CI;
+- strips trailing newlines from every secret (a stray newline is a classic
+  cause of tamper and alias-mismatch failures);
+- **reads the secrets back** with `gh secret list` and fails loudly if any of
+  the four is not at *repository* scope — `gh secret set` exiting 0 is not
+  proof a workflow can see the secret;
+- triggers a build so the signed `.aab` is produced immediately;
+- prints the password once at the end.
+
+If the secrets still do not reach CI, the build's **"Check for release signing
+secrets"** job now lists each of the four as `present` or `MISSING` by name
+(never values), and explains the three usual causes: Environment secrets
+instead of Repository secrets, Dependabot secrets, or `gh` logged into the
+wrong account.
 
 **Save the keystore file and that password to a password manager immediately.**
 GitHub will not show the secrets again, and the keystore cannot be
@@ -76,8 +104,10 @@ for new accounts), at https://play.google.com/console.
 The app is already wired to sell one product with the ID
 `ror_premium_unlock` (see `BillingManager.PREMIUM_PRODUCT_ID` in the Java
 source) — this ID must match exactly what you create in Play Console, or
-the app will never find a price and the paywall's "Unlock premium" button
-will just show a "store connection not ready" error.
+Play returns an empty product list and the paywall cannot show a price. The
+paywall now says so in place of the price ("Premium is not available on your
+account yet…") rather than sitting blank, and "Unlock premium" repeats that
+reason instead of blaming the connection.
 
 You'll need the app created in Play Console first (step 2's account plus
 at least a draft app listing), then:
@@ -89,7 +119,15 @@ at least a draft app listing), then:
 
 The app also needs to actually be installed via a Play-associated build
 (internal testing track or later) for the purchase flow to work at all —
-Play Billing doesn't function against a sideloaded debug APK.
+Play Billing doesn't function against a sideloaded debug APK. On a build
+that has no working Play Billing the paywall now explains that too
+("Google Play billing is not available on this device…"), so a failed
+purchase is never silent.
+
+**Add yourself as a licence tester** before testing the buy flow: Play
+Console → Setup → Licence testing → add your Google account. Licence testers
+run the complete purchase flow, including acknowledgement and restore,
+without being charged.
 
 ### 4. Host the privacy policy at a public URL
 

@@ -85,6 +85,12 @@ public final class MainActivity extends Activity implements BillingManager.Liste
     }
 
     @Override
+    public void onPriceUnavailable(String reason) {
+        runOnJs("window.onPremiumPriceUnavailable && window.onPremiumPriceUnavailable("
+                + JSONObject.quote(reason) + ")");
+    }
+
+    @Override
     public void onPurchaseError(String message) {
         runOnJs("window.onPremiumPurchaseError && window.onPremiumPurchaseError("
                 + JSONObject.quote(message) + ")");

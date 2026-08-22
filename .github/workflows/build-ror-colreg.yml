@@ -49,15 +49,15 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.0.apk
-          sha256sum ROR-Visual-Deck-v4.0.apk
-          ls -lh ROR-Visual-Deck-v4.0.apk
+          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.1.apk
+          sha256sum ROR-Visual-Deck-v4.1.apk
+          ls -lh ROR-Visual-Deck-v4.1.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.0-APK
-          path: ROR-Visual-Deck-v4.0.apk
+          name: ROR-Visual-Deck-v4.1-APK
+          path: ROR-Visual-Deck-v4.1.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -66,10 +66,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-v4.0-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.0.apk \
-            --title "Nanu ROR Visual Deck v4.0" \
-            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.0 resynchronises the sound signal player with its timeline. The playhead and flash lamp are now driven from the Web Audio clock rather than the wall clock and are offset by the output latency, so the cursor follows what is audible instead of what has merely been scheduled; playback also waits for the AudioContext to actually resume, which on Android leaves the audio clock frozen and previously let the cursor run ahead of the sound. The timeline length now ends at the last blast instead of overshooting it by the trailing inter-blast gap. v4.0 pins the Sound & Light 'Selected sequence' panel below the top bar so the timeline and playhead stay visible while scrolling the signal list. v4.0 also targets Android 16 (API 36), which Google Play requires for new app submissions from 31 Aug 2026; this moves AGP to 8.13.0 and Gradle to 8.13 because AGP 8.7.x cannot compile against API 36. v4.0 renames the app to Nanu ROR Visual Deck and hardens the in-app purchase path: the billing client now reconnects with backoff when Play drops the connection (previously it stayed dead for the rest of the process, so the paywall never got a price and entitlements never restored); a failed purchase query no longer revokes a paying customer's unlock; pending payments such as cash or bank transfer are now reported instead of appearing to fail silently; and a failed acknowledgement is retried, since Google auto-refunds purchases left unacknowledged for three days. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
+          TAG="ror-visual-deck-v4.1-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.1.apk \
+            --title "Nanu ROR Visual Deck v4.1" \
+            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.1 fixes the in-app purchase failure paths, all of which were silent. A failed billing setup was swallowed whole: no message, no retry, and a client that stayed dead for the life of the process, so the paywall showed an empty price box forever with nothing for the buyer to act on. A product query that returned no product - the usual symptom of a product ID that does not match Play Console, an inactive product, or a build not installed from Play - was equally silent. Both now report a specific reason in place of the price, and retry only where retrying can help. Tapping Unlock used to answer 'store connection not ready, try again in a moment' regardless of cause, sending buyers after a network problem that was really a store configuration one; it now repeats the real reason. ITEM_ALREADY_OWNED, which is what Play returns after a reinstall on the same account, was reported as a failed purchase to someone who had already paid; it now re-queries and restores the entitlement. Restore that finds nothing now says so instead of appearing to do nothing, and calling Restore on a live connection re-queries rather than tearing down a working client. v4.1 also fixes the release signing setup script, which could never have worked: it generated its password by piping /dev/urandom into 'head -c 32', so tr died of SIGPIPE and, under 'set -euo pipefail', the script exited on that line every time - before generating a key and before uploading a single secret, printing no error. It now reads a fixed number of bytes, verifies the keystore opens with the password it just set, byte-compares the base64 round-trip, confirms the authenticated account is a repo admin before doing anything, and reads the secrets back to prove all four landed at repository scope. The workflow's secret check now names each missing secret rather than reporting a single boolean. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
             --latest
 
   verify-release-build:
@@ -130,7 +130,7 @@ jobs:
           rm -f "$ROR_RELEASE_KEYSTORE_PATH" ror-colreg/app/build/outputs/bundle/release/app-release.aab
 
   check-release-secret:
-    name: Check for release signing secret
+    name: Check for release signing secrets
     runs-on: ubuntu-latest
     # Also runs on workflow_dispatch so the release bundle can be re-triggered
     # from the Actions tab after adding or rotating the signing secrets,
@@ -139,15 +139,51 @@ jobs:
     outputs:
       has_secret: ${{ steps.check.outputs.has_secret }}
     steps:
-      - name: Check whether ROR_RELEASE_KEYSTORE_B64 is set
+      - name: Check whether the release signing secrets are set
         id: check
         env:
           ROR_RELEASE_KEYSTORE_B64: ${{ secrets.ROR_RELEASE_KEYSTORE_B64 }}
+          ROR_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ROR_RELEASE_KEYSTORE_PASSWORD }}
+          ROR_RELEASE_KEY_ALIAS: ${{ secrets.ROR_RELEASE_KEY_ALIAS }}
+          ROR_RELEASE_KEY_PASSWORD: ${{ secrets.ROR_RELEASE_KEY_PASSWORD }}
         run: |
-          if [ -n "$ROR_RELEASE_KEYSTORE_B64" ]; then
+          # Reports presence only - never a value, never a length. Knowing that three
+          # of four landed is the difference between "the script failed" and "the
+          # secrets went to the wrong scope", and the old single-secret gate could
+          # tell those apart only by guesswork.
+          missing=0
+          for name in ROR_RELEASE_KEYSTORE_B64 ROR_RELEASE_KEYSTORE_PASSWORD \
+                      ROR_RELEASE_KEY_ALIAS ROR_RELEASE_KEY_PASSWORD; do
+            if [ -n "${!name}" ]; then
+              echo "  present : $name"
+            else
+              echo "  MISSING : $name"
+              missing=$((missing + 1))
+            fi
+          done
+
+          if [ "$missing" -eq 0 ]; then
             echo "has_secret=true" >> "$GITHUB_OUTPUT"
+            echo "All four signing secrets are visible to Actions."
           else
             echo "has_secret=false" >> "$GITHUB_OUTPUT"
+            echo
+            echo "$missing of 4 signing secrets are not visible to this workflow."
+            echo "The signed .aab job will be skipped."
+            echo
+            if [ "$missing" -eq 4 ]; then
+              echo "None are visible at all. The usual causes, in order of likelihood:"
+              echo "  1. They were added under Settings > Secrets and variables >"
+              echo "     Actions > *Environment secrets* rather than *Repository"
+              echo "     secrets*. Environment secrets only reach a job that declares"
+              echo "     that environment, and no job here does."
+              echo "  2. They were added under *Dependabot* secrets, which Actions"
+              echo "     cannot read."
+              echo "  3. gh was authenticated to a different account, so they landed"
+              echo "     on a fork or another repository of the same name."
+              echo "Run 'gh secret list --repo joyarnold16/NanuAPKCloud' to see what"
+              echo "actually exists at repository scope."
+            fi
           fi
 
   build-release-bundle:
@@ -199,15 +235,15 @@ jobs:
 
       - name: Prepare AAB
         run: |
-          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.0.aab
-          sha256sum ROR-Visual-Deck-v4.0.aab
-          ls -lh ROR-Visual-Deck-v4.0.aab
+          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.1.aab
+          sha256sum ROR-Visual-Deck-v4.1.aab
+          ls -lh ROR-Visual-Deck-v4.1.aab
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.0-AAB
-          path: ROR-Visual-Deck-v4.0.aab
+          name: ROR-Visual-Deck-v4.1-AAB
+          path: ROR-Visual-Deck-v4.1.aab
           if-no-files-found: error
           retention-days: 90
 
@@ -215,8 +251,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-release-v4.0-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.0.aab \
-            --title "Nanu ROR Visual Deck v4.0 (Play Store bundle)" \
+          TAG="ror-visual-deck-release-v4.1-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.1.aab \
+            --title "Nanu ROR Visual Deck v4.1 (Play Store bundle)" \
             --notes "Signed Android App Bundle (.aab) for Google Play Console upload. Not for direct installation on a device — use the debug APK from the other workflow run for that." \
             --latest=false
