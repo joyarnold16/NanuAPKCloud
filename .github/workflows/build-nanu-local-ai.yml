@@ -91,6 +91,18 @@ jobs:
           manifest.write_text(text)
           PY
 
+      - name: Validate generated Android manifest
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          manifest = Path('llama-upstream/examples/llama.android/app/src/main/AndroidManifest.xml')
+          ET.parse(manifest)
+          text = manifest.read_text()
+          assert 'android.permission.INTERNET' in text
+          print('AndroidManifest.xml is valid and INTERNET permission is present.')
+          PY
+
       - name: Build debug APK and AAB
         working-directory: llama-upstream/examples/llama.android
         run: |
