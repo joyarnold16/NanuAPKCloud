@@ -1,46 +1,42 @@
-# Nanu Local AI 1.0 RC1
+# Nanu Local AI 1.0 RC2
 
-Nanu Local AI is a private Android AI chat app that runs compatible GGUF language models directly on-device. The current release candidate keeps inference offline and does not require a cloud AI account or API key.
+Nanu Local AI is a private, on-device Android LLM app built around llama.cpp and GGUF models.
 
-## Product features
+## Proven core
 
-- Polished dark chat interface for phones and tablets
-- Local GGUF model import and app-private model storage
-- Model manager for switching between stored models
-- Automatic reopening of the last-used model
-- General, Coding, Study, and Maritime assistant modes
-- New Chat resets model conversation state
-- Streaming responses with Stop generation
-- Hidden Qwen `<think>` / internal-reasoning blocks in the visible UI
-- Copy actions on user and assistant messages
-- In-app Report action that opens an email draft for user-controlled reporting
-- Approximate generation token count, tokens/second, and elapsed time
-- Clear OFFLINE status and local-only model information
-- No cloud AI API key required
-- No Android INTERNET permission required by the local-inference build
+- Import GGUF models from Android storage.
+- Run inference locally on-device.
+- Stream generated text into the chat UI.
+- No cloud AI API key is required for inference.
+- Nanu's local inference does not require Android INTERNET permission.
 
-## Android target
+## Product UI
 
-- Application ID: `com.nanu.localai`
-- Target SDK: Android 16 / API 36
-- Current minimum SDK inherited from the upstream Android engine: API 33
-- Native ABI in the release-candidate build: `arm64-v8a`
+- Polished dark Nanu chat interface.
+- Visible OFFLINE status.
+- Model manager with stored-model switching and deletion.
+- Last-used model restore.
+- New Chat reset.
+- Stop generation.
+- Hidden `<think>...</think>` reasoning blocks.
+- Copy and Report actions.
+- General, Coding, Study and Maritime assistant modes.
+- Local generation statistics including approximate tokens/second and elapsed time.
 
-This means the app is not Samsung-specific. It is intended for modern ARM64 Android phones and tablets that meet the Android-version, RAM, and storage requirements of the selected model.
+## RC2 model discovery
 
-## Engine baseline
+The Models screen now detects total device RAM and presents a built-in recommended LLM catalog. It labels a best match for the device and shows download size, suggested RAM, expected speed, use case, license and notes before opening the model's Hugging Face page in the user's browser.
 
-The build uses the Android inference implementation from `ggml-org/llama.cpp`, pinned to commit `9a286ac98d2cab74231bd3f1fc3f2b8bdf05422e` for reproducibility.
+Initial suggestions:
 
-## Build outputs
+- Gemma 3 1B Instruct Q4_K_M — lightweight / lower-memory devices.
+- Qwen3 1.7B Q4_K_M — fast everyday balance and the first model proven on Nanu.
+- Qwen2.5 Coder 1.5B Instruct Q4_K_M — coding-focused option.
+- Qwen3 4B Q4_K_M — better quality on stronger devices.
+- Qwen3 8B Q4_K_M — advanced high-memory option; slower on Android CPU inference.
 
-GitHub Actions builds:
+Downloads happen outside Nanu in the browser. Users then return to Models and import the downloaded GGUF. This keeps the inference app itself offline-first and avoids silently downloading multi-gigabyte files.
 
-- `nanu-local-ai-v1.0-rc1.apk` for sideload/device testing
-- `nanu-local-ai-v1.0-rc1-debug.aab` to verify the Android App Bundle build path
+## Build
 
-A production Play Store AAB will use a dedicated release/upload signing key after device validation of this release candidate.
-
-## Privacy
-
-Prompts and generation stay on-device in this build. Model files are copied to app-private storage. The Report action only opens a user-visible email draft and sends nothing unless the user explicitly sends it.
+The GitHub Actions workflow produces an ARM64 debug APK and debug AAB for device validation. Production Play Store signing is intentionally kept separate until the release candidate is validated across multiple Android devices.
