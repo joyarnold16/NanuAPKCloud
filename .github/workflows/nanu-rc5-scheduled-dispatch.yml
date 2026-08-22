@@ -13,9 +13,11 @@ jobs:
   dispatch:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch final RC5 build
+      - name: Dispatch final RC5 build once
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh workflow run build-nanu-local-ai-main.yml --repo "$GITHUB_REPOSITORY" --ref main
           echo "Dispatched final Nanu Local AI RC5 build."
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/nanu-rc5-scheduled-dispatch.yml/disable"
+          echo "Disabled scheduled dispatcher after one dispatch."
