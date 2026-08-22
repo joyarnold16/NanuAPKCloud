@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/nanu_bg"
+    android:fillViewport="true"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/create_back"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="Back"
+                android:textColor="@color/nanu_accent_2" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Nanu Create"
+                android:textColor="@color/nanu_text"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <Space
+                android:layout_width="72dp"
+                android:layout_height="1dp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:text="Text-to-image • local stable-diffusion.cpp engine"
+            android:textColor="@color/nanu_muted"
+            android:textSize="12sp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="@color/nanu_panel"
+            app:cardCornerRadius="18dp"
+            app:strokeColor="@color/nanu_border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Image model"
+                    android:textColor="@color/nanu_accent_2"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/image_model_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/nanu_text"
+                    android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/image_model_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="12dp"
+                    android:text="Download image model"
+                    android:textAllCaps="false"
+                    android:textColor="@android:color/white"
+                    app:backgroundTint="@color/nanu_accent" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="Prompt"
+            android:textColor="@color/nanu_text"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/image_prompt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@color/nanu_input"
+            android:gravity="top|start"
+            android:hint="A cinematic mountain village at sunrise, detailed illustration…"
+            android:inputType="textCapSentences|textMultiLine"
+            android:maxLines="5"
+            android:minHeight="100dp"
+            android:padding="14dp"
+            android:textColor="@color/nanu_text"
+            android:textColorHint="@color/nanu_muted" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Negative prompt (optional)"
+            android:textColor="@color/nanu_text"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/image_negative_prompt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@color/nanu_input"
+            android:hint="blurry, low quality, distorted"
+            android:inputType="textCapSentences|textMultiLine"
+            android:maxLines="3"
+            android:minHeight="68dp"
+            android:padding="14dp"
+            android:textColor="@color/nanu_text"
+            android:textColorHint="@color/nanu_muted" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/generate_image_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="18dp"
+            android:enabled="false"
+            android:text="Generate 512 × 512"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
+            app:backgroundTint="@color/nanu_accent" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/cancel_image_button"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="Cancel generation"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_danger" />
+
+        <TextView
+            android:id="@+id/image_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:textColor="@color/nanu_muted"
+            android:textSize="12sp" />
+
+        <ImageView
+            android:id="@+id/generated_image"
+            android:layout_width="match_parent"
+            android:layout_height="360dp"
+            android:layout_marginTop="16dp"
+            android:adjustViewBounds="true"
+            android:contentDescription="Generated image"
+            android:scaleType="fitCenter"
+            android:visibility="invisible" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:text="The model is downloaded once from Hugging Face. After that, generation uses the bundled local image engine. CPU generation can take several minutes and may warm the device."
+            android:textColor="@color/nanu_muted"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+</ScrollView>
