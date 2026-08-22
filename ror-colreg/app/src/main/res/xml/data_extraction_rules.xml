@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (android:dataExtractionRules). Same reasoning as backup_rules.xml:
+  the billing cache is excluded from both cloud backup and direct device-to-device
+  transfer, while the user's learning record is preserved.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="ror_billing.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="ror_billing.xml" />
+    </device-transfer>
+</data-extraction-rules>

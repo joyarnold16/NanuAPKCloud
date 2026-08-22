@@ -49,15 +49,15 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.1.apk
-          sha256sum ROR-Visual-Deck-v4.1.apk
-          ls -lh ROR-Visual-Deck-v4.1.apk
+          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.2.apk
+          sha256sum ROR-Visual-Deck-v4.2.apk
+          ls -lh ROR-Visual-Deck-v4.2.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.1-APK
-          path: ROR-Visual-Deck-v4.1.apk
+          name: ROR-Visual-Deck-v4.2-APK
+          path: ROR-Visual-Deck-v4.2.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -66,10 +66,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-v4.1-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.1.apk \
-            --title "Nanu ROR Visual Deck v4.1" \
-            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.1 fixes the in-app purchase failure paths, all of which were silent. A failed billing setup was swallowed whole: no message, no retry, and a client that stayed dead for the life of the process, so the paywall showed an empty price box forever with nothing for the buyer to act on. A product query that returned no product - the usual symptom of a product ID that does not match Play Console, an inactive product, or a build not installed from Play - was equally silent. Both now report a specific reason in place of the price, and retry only where retrying can help. Tapping Unlock used to answer 'store connection not ready, try again in a moment' regardless of cause, sending buyers after a network problem that was really a store configuration one; it now repeats the real reason. ITEM_ALREADY_OWNED, which is what Play returns after a reinstall on the same account, was reported as a failed purchase to someone who had already paid; it now re-queries and restores the entitlement. Restore that finds nothing now says so instead of appearing to do nothing, and calling Restore on a live connection re-queries rather than tearing down a working client. v4.1 also fixes the release signing setup script, which could never have worked: it generated its password by piping /dev/urandom into 'head -c 32', so tr died of SIGPIPE and, under 'set -euo pipefail', the script exited on that line every time - before generating a key and before uploading a single secret, printing no error. It now reads a fixed number of bytes, verifies the keystore opens with the password it just set, byte-compares the base64 round-trip, confirms the authenticated account is a repo admin before doing anything, and reads the secrets back to prove all four landed at repository scope. The workflow's secret check now names each missing secret rather than reporting a single boolean. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
+          TAG="ror-visual-deck-v4.2-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.2.apk \
+            --title "Nanu ROR Visual Deck v4.2" \
+            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.2 stops the premium unlock leaking through Android backup. The app declared allowBackup with no backup rules, so the ror_billing preferences - which cache premium_unlocked - were included in Auto Backup and in device-to-device transfer. That flag caches a Play entitlement rather than recording user data, so carrying it in an archive unlocks the app where no purchase exists: restore onto a device signed into another Google account and premium comes with it, and a refunded purchase stays unlocked. Both the Android 12+ dataExtractionRules and the older fullBackupContent now exclude that one file. Nothing the user created is affected - exam history, topic accuracy, flashcard ratings and favourites all live in the WebView store and are backed up as before - and a real buyer loses nothing, because queryPurchasesAsync restores a genuine entitlement from Play on every start. v4.2 also makes CI inspect the release bundle rather than only compile it. Every run now unpacks the AAB and checks that the bundled web app is byte-identical to the source tree, that the billing product id is present in the dex, that the backup exclusion rules are packaged, and that the bundle is genuinely signed - the last of these by looking for the signature block and jarsigner's verdict, because jarsigner's exit code is 0 for a completely unsigned jar and non-zero for a correctly signed one with a self-signed chain. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
             --latest
 
   verify-release-build:
@@ -122,12 +122,74 @@ jobs:
         working-directory: ror-colreg
         run: gradle --no-daemon clean bundleRelease --stacktrace
 
-      - name: Report bundle and discard
+      - name: Inspect the release bundle
+        working-directory: ror-colreg
         run: |
-          ls -lh ror-colreg/app/build/outputs/bundle/release/app-release.aab
+          # Compiling proves the build works. It does not prove the bundle
+          # contains what is supposed to ship, and the release artifact is the
+          # one nobody opens until Play rejects it.
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          ls -lh "$AAB"
+          WORK="$RUNNER_TEMP/aab"
+          rm -rf "$WORK"; mkdir -p "$WORK"
+          unzip -q "$AAB" -d "$WORK"
+
+          fail=0
+          ok()  { echo "  ok   $1"; }
+          bad() { echo "  FAIL $1"; fail=1; }
+
+          # The web app is the product. Confirm the bundle ships the file that
+          # is in git rather than a stale copy from an earlier build.
+          if cmp -s app/src/main/assets/index.html "$WORK/base/assets/index.html"; then
+            ok "assets/index.html matches the source tree"
+          else
+            bad "assets/index.html in the bundle differs from the source tree"
+          fi
+
+          # A paywall whose product id did not ship can never show a price.
+          if grep -qa ror_premium_unlock "$WORK"/base/dex/classes*.dex; then
+            ok "billing product id ror_premium_unlock is present"
+          else
+            bad "ror_premium_unlock is in no dex in the bundle"
+          fi
+
+          # premium_unlocked caches a Play entitlement. Carried in a backup it
+          # unlocks the app on an account that never bought it.
+          backup_rules="$(find "$WORK/base/res" -name '*backup_rules*')"
+          extract_rules="$(find "$WORK/base/res" -name '*data_extraction_rules*')"
+          if [ -n "$backup_rules" ] && [ -n "$extract_rules" ]; then
+            ok "backup exclusion rules are packaged"
+          else
+            bad "backup exclusion rules are missing from the bundle"
+          fi
+
+          # Signing this with a throwaway key is the only reason the key exists.
+          # Not by jarsigner's exit code: it returns 0 for a completely unsigned
+          # jar and 4 for a correctly signed one whose self-signed chain it will
+          # not vouch for, which is exactly backwards here. Check the signature
+          # block is present and that jarsigner says it verified.
+          sigblock="$(find "$WORK/META-INF" -maxdepth 1 \
+                      \( -name '*.RSA' -o -name '*.DSA' -o -name '*.EC' \) 2>/dev/null)"
+          if [ -n "$sigblock" ] && jarsigner -verify "$AAB" 2>/dev/null | grep -q 'jar verified'; then
+            ok "bundle carries a valid signature"
+          else
+            bad "bundle is not signed, or its signature does not verify"
+          fi
+
+          echo
+          if [ "$fail" -ne 0 ]; then
+            echo "The release bundle is not shippable. See the FAIL lines above."
+            exit 1
+          fi
           echo "Release build path is sound."
           echo "This bundle is signed with a disposable CI key and is deliberately not uploaded."
-          rm -f "$ROR_RELEASE_KEYSTORE_PATH" ror-colreg/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Discard the disposable key and bundle
+        if: always()
+        run: |
+          rm -rf "$ROR_RELEASE_KEYSTORE_PATH" \
+                 ror-colreg/app/build/outputs/bundle/release/app-release.aab \
+                 "$RUNNER_TEMP/aab"
 
   check-release-secret:
     name: Check for release signing secrets
@@ -235,15 +297,15 @@ jobs:
 
       - name: Prepare AAB
         run: |
-          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.1.aab
-          sha256sum ROR-Visual-Deck-v4.1.aab
-          ls -lh ROR-Visual-Deck-v4.1.aab
+          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.2.aab
+          sha256sum ROR-Visual-Deck-v4.2.aab
+          ls -lh ROR-Visual-Deck-v4.2.aab
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.1-AAB
-          path: ROR-Visual-Deck-v4.1.aab
+          name: ROR-Visual-Deck-v4.2-AAB
+          path: ROR-Visual-Deck-v4.2.aab
           if-no-files-found: error
           retention-days: 90
 
@@ -251,8 +313,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-release-v4.1-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.1.aab \
-            --title "Nanu ROR Visual Deck v4.1 (Play Store bundle)" \
+          TAG="ror-visual-deck-release-v4.2-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.2.aab \
+            --title "Nanu ROR Visual Deck v4.2 (Play Store bundle)" \
             --notes "Signed Android App Bundle (.aab) for Google Play Console upload. Not for direct installation on a device — use the debug APK from the other workflow run for that." \
             --latest=false
