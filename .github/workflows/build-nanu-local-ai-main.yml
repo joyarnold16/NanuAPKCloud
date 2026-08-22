@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Nanu Local AI 1.0 RC2
+    name: Build Nanu Local AI 1.0 RC3
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -66,6 +66,7 @@ jobs:
           cp nanu-local-ai/app/MainActivity.kt "$APP/java/com/example/llama/MainActivity.kt"
           cp nanu-local-ai/app/MessageAdapter.kt "$APP/java/com/example/llama/MessageAdapter.kt"
           cp nanu-local-ai/app/ModelCatalog.kt "$APP/java/com/example/llama/ModelCatalog.kt"
+          cp nanu-local-ai/app/ModelDownloadManager.kt "$APP/java/com/example/llama/ModelDownloadManager.kt"
 
           python3 - <<'PY'
           from pathlib import Path
@@ -73,8 +74,8 @@ jobs:
           app_gradle = Path('llama-upstream/examples/llama.android/app/build.gradle.kts')
           text = app_gradle.read_text()
           text = text.replace('applicationId = "com.example.llama.aichat"', 'applicationId = "com.nanu.localai"')
-          text = text.replace('versionCode = 1', 'versionCode = 11')
-          text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc2"')
+          text = text.replace('versionCode = 1', 'versionCode = 12')
+          text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc3"')
           app_gradle.write_text(text)
 
           lib_gradle = Path('llama-upstream/examples/llama.android/lib/build.gradle.kts')
@@ -84,6 +85,9 @@ jobs:
 
           manifest = Path('llama-upstream/examples/llama.android/app/src/main/AndroidManifest.xml')
           text = manifest.read_text()
+          if 'android.permission.INTERNET' not in text:
+              insert_at = text.find('>') + 1
+              text = text[:insert_at] + '\n    <uses-permission android:name="android.permission.INTERNET" />' + text[insert_at:]
           text = text.replace(
               'android:name=".MainActivity"\n            android:exported="true"',
               'android:name=".MainActivity"\n            android:configChanges="orientation|screenSize|keyboardHidden"\n            android:windowSoftInputMode="adjustResize"\n            android:exported="true"'
@@ -100,14 +104,14 @@ jobs:
       - name: Prepare build artifacts
         run: |
           mkdir -p out
-          cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc2.apk
-          cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc2-debug.aab
+          cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc3.apk
+          cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc3-debug.aab
           sha256sum out/* | tee out/SHA256SUMS.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nanu-local-ai-v1.0-rc2
+          name: nanu-local-ai-v1.0-rc3
           path: out/*
           if-no-files-found: error
           retention-days: 14
