@@ -43,6 +43,19 @@ object ModelCatalog {
             licenseLabel = "Apache-2.0"
         ),
         RecommendedModel(
+            id = "qwen2.5-coder-1.5b-q4km",
+            name = "Qwen2.5 Coder 1.5B Instruct",
+            quant = "Q4_K_M",
+            sizeLabel = "1.12 GB",
+            minimumRamGb = 6,
+            speedLabel = "Fast",
+            useCase = "Dedicated coding",
+            notes = "A coding-focused model for Python, scripts, debugging and code explanation. Nanu prioritizes this model when Coding mode is selected on a compatible device.",
+            pageUrl = "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/blob/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+            fileName = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+            licenseLabel = "Apache-2.0"
+        ),
+        RecommendedModel(
             id = "qwen3-4b-q4km",
             name = "Qwen3 4B",
             quant = "Q4_K_M",
@@ -70,9 +83,14 @@ object ModelCatalog {
         )
     )
 
-    fun bestForRam(totalRamGb: Double): RecommendedModel = when {
-        totalRamGb >= 10.0 -> models.first { it.id == "qwen3-4b-q4km" }
-        totalRamGb >= 6.0 -> models.first { it.id == "qwen3-1.7b-q4km" }
-        else -> models.first { it.id == "gemma3-1b-q4km" }
+    fun bestForRam(totalRamGb: Double, modeId: String? = null): RecommendedModel {
+        if (modeId == "coding" && totalRamGb >= 6.0) {
+            return models.first { it.id == "qwen2.5-coder-1.5b-q4km" }
+        }
+        return when {
+            totalRamGb >= 10.0 -> models.first { it.id == "qwen3-4b-q4km" }
+            totalRamGb >= 6.0 -> models.first { it.id == "qwen3-1.7b-q4km" }
+            else -> models.first { it.id == "gemma3-1b-q4km" }
+        }
     }
 }
