@@ -38,7 +38,8 @@ test -s sd-build/bin/sd-cli
 
 APP="llama-upstream/examples/llama.android/app/src/main"
 JAVA="$APP/java/com/example/llama"
-mkdir -p "$APP/res/drawable" "$APP/jniLibs/arm64-v8a"
+NATIVE_DIR="$APP/jniLibs/arm64-v8a"
+mkdir -p "$APP/res/drawable" "$NATIVE_DIR"
 
 cp nanu-local-ai/strings.xml "$APP/res/values/strings.xml"
 cp nanu-local-ai/res/values/colors.xml "$APP/res/values/colors.xml"
@@ -65,9 +66,23 @@ for src in \
   cp "nanu-local-ai/app/$src" "$JAVA/$src"
 done
 
-# Package the CLI under lib/ so Android installs it in the native library directory.
-cp sd-build/bin/sd-cli "$APP/jniLibs/arm64-v8a/libsd.so"
-chmod 755 "$APP/jniLibs/arm64-v8a/libsd.so"
+# Package the stable-diffusion CLI under lib/ so Android installs it in the
+# app native-library directory. Because the engine is built with c++_shared,
+# its NDK C++ runtime MUST be packaged beside it. RC5 omitted this file, which
+# caused Android's linker to abort before the image model could even load.
+cp sd-build/bin/sd-cli "$NATIVE_DIR/libsd.so"
+chmod 755 "$NATIVE_DIR/libsd.so"
+
+CXX_SHARED="$ANDROID_SDK_ROOT/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
+test -s "$CXX_SHARED"
+cp "$CXX_SHARED" "$NATIVE_DIR/libc++_shared.so"
+
+# Fail early if the engine declares libc++_shared.so but the runtime was not
+# bundled. This prevents a build from being marked successful while Create is
+# guaranteed to fail on-device.
+if readelf -d "$NATIVE_DIR/libsd.so" | grep -q 'libc++_shared.so'; then
+  test -s "$NATIVE_DIR/libc++_shared.so"
+fi
 
 python3 <<'PY'
 from pathlib import Path
@@ -76,8 +91,8 @@ import re
 app_gradle = Path('llama-upstream/examples/llama.android/app/build.gradle.kts')
 text = app_gradle.read_text()
 text = text.replace('applicationId = "com.example.llama.aichat"', 'applicationId = "com.nanu.localai"')
-text = text.replace('versionCode = 1', 'versionCode = 15')
-text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc5"')
+text = text.replace('versionCode = 1', 'versionCode = 16')
+text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc5.1"')
 app_gradle.write_text(text)
 
 lib_gradle = Path('llama-upstream/examples/llama.android/lib/build.gradle.kts')
@@ -144,7 +159,6 @@ replacement = r'''    private fun showRecommendedModelCatalog(ramGb: Double) {
 
 pattern = r'    private fun showRecommendedModelCatalog\(ramGb: Double\) \{.*?\n    \}\n\n    private fun showModelSuggestionDetail'
 replacement_text = replacement + '\n    private fun showModelSuggestionDetail'
-# Use a callable replacement so Python's regex engine does not reinterpret Kotlin escapes such as \n.
 patched, count = re.subn(pattern, lambda _: replacement_text, text, count=1, flags=re.S)
 if count != 1:
     raise SystemExit('Could not patch recommended model catalog dialog')
@@ -211,9 +225,12 @@ assert 'Choose a task' in main
 assert 'showRecommendedModelsForTask' in main
 assert 'Download in Nanu' in main
 
-native = Path('llama-upstream/examples/llama.android/app/src/main/jniLibs/arm64-v8a/libsd.so')
-assert native.exists() and native.stat().st_size > 1_000_000
-print('RC5 source validation passed.')
+native_dir = Path('llama-upstream/examples/llama.android/app/src/main/jniLibs/arm64-v8a')
+engine = native_dir / 'libsd.so'
+cxx = native_dir / 'libc++_shared.so'
+assert engine.exists() and engine.stat().st_size > 1_000_000
+assert cxx.exists() and cxx.stat().st_size > 100_000
+print('RC5.1 source validation passed.')
 PY
 
 (
@@ -223,6 +240,24 @@ PY
 )
 
 mkdir -p out
-cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc5.apk
-cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc5-debug.aab
+cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc5.1.apk
+cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc5.1-debug.aab
+
+# Validate the packaged APK, not only the source tree. This catches jniLibs or
+# Gradle packaging regressions before an artifact is published.
+python3 <<'PY'
+from zipfile import ZipFile
+apk = 'out/nanu-local-ai-v1.0-rc5.1.apk'
+with ZipFile(apk) as z:
+    names = set(z.namelist())
+required = {
+    'lib/arm64-v8a/libsd.so',
+    'lib/arm64-v8a/libc++_shared.so',
+}
+missing = required - names
+if missing:
+    raise SystemExit(f'APK native runtime validation failed; missing: {sorted(missing)}')
+print('RC5.1 packaged native runtime validation passed.')
+PY
+
 sha256sum out/* | tee out/SHA256SUMS.txt
