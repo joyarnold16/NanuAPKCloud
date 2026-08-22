@@ -222,19 +222,17 @@ class CreateActivity : NanuBaseActivity() {
                     "-H", "512",
                     "--vae-tiling"
                 )
-                if (negative.isNotBlank()) {
-                    cmd += listOf("-n", negative)
-                }
+                if (negative.isNotBlank()) cmd += listOf("-n", negative)
 
-                val processBuilder = ProcessBuilder(cmd)
-                    .redirectErrorStream(true)
+                val processBuilder = ProcessBuilder(cmd).redirectErrorStream(true)
                 processBuilder.environment()["LD_LIBRARY_PATH"] = applicationInfo.nativeLibraryDir
                 processBuilder.environment()["TMPDIR"] = cacheDir.absolutePath
 
                 val process = processBuilder.start()
                 var lastUseful = "Loading image model…"
-                process.inputStream.bufferedReader().useLines { lines ->
-                    lines.forEach { line ->
+                process.inputStream.bufferedReader().use { reader ->
+                    while (true) {
+                        val line = reader.readLine() ?: break
                         if (line.isNotBlank()) {
                             lastUseful = line.takeLast(180)
                             withContext(Dispatchers.Main) {
