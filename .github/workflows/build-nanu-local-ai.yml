@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Nanu Local AI 1.0 RC3
+    name: Build Nanu Local AI 1.0 RC4
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -50,15 +50,21 @@ jobs:
       - name: Apply Nanu Local AI product UI
         run: |
           APP=llama-upstream/examples/llama.android/app/src/main
+          JAVA=$APP/java/com/example/llama
           cp nanu-local-ai/strings.xml "$APP/res/values/strings.xml"
           cp nanu-local-ai/res/values/colors.xml "$APP/res/values/colors.xml"
           cp nanu-local-ai/res/layout/activity_main.xml "$APP/res/layout/activity_main.xml"
+          cp nanu-local-ai/res/layout/activity_trading.xml "$APP/res/layout/activity_trading.xml"
           cp nanu-local-ai/res/layout/item_message_assistant.xml "$APP/res/layout/item_message_assistant.xml"
           cp nanu-local-ai/res/layout/item_message_user.xml "$APP/res/layout/item_message_user.xml"
-          cp nanu-local-ai/app/MainActivity.kt "$APP/java/com/example/llama/MainActivity.kt"
-          cp nanu-local-ai/app/MessageAdapter.kt "$APP/java/com/example/llama/MessageAdapter.kt"
-          cp nanu-local-ai/app/ModelCatalog.kt "$APP/java/com/example/llama/ModelCatalog.kt"
-          cp nanu-local-ai/app/ModelDownloadManager.kt "$APP/java/com/example/llama/ModelDownloadManager.kt"
+          cp nanu-local-ai/app/MainActivity.kt "$JAVA/MainActivity.kt"
+          cp nanu-local-ai/app/MessageAdapter.kt "$JAVA/MessageAdapter.kt"
+          cp nanu-local-ai/app/ModelCatalog.kt "$JAVA/ModelCatalog.kt"
+          cp nanu-local-ai/app/ModelDownloadManager.kt "$JAVA/ModelDownloadManager.kt"
+          cp nanu-local-ai/app/NanuBaseActivity.kt "$JAVA/NanuBaseActivity.kt"
+          cp nanu-local-ai/app/TradingActivity.kt "$JAVA/TradingActivity.kt"
+          cp nanu-local-ai/app/TradingEngine.kt "$JAVA/TradingEngine.kt"
+          cp nanu-local-ai/app/MarketSnapshotClient.kt "$JAVA/MarketSnapshotClient.kt"
 
           python3 - <<'PY'
           from pathlib import Path
@@ -66,14 +72,19 @@ jobs:
           app_gradle = Path('llama-upstream/examples/llama.android/app/build.gradle.kts')
           text = app_gradle.read_text()
           text = text.replace('applicationId = "com.example.llama.aichat"', 'applicationId = "com.nanu.localai"')
-          text = text.replace('versionCode = 1', 'versionCode = 12')
-          text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc3"')
+          text = text.replace('versionCode = 1', 'versionCode = 13')
+          text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc4"')
           app_gradle.write_text(text)
 
           lib_gradle = Path('llama-upstream/examples/llama.android/lib/build.gradle.kts')
           text = lib_gradle.read_text()
           text = text.replace('abiFilters += listOf("arm64-v8a", "x86_64")', 'abiFilters += listOf("arm64-v8a")')
           lib_gradle.write_text(text)
+
+          main = Path('llama-upstream/examples/llama.android/app/src/main/java/com/example/llama/MainActivity.kt')
+          text = main.read_text()
+          text = text.replace('class MainActivity : AppCompatActivity() {', 'class MainActivity : NanuBaseActivity() {', 1)
+          main.write_text(text)
 
           manifest = Path('llama-upstream/examples/llama.android/app/src/main/AndroidManifest.xml')
           text = manifest.read_text()
@@ -84,6 +95,14 @@ jobs:
                   manifest_open + '\n\n    <uses-permission android:name="android.permission.INTERNET" />',
                   1
               )
+          if 'android:name=".TradingActivity"' not in text:
+              main_marker = '        <activity\n            android:name=".MainActivity"'
+              trading = (
+                  '        <activity\n'
+                  '            android:name=".TradingActivity"\n'
+                  '            android:exported="false" />\n\n'
+              )
+              text = text.replace(main_marker, trading + main_marker, 1)
           text = text.replace(
               'android:name=".MainActivity"\n            android:exported="true"',
               'android:name=".MainActivity"\n            android:configChanges="orientation|screenSize|keyboardHidden"\n            android:windowSoftInputMode="adjustResize"\n            android:exported="true"'
@@ -100,7 +119,8 @@ jobs:
           ET.parse(manifest)
           text = manifest.read_text()
           assert 'android.permission.INTERNET' in text
-          print('AndroidManifest.xml is valid and INTERNET permission is present.')
+          assert 'android:name=".TradingActivity"' in text
+          print('AndroidManifest.xml is valid; INTERNET permission and TradingActivity are present.')
           PY
 
       - name: Build debug APK and AAB
@@ -112,14 +132,14 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p out
-          cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc3.apk
-          cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc3-debug.aab
+          cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc4.apk
+          cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc4-debug.aab
           sha256sum out/* | tee out/SHA256SUMS.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nanu-local-ai-v1.0-rc3
+          name: nanu-local-ai-v1.0-rc4
           path: out/*
           if-no-files-found: error
           retention-days: 14
