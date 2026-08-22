@@ -1,0 +1,23 @@
+name: Dispatch Nanu RC5 on Comment
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    if: github.event.issue.pull_request && github.event.issue.number == 6 && contains(github.event.comment.body, '/build-rc5')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch final RC5 build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build-nanu-local-ai-main.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main
+          echo "RC5 build dispatched from PR comment."
