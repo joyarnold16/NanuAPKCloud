@@ -1,4 +1,4 @@
-# Nanu Local AI 1.0 RC4
+# Nanu Local AI 1.0 RC4.1
 
 Nanu Local AI is a private, on-device Android AI app built around llama.cpp, GGUF models, and local-first specialist tools.
 
@@ -12,7 +12,8 @@ Nanu Local AI is a private, on-device Android AI app built around llama.cpp, GGU
 ## Product UI
 
 - Polished dark Nanu chat interface.
-- Visible OFFLINE/local status for the local inference path.
+- Visible LOCAL AI status for the on-device inference path.
+- Custom Nanu launcher icon.
 - Model manager with stored-model switching and deletion.
 - Last-used model restore.
 - New Chat reset.
@@ -23,9 +24,19 @@ Nanu Local AI is a private, on-device Android AI app built around llama.cpp, GGU
 - Local generation statistics including approximate tokens/second and elapsed time.
 - Dedicated Trading entry for the Nanu Trading Lab.
 
-## In-app model catalog and downloads
+## RC4.1 task-based model picker
 
-The Models screen detects total device RAM and presents a built-in recommended LLM catalog. It labels the best match for the device and current assistant mode, and shows download size, suggested RAM, expected speed, use case, license and notes.
+RC4.1 fixes the recommended-model dialog issue seen on-device, where the explanatory message appeared but the model rows did not. The Models flow now first asks what task the user wants Nanu to perform, then shows compatible downloadable LLMs for that task.
+
+Task choices currently include:
+
+- Everyday chat.
+- Coding.
+- Study.
+- Maritime.
+- Trading analysis.
+
+The best match is shown first based on task and detected RAM. The user can then open the model details and download the GGUF directly inside Nanu.
 
 Initial suggestions:
 
@@ -35,7 +46,7 @@ Initial suggestions:
 - Qwen3 4B Q4_K_M — better quality on stronger devices.
 - Qwen3 8B Q4_K_M — advanced high-memory option; slower on Android CPU inference.
 
-Recommended models can be downloaded directly inside Nanu Local AI. Android DownloadManager handles the transfer so a large download can continue in the background. Nanu displays progress, allows cancellation/hiding, checks free storage before starting, validates the GGUF file signature after completion, stores the model in app-owned storage, and automatically loads it when ready. An optional Source / license button still opens the upstream model page.
+Recommended models are downloaded with Android DownloadManager, can continue in the background, and are stored in app-owned storage. Nanu shows progress, supports hide/cancel, checks free space before starting, verifies the GGUF signature, and automatically loads the model when ready.
 
 Because Nanu can download model files and optional market snapshots, the app requests Android INTERNET permission. LLM inference and the deterministic Trading Lab calculations remain on-device.
 
@@ -43,7 +54,7 @@ Users can still import their own compatible GGUF models manually.
 
 ## RC4 Nanu Trading Lab
 
-RC4 adds a dedicated Forex + Crypto workspace. The important design rule is that indicator values and chart-pattern heuristics are calculated by deterministic Kotlin code rather than guessed by the LLM.
+RC4 adds a dedicated Forex + Crypto workspace. Indicator values and chart-pattern heuristics are calculated by deterministic Kotlin code rather than guessed by the LLM.
 
 Trading Lab includes:
 
