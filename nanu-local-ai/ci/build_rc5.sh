@@ -91,8 +91,8 @@ import re
 app_gradle = Path('llama-upstream/examples/llama.android/app/build.gradle.kts')
 text = app_gradle.read_text()
 text = text.replace('applicationId = "com.example.llama.aichat"', 'applicationId = "com.nanu.localai"')
-text = text.replace('versionCode = 1', 'versionCode = 16')
-text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc5.1"')
+text = text.replace('versionCode = 1', 'versionCode = 17')
+text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc5.2"')
 app_gradle.write_text(text)
 
 lib_gradle = Path('llama-upstream/examples/llama.android/lib/build.gradle.kts')
@@ -225,12 +225,21 @@ assert 'Choose a task' in main
 assert 'showRecommendedModelsForTask' in main
 assert 'Download in Nanu' in main
 
+talk_layout = Path('llama-upstream/examples/llama.android/app/src/main/res/layout/activity_talk.xml').read_text()
+talk_code = Path('llama-upstream/examples/llama.android/app/src/main/java/com/example/llama/TalkActivity.kt').read_text()
+trading_layout = Path('llama-upstream/examples/llama.android/app/src/main/res/layout/activity_trading.xml').read_text()
+assert 'test_voice_button' in talk_layout
+assert 'isLanguageAvailable' in talk_code
+assert 'trying installed speech service' in talk_code
+assert 'Nanu Markets' in trading_layout
+assert 'Advanced chart analysis' in trading_layout
+
 native_dir = Path('llama-upstream/examples/llama.android/app/src/main/jniLibs/arm64-v8a')
 engine = native_dir / 'libsd.so'
 cxx = native_dir / 'libc++_shared.so'
 assert engine.exists() and engine.stat().st_size > 1_000_000
 assert cxx.exists() and cxx.stat().st_size > 100_000
-print('RC5.1 source validation passed.')
+print('RC5.2 source validation passed.')
 PY
 
 (
@@ -240,14 +249,14 @@ PY
 )
 
 mkdir -p out
-cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc5.1.apk
-cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc5.1-debug.aab
+cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc5.2.apk
+cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc5.2-debug.aab
 
 # Validate the packaged APK, not only the source tree. This catches jniLibs or
 # Gradle packaging regressions before an artifact is published.
 python3 <<'PY'
 from zipfile import ZipFile
-apk = 'out/nanu-local-ai-v1.0-rc5.1.apk'
+apk = 'out/nanu-local-ai-v1.0-rc5.2.apk'
 with ZipFile(apk) as z:
     names = set(z.namelist())
 required = {
@@ -257,7 +266,7 @@ required = {
 missing = required - names
 if missing:
     raise SystemExit(f'APK native runtime validation failed; missing: {sorted(missing)}')
-print('RC5.1 packaged native runtime validation passed.')
+print('RC5.2 packaged native runtime validation passed.')
 PY
 
 sha256sum out/* | tee out/SHA256SUMS.txt
