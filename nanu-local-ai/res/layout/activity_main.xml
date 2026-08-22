@@ -46,7 +46,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Private AI • runs on your device"
+                        android:text="Private AI • on-device inference"
                         android:textColor="@color/nanu_muted"
                         android:textSize="12sp" />
                 </LinearLayout>
@@ -54,7 +54,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="● OFFLINE"
+                    android:text="● LOCAL AI"
                     android:textColor="@color/nanu_success"
                     android:textStyle="bold"
                     android:textSize="12sp" />
@@ -99,14 +99,12 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
+            android:orientation="vertical"
             android:padding="14dp">
 
             <LinearLayout
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:orientation="vertical">
 
                 <TextView
@@ -123,7 +121,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
-                    android:text="Import any compatible GGUF model"
+                    android:text="Download a recommended model or import GGUF"
                     android:textColor="@color/nanu_muted"
                     android:textSize="11sp" />
 
@@ -137,33 +135,68 @@
                     android:textSize="11sp" />
             </LinearLayout>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/trading_button"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:onClick="openTrading"
-                android:text="Trading"
-                android:textAllCaps="false"
-                android:textColor="@color/nanu_success" />
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:fillViewport="false"
+                android:scrollbars="none">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/mode_button"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:text="Mode"
-                android:textColor="@color/nanu_text" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/models_button"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:layout_marginStart="6dp"
-                android:text="Models"
-                android:textAllCaps="false"
-                android:textColor="@android:color/white"
-                app:backgroundTint="@color/nanu_accent" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/talk_nav_button"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:onClick="openTalk"
+                        android:text="Talk"
+                        android:textAllCaps="false"
+                        android:textColor="@color/nanu_accent_2" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/create_nav_button"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:onClick="openCreate"
+                        android:text="Create"
+                        android:textAllCaps="false"
+                        android:textColor="@color/nanu_accent_2" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/trading_button"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:onClick="openTrading"
+                        android:text="Trading"
+                        android:textAllCaps="false"
+                        android:textColor="@color/nanu_success" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/mode_button"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:text="Mode"
+                        android:textColor="@color/nanu_text" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/models_button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:layout_marginStart="6dp"
+                        android:text="Models"
+                        android:textAllCaps="false"
+                        android:textColor="@android:color/white"
+                        app:backgroundTint="@color/nanu_accent" />
+                </LinearLayout>
+            </HorizontalScrollView>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
