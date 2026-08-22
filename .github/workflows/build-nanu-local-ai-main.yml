@@ -86,8 +86,12 @@ jobs:
           manifest = Path('llama-upstream/examples/llama.android/app/src/main/AndroidManifest.xml')
           text = manifest.read_text()
           if 'android.permission.INTERNET' not in text:
-              insert_at = text.find('>') + 1
-              text = text[:insert_at] + '\n    <uses-permission android:name="android.permission.INTERNET" />' + text[insert_at:]
+              manifest_open = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+              text = text.replace(
+                  manifest_open,
+                  manifest_open + '\n\n    <uses-permission android:name="android.permission.INTERNET" />',
+                  1
+              )
           text = text.replace(
               'android:name=".MainActivity"\n            android:exported="true"',
               'android:name=".MainActivity"\n            android:configChanges="orientation|screenSize|keyboardHidden"\n            android:windowSoftInputMode="adjustResize"\n            android:exported="true"'
