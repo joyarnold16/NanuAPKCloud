@@ -1,5 +1,5 @@
-run_id=32587886954
-run_number=67
-conclusion=success
-head_sha=4b758dcba944208305d5f1563f4d9302463c125c
-url=https://github.com/joyarnold16/NanuAPKCloud/actions/runs/32587886954
+run_id=32587870559
+run_number=66
+conclusion=failure
+head_sha=41cab21384e18c40d49ef340bd0a6569574a3b18
+url=https://github.com/joyarnold16/NanuAPKCloud/actions/runs/32587870559
