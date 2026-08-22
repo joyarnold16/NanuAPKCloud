@@ -1,0 +1,57 @@
+name: RC5 Build Dispatcher
+
+on:
+  push:
+    branches:
+      - feature/nanu-local-ai-v1
+    paths:
+      - '.github/workflows/rc5-feature-kick.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish dispatcher run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          repo = os.environ['GITHUB_REPOSITORY']
+          run_id = os.environ['GITHUB_RUN_ID']
+          raw = subprocess.check_output(['gh','api',f'repos/{repo}/pulls/6'], text=True)
+          data = json.loads(raw)
+          body = data.get('body') or ''
+          marker = '<!-- nanu-rc5-dispatcher-run -->'
+          lines = [ln for ln in body.splitlines() if marker not in ln]
+          body = '\n'.join(lines).rstrip() + f'\n\n{marker} RC5 dispatcher run: {run_id}'
+          subprocess.check_call(['gh','api','--method','PATCH',f'repos/{repo}/pulls/6','-f',f'body={body}'])
+          PY
+
+      - name: Dispatch actual RC5 build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build-nanu-local-ai.yml --repo "$GITHUB_REPOSITORY" --ref feature/nanu-local-ai-v1
+          sleep 8
+          BUILD_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build-nanu-local-ai.yml --branch feature/nanu-local-ai-v1 --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "$BUILD_ID"
+          echo "Actual RC5 build run: $BUILD_ID"
+          python3 - "$BUILD_ID" <<'PY'
+          import json, os, subprocess, sys
+          repo = os.environ['GITHUB_REPOSITORY']
+          build_id = sys.argv[1]
+          raw = subprocess.check_output(['gh','api',f'repos/{repo}/pulls/6'], text=True)
+          data = json.loads(raw)
+          body = data.get('body') or ''
+          marker = '<!-- nanu-rc5-active-run -->'
+          lines = [ln for ln in body.splitlines() if marker not in ln]
+          body = '\n'.join(lines).rstrip() + f'\n\n{marker} Active RC5 build run: {build_id}'
+          subprocess.check_call(['gh','api','--method','PATCH',f'repos/{repo}/pulls/6','-f',f'body={body}'])
+          PY
