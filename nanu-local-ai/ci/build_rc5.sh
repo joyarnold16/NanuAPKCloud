@@ -143,7 +143,9 @@ replacement = r'''    private fun showRecommendedModelCatalog(ramGb: Double) {
 '''
 
 pattern = r'    private fun showRecommendedModelCatalog\(ramGb: Double\) \{.*?\n    \}\n\n    private fun showModelSuggestionDetail'
-patched, count = re.subn(pattern, replacement + '\n    private fun showModelSuggestionDetail', text, count=1, flags=re.S)
+replacement_text = replacement + '\n    private fun showModelSuggestionDetail'
+# Use a callable replacement so Python's regex engine does not reinterpret Kotlin escapes such as \n.
+patched, count = re.subn(pattern, lambda _: replacement_text, text, count=1, flags=re.S)
 if count != 1:
     raise SystemExit('Could not patch recommended model catalog dialog')
 main.write_text(patched)
