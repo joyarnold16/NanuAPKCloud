@@ -1,3 +1,4 @@
 Nanu Local AI 1.0 RC5 integrated device-test candidate.
 Includes task-based in-app LLM downloads, Talk to Nanu, local image generation, Trading Lab, and custom launcher icon.
 Validation build trigger: 2026-08-22T02:34Z.
+Final APK handoff trigger.
