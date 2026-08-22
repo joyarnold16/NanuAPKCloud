@@ -50,7 +50,7 @@ object ModelCatalog {
             minimumRamGb = 6,
             speedLabel = "Fast",
             useCase = "Dedicated coding",
-            notes = "A coding-focused model for Python, scripts, debugging and code explanation. Nanu prioritizes this model when Coding mode is selected on a compatible device.",
+            notes = "A coding-focused model for Python, scripts, debugging and code explanation. A strong choice to pair with Nanu's Coding mode.",
             pageUrl = "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/blob/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
             fileName = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
             licenseLabel = "Apache-2.0"
