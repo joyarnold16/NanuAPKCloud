@@ -1,5 +1,6 @@
 package com.example.llama
 
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -136,7 +137,7 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension, announce = false) }
         } else {
             setModelUi(null, false, "No model loaded")
-            showEmptyState(true, "Private AI that runs on your device.\n\nTap Models to import a GGUF model and begin.")
+            showEmptyState(true, "Private AI that runs on your device.\n\nTap Models to see recommended LLMs or import a GGUF model.")
         }
     }
 
@@ -151,17 +152,23 @@ class MainActivity : AppCompatActivity() {
             ?.sortedBy { it.name.lowercase(Locale.getDefault()) }
             .orEmpty()
 
-        val labels = mutableListOf("Import a new GGUF model")
+        val ramGb = totalDeviceRamGb()
+        val best = ModelCatalog.bestForRam(ramGb)
+        val labels = mutableListOf(
+            "★ Recommended LLMs  •  Best: ${best.name}",
+            "Import a downloaded GGUF model"
+        )
         labels += files.map { "${it.nameWithoutExtension}  •  ${formatBytes(it.length())}" }
         if (files.isNotEmpty()) labels += "Delete a stored model…"
 
         AlertDialog.Builder(this)
-            .setTitle("Models")
+            .setTitle("Models • ${String.format(Locale.US, "%.1f", ramGb)} GB RAM")
             .setItems(labels.toTypedArray()) { _, which ->
                 when {
-                    which == 0 -> openModelDocument.launch(arrayOf("*/*"))
-                    which in 1..files.size -> {
-                        val file = files[which - 1]
+                    which == 0 -> showRecommendedModelCatalog(ramGb)
+                    which == 1 -> openModelDocument.launch(arrayOf("*/*"))
+                    which in 2 until (2 + files.size) -> {
+                        val file = files[which - 2]
                         lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension) }
                     }
                     else -> showDeleteModelDialog(files)
@@ -169,6 +176,77 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Close", null)
             .show()
+    }
+
+    private fun totalDeviceRamGb(): Double {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val info = ActivityManager.MemoryInfo()
+        manager.getMemoryInfo(info)
+        return info.totalMem / (1024.0 * 1024.0 * 1024.0)
+    }
+
+    private fun showRecommendedModelCatalog(ramGb: Double) {
+        val best = ModelCatalog.bestForRam(ramGb)
+        val labels = ModelCatalog.models.map { model ->
+            val badge = when {
+                model.id == best.id -> "★ BEST MATCH"
+                ramGb + 0.25 >= model.minimumRamGb -> "✓ Compatible"
+                else -> "⚠ ${model.minimumRamGb} GB+ suggested"
+            }
+            "$badge\n${model.name} • ${model.quant}\n${model.sizeLabel} • ${model.speedLabel} • ${model.useCase}"
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Recommended local LLMs")
+            .setMessage(
+                "Nanu detected about ${String.format(Locale.US, "%.1f", ramGb)} GB RAM. " +
+                    "These are GGUF suggestions for the current local engine. Downloads open in your browser so Nanu can remain offline during inference."
+            )
+            .setItems(labels.toTypedArray()) { _, which ->
+                showModelSuggestionDetail(ModelCatalog.models[which], ramGb, best.id)
+            }
+            .setNegativeButton("Back", null)
+            .show()
+    }
+
+    private fun showModelSuggestionDetail(model: RecommendedModel, ramGb: Double, bestId: String) {
+        val status = when {
+            model.id == bestId -> "Best match for this device"
+            ramGb + 0.25 >= model.minimumRamGb -> "Compatible with this device"
+            else -> "May be too heavy for this device"
+        }
+
+        val message = buildString {
+            append("$status\n\n")
+            append("File: ${model.fileName}\n")
+            append("Quant: ${model.quant}\n")
+            append("Download size: ${model.sizeLabel}\n")
+            append("Suggested RAM: ${model.minimumRamGb} GB+\n")
+            append("Expected speed: ${model.speedLabel}\n")
+            append("Best for: ${model.useCase}\n")
+            append("License: ${model.licenseLabel}\n\n")
+            append(model.notes)
+            append("\n\nAfter downloading, return to Models → Import a downloaded GGUF model.")
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(model.name)
+            .setMessage(message)
+            .setPositiveButton("Open model page") { _, _ -> openModelPage(model) }
+            .setNeutralButton("Copy filename") { _, _ -> copyText(model.fileName) }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun openModelPage(model: RecommendedModel) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(model.pageUrl))
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Model page", model.pageUrl))
+            Toast.makeText(this, "No browser found. Model page link copied.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun showDeleteModelDialog(files: List<File>) {
@@ -414,7 +492,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(Intent.EXTRA_SUBJECT, "Nanu Local AI content report")
             putExtra(
                 Intent.EXTRA_TEXT,
-                "I would like to report this AI-generated response:\n\n$text\n\nApp version: 1.0 RC1"
+                "I would like to report this AI-generated response:\n\n$text\n\nApp version: 1.0 RC2"
             )
         }
         try {
