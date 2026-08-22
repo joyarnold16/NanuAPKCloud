@@ -1,4 +1,5 @@
 name: Build Nanu Local AI APK
+# Final RC5 validation trigger: 2026-08-22T02:44Z
 
 on:
   workflow_dispatch:
