@@ -1,0 +1,1 @@
+Dispatch final Nanu Local AI 1.0 RC5 validation build and record its workflow run status.
