@@ -43,10 +43,10 @@ class MessageAdapter(
             true
         }
 
-        holder.itemView.findViewById<TextView?>(R.id.msg_copy)?.setOnClickListener {
+        holder.itemView.findViewById<TextView>(R.id.msg_copy)?.setOnClickListener {
             onCopy(message.content)
         }
-        holder.itemView.findViewById<TextView?>(R.id.msg_report)?.setOnClickListener {
+        holder.itemView.findViewById<TextView>(R.id.msg_report)?.setOnClickListener {
             onReport(message.content)
         }
     }
