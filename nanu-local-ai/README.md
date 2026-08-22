@@ -35,7 +35,7 @@ Initial suggestions:
 - Qwen3 4B Q4_K_M — better quality on stronger devices.
 - Qwen3 8B Q4_K_M — advanced high-memory option; slower on Android CPU inference.
 
-Downloads happen outside Nanu in the browser. Users then return to Models and import the downloaded GGUF. This keeps the inference app itself offline-first and avoids silently downloading multi-gigabyte files.
+Downloads happen outside Nanu in the browser. Users then return to Models and import the downloaded GGUF. This preserves offline local inference and avoids silently downloading multi-gigabyte files from inside the app.
 
 ## Build
 
