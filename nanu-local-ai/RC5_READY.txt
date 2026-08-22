@@ -1,0 +1,2 @@
+Nanu Local AI 1.0 RC5 integrated device-test candidate.
+Includes task-based in-app LLM downloads, Talk to Nanu, local image generation, Trading Lab, and custom launcher icon.
