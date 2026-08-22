@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Nanu Local AI 1.0 RC4
+    name: Build Nanu Local AI 1.0 RC4.1
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -51,12 +51,14 @@ jobs:
         run: |
           APP=llama-upstream/examples/llama.android/app/src/main
           JAVA=$APP/java/com/example/llama
+          mkdir -p "$APP/res/drawable"
           cp nanu-local-ai/strings.xml "$APP/res/values/strings.xml"
           cp nanu-local-ai/res/values/colors.xml "$APP/res/values/colors.xml"
           cp nanu-local-ai/res/layout/activity_main.xml "$APP/res/layout/activity_main.xml"
           cp nanu-local-ai/res/layout/activity_trading.xml "$APP/res/layout/activity_trading.xml"
           cp nanu-local-ai/res/layout/item_message_assistant.xml "$APP/res/layout/item_message_assistant.xml"
           cp nanu-local-ai/res/layout/item_message_user.xml "$APP/res/layout/item_message_user.xml"
+          cp nanu-local-ai/res/drawable/ic_nanu_launcher.xml "$APP/res/drawable/ic_nanu_launcher.xml"
           cp nanu-local-ai/app/MainActivity.kt "$JAVA/MainActivity.kt"
           cp nanu-local-ai/app/MessageAdapter.kt "$JAVA/MessageAdapter.kt"
           cp nanu-local-ai/app/ModelCatalog.kt "$JAVA/ModelCatalog.kt"
@@ -68,12 +70,13 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           app_gradle = Path('llama-upstream/examples/llama.android/app/build.gradle.kts')
           text = app_gradle.read_text()
           text = text.replace('applicationId = "com.example.llama.aichat"', 'applicationId = "com.nanu.localai"')
-          text = text.replace('versionCode = 1', 'versionCode = 13')
-          text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc4"')
+          text = text.replace('versionCode = 1', 'versionCode = 14')
+          text = text.replace('versionName = "1.0"', 'versionName = "1.0-rc4.1"')
           app_gradle.write_text(text)
 
           lib_gradle = Path('llama-upstream/examples/llama.android/lib/build.gradle.kts')
@@ -81,10 +84,74 @@ jobs:
           text = text.replace('abiFilters += listOf("arm64-v8a", "x86_64")', 'abiFilters += listOf("arm64-v8a")')
           lib_gradle.write_text(text)
 
+          layout = Path('llama-upstream/examples/llama.android/app/src/main/res/layout/activity_main.xml')
+          text = layout.read_text()
+          text = text.replace('● OFFLINE', '● LOCAL AI')
+          text = text.replace('Private AI • runs on your device', 'Private AI • on-device inference')
+          layout.write_text(text)
+
           main = Path('llama-upstream/examples/llama.android/app/src/main/java/com/example/llama/MainActivity.kt')
           text = main.read_text()
           text = text.replace('class MainActivity : AppCompatActivity() {', 'class MainActivity : NanuBaseActivity() {', 1)
-          main.write_text(text)
+
+          replacement = r'''    private fun showRecommendedModelCatalog(ramGb: Double) {
+        val tasks = arrayOf(
+            "Everyday chat",
+            "Coding",
+            "Study",
+            "Maritime",
+            "Trading analysis"
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("Choose a task")
+            .setItems(tasks) { _, which ->
+                val taskId = when (which) {
+                    1 -> "coding"
+                    2 -> "study"
+                    3 -> "maritime"
+                    4 -> "trading"
+                    else -> "general"
+                }
+                showRecommendedModelsForTask(ramGb, taskId, tasks[which])
+            }
+            .setNegativeButton("Back", null)
+            .show()
+    }
+
+    private fun showRecommendedModelsForTask(ramGb: Double, taskId: String, taskLabel: String) {
+        val modeHint = if (taskId == "coding") "coding" else null
+        val best = ModelCatalog.bestForRam(ramGb, modeHint)
+        val ordered = listOf(best) + ModelCatalog.models.filter { it.id != best.id }
+
+        val labels = ordered.map { model ->
+            val downloaded = modelDownloader.destinationFile(model).let {
+                it.exists() && modelDownloader.looksLikeGguf(it)
+            }
+            val badge = when {
+                downloaded -> "✓ DOWNLOADED"
+                model.id == best.id -> "★ BEST FOR $taskLabel"
+                ramGb + 0.25 >= model.minimumRamGb -> "✓ Compatible"
+                else -> "⚠ ${model.minimumRamGb} GB+ suggested"
+            }
+            "$badge\n${model.name} • ${model.quant}\n${model.sizeLabel} • ${model.speedLabel} • ${model.useCase}"
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("$taskLabel • ${String.format(Locale.US, "%.1f", ramGb)} GB RAM")
+            .setItems(labels.toTypedArray()) { _, which ->
+                showModelSuggestionDetail(ordered[which], ramGb, best.id)
+            }
+            .setNegativeButton("Back") { _, _ -> showRecommendedModelCatalog(ramGb) }
+            .show()
+    }
+'''
+
+          pattern = r'    private fun showRecommendedModelCatalog\(ramGb: Double\) \{.*?\n    \}\n\n    private fun showModelSuggestionDetail'
+          patched, count = re.subn(pattern, replacement + '\n    private fun showModelSuggestionDetail', text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('Could not patch recommended model catalog dialog')
+          main.write_text(patched)
 
           manifest = Path('llama-upstream/examples/llama.android/app/src/main/AndroidManifest.xml')
           text = manifest.read_text()
@@ -103,6 +170,8 @@ jobs:
                   '            android:exported="false" />\n\n'
               )
               text = text.replace(main_marker, trading + main_marker, 1)
+          text = text.replace('android:icon="@mipmap/ic_launcher_round"', 'android:icon="@drawable/ic_nanu_launcher"')
+          text = text.replace('android:roundIcon="@mipmap/ic_launcher_round"', 'android:roundIcon="@drawable/ic_nanu_launcher"')
           text = text.replace(
               'android:name=".MainActivity"\n            android:exported="true"',
               'android:name=".MainActivity"\n            android:configChanges="orientation|screenSize|keyboardHidden"\n            android:windowSoftInputMode="adjustResize"\n            android:exported="true"'
@@ -110,7 +179,7 @@ jobs:
           manifest.write_text(text)
           PY
 
-      - name: Validate generated Android manifest
+      - name: Validate generated Android manifest and RC4.1 UI
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -120,7 +189,11 @@ jobs:
           text = manifest.read_text()
           assert 'android.permission.INTERNET' in text
           assert 'android:name=".TradingActivity"' in text
-          print('AndroidManifest.xml is valid; INTERNET permission and TradingActivity are present.')
+          assert '@drawable/ic_nanu_launcher' in text
+          main = Path('llama-upstream/examples/llama.android/app/src/main/java/com/example/llama/MainActivity.kt').read_text()
+          assert 'Choose a task' in main
+          assert 'showRecommendedModelsForTask' in main
+          print('RC4.1 validation passed: launcher icon, task model picker, INTERNET permission and TradingActivity are present.')
           PY
 
       - name: Build debug APK and AAB
@@ -132,14 +205,14 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p out
-          cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc4.apk
-          cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc4-debug.aab
+          cp llama-upstream/examples/llama.android/app/build/outputs/apk/debug/app-debug.apk out/nanu-local-ai-v1.0-rc4.1.apk
+          cp llama-upstream/examples/llama.android/app/build/outputs/bundle/debug/app-debug.aab out/nanu-local-ai-v1.0-rc4.1-debug.aab
           sha256sum out/* | tee out/SHA256SUMS.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nanu-local-ai-v1.0-rc4
+          name: nanu-local-ai-v1.0-rc4.1
           path: out/*
           if-no-files-found: error
           retention-days: 14
