@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="4dp"
+    android:layout_marginVertical="7dp"
+    android:gravity="start"
+    android:orientation="vertical">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:layout_marginBottom="4dp"
+        android:text="Nanu"
+        android:textColor="@color/nanu_accent_2"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="@color/nanu_assistant"
+        app:cardCornerRadius="17dp"
+        app:strokeColor="@color/nanu_border"
+        app:strokeWidth="1dp">
+
+        <TextView
+            android:id="@+id/msg_content"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxWidth="760dp"
+            android:padding="14dp"
+            android:textColor="@color/nanu_text"
+            android:textIsSelectable="true"
+            android:textSize="15sp"
+            android:lineSpacingExtra="2dp" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="3dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/msg_copy"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:gravity="center"
+            android:paddingHorizontal="8dp"
+            android:text="Copy"
+            android:textColor="@color/nanu_muted"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/msg_report"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:gravity="center"
+            android:paddingHorizontal="8dp"
+            android:text="Report"
+            android:textColor="@color/nanu_muted"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+</LinearLayout>
