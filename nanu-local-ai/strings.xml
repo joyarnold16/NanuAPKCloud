@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Nanu Local AI</string>
+    <string name="app_tagline">Private AI that runs on your device</string>
 </resources>
