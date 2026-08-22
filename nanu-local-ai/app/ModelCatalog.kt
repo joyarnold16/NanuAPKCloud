@@ -1,0 +1,78 @@
+package com.example.llama
+
+data class RecommendedModel(
+    val id: String,
+    val name: String,
+    val quant: String,
+    val sizeLabel: String,
+    val minimumRamGb: Int,
+    val speedLabel: String,
+    val useCase: String,
+    val notes: String,
+    val pageUrl: String,
+    val fileName: String,
+    val licenseLabel: String
+)
+
+object ModelCatalog {
+    val models = listOf(
+        RecommendedModel(
+            id = "gemma3-1b-q4km",
+            name = "Gemma 3 1B Instruct",
+            quant = "Q4_K_M",
+            sizeLabel = "806 MB",
+            minimumRamGb = 4,
+            speedLabel = "Very fast",
+            useCase = "Lightweight chat",
+            notes = "A compact option for lower-memory phones and tablets. Good when speed and battery use matter more than maximum answer quality.",
+            pageUrl = "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/blob/main/gemma-3-1b-it-Q4_K_M.gguf",
+            fileName = "gemma-3-1b-it-Q4_K_M.gguf",
+            licenseLabel = "Gemma license"
+        ),
+        RecommendedModel(
+            id = "qwen3-1.7b-q4km",
+            name = "Qwen3 1.7B",
+            quant = "Q4_K_M",
+            sizeLabel = "1.28 GB",
+            minimumRamGb = 6,
+            speedLabel = "Fast",
+            useCase = "Best everyday balance",
+            notes = "Our first proven Nanu model. Strong general chat and coding for its size, with a good speed/quality balance on modern Android devices.",
+            pageUrl = "https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF/blob/main/Qwen3-1.7B-Q4_K_M.gguf",
+            fileName = "Qwen3-1.7B-Q4_K_M.gguf",
+            licenseLabel = "Apache-2.0"
+        ),
+        RecommendedModel(
+            id = "qwen3-4b-q4km",
+            name = "Qwen3 4B",
+            quant = "Q4_K_M",
+            sizeLabel = "2.50 GB",
+            minimumRamGb = 8,
+            speedLabel = "Medium",
+            useCase = "Better quality",
+            notes = "Recommended for stronger devices when you want better reasoning, writing and coding quality than the 1.7B model. Expect lower generation speed and more heat.",
+            pageUrl = "https://huggingface.co/ggml-org/Qwen3-4B-GGUF/blob/main/Qwen3-4B-Q4_K_M.gguf",
+            fileName = "Qwen3-4B-Q4_K_M.gguf",
+            licenseLabel = "Apache-2.0"
+        ),
+        RecommendedModel(
+            id = "qwen3-8b-q4km",
+            name = "Qwen3 8B",
+            quant = "Q4_K_M",
+            sizeLabel = "5.03 GB",
+            minimumRamGb = 12,
+            speedLabel = "Slow / advanced",
+            useCase = "Highest quality in this list",
+            notes = "For high-memory flagship devices only. It can deliver better answers, but Android CPU inference may be slow and sustained use can cause thermal throttling. Not the default recommendation even on 12 GB devices.",
+            pageUrl = "https://huggingface.co/Qwen/Qwen3-8B-GGUF/blob/main/Qwen3-8B-Q4_K_M.gguf",
+            fileName = "Qwen3-8B-Q4_K_M.gguf",
+            licenseLabel = "Apache-2.0"
+        )
+    )
+
+    fun bestForRam(totalRamGb: Double): RecommendedModel = when {
+        totalRamGb >= 10.0 -> models.first { it.id == "qwen3-4b-q4km" }
+        totalRamGb >= 6.0 -> models.first { it.id == "qwen3-1.7b-q4km" }
+        else -> models.first { it.id == "gemma3-1b-q4km" }
+    }
+}
