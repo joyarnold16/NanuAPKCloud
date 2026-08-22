@@ -2,6 +2,7 @@ package com.example.llama
 
 import android.app.ActivityManager
 import android.app.AlertDialog
+import android.app.DownloadManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -9,6 +10,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.StatFs
 import android.os.SystemClock
 import android.view.View
 import android.widget.EditText
@@ -27,6 +29,7 @@ import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
@@ -55,6 +58,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var engine: InferenceEngine
     private var engineReady = false
     private var generationJob: Job? = null
+    private var downloadJob: Job? = null
+    private var downloadDialog: AlertDialog? = null
 
     private val messages = mutableListOf<Message>()
     private lateinit var messageAdapter: MessageAdapter
@@ -64,6 +69,7 @@ class MainActivity : AppCompatActivity() {
     private var currentMode = AssistantMode.GENERAL
 
     private val prefs by lazy { getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    private val modelDownloader by lazy { ModelDownloadManager(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,6 +120,7 @@ class MainActivity : AppCompatActivity() {
                 engineReady = true
                 withContext(Dispatchers.Main) {
                     restoreLastModelOrShowWelcome()
+                    resumePendingModelDownload()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -137,8 +144,18 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension, announce = false) }
         } else {
             setModelUi(null, false, "No model loaded")
-            showEmptyState(true, "Private AI that runs on your device.\n\nTap Models to see recommended LLMs or import a GGUF model.")
+            showEmptyState(true, "Private AI that runs on your device.\n\nTap Models to choose a recommended LLM, download it inside Nanu, or import your own GGUF.")
         }
+    }
+
+    private fun storedModelFiles(): List<File> {
+        val directories = listOf(ensureModelsDirectory(), modelDownloader.downloadDirectory)
+        return directories.flatMap { directory ->
+            directory.listFiles()
+                ?.filter { it.isFile && it.extension.equals("gguf", ignoreCase = true) }
+                .orEmpty()
+        }.distinctBy { it.absolutePath }
+            .sortedBy { it.name.lowercase(Locale.getDefault()) }
     }
 
     private fun showModelManager() {
@@ -147,17 +164,17 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val files = ensureModelsDirectory().listFiles()
-            ?.filter { it.isFile && it.extension.equals("gguf", ignoreCase = true) }
-            ?.sortedBy { it.name.lowercase(Locale.getDefault()) }
-            .orEmpty()
-
+        val files = storedModelFiles()
         val ramGb = totalDeviceRamGb()
-        val best = ModelCatalog.bestForRam(ramGb)
+        val best = ModelCatalog.bestForRam(ramGb, currentMode.id)
+        val activeModel = activeDownloadModel()
+
         val labels = mutableListOf(
             "★ Recommended LLMs  •  Best: ${best.name}",
-            "Import a downloaded GGUF model"
+            "Import your own GGUF model"
         )
+        if (activeModel != null) labels += "↓ Download in progress  •  ${activeModel.name}"
+        val fileStart = labels.size
         labels += files.map { "${it.nameWithoutExtension}  •  ${formatBytes(it.length())}" }
         if (files.isNotEmpty()) labels += "Delete a stored model…"
 
@@ -167,8 +184,9 @@ class MainActivity : AppCompatActivity() {
                 when {
                     which == 0 -> showRecommendedModelCatalog(ramGb)
                     which == 1 -> openModelDocument.launch(arrayOf("*/*"))
-                    which in 2 until (2 + files.size) -> {
-                        val file = files[which - 2]
+                    activeModel != null && which == 2 -> showActiveDownload(activeModel)
+                    which in fileStart until (fileStart + files.size) -> {
+                        val file = files[which - fileStart]
                         lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension) }
                     }
                     else -> showDeleteModelDialog(files)
@@ -186,9 +204,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showRecommendedModelCatalog(ramGb: Double) {
-        val best = ModelCatalog.bestForRam(ramGb)
+        val best = ModelCatalog.bestForRam(ramGb, currentMode.id)
         val labels = ModelCatalog.models.map { model ->
+            val downloaded = modelDownloader.destinationFile(model).let { it.exists() && modelDownloader.looksLikeGguf(it) }
             val badge = when {
+                downloaded -> "✓ DOWNLOADED"
                 model.id == best.id -> "★ BEST MATCH"
                 ramGb + 0.25 >= model.minimumRamGb -> "✓ Compatible"
                 else -> "⚠ ${model.minimumRamGb} GB+ suggested"
@@ -200,7 +220,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Recommended local LLMs")
             .setMessage(
                 "Nanu detected about ${String.format(Locale.US, "%.1f", ramGb)} GB RAM. " +
-                    "These are GGUF suggestions for the current local engine. Downloads open in your browser so Nanu can remain offline during inference."
+                    "Choose a model and Nanu can download it directly into private app storage. Internet is used only for optional model downloads; inference remains on-device."
             )
             .setItems(labels.toTypedArray()) { _, which ->
                 showModelSuggestionDetail(ModelCatalog.models[which], ramGb, best.id)
@@ -210,8 +230,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showModelSuggestionDetail(model: RecommendedModel, ramGb: Double, bestId: String) {
+        val target = modelDownloader.destinationFile(model)
+        val alreadyDownloaded = target.exists() && modelDownloader.looksLikeGguf(target)
         val status = when {
-            model.id == bestId -> "Best match for this device"
+            alreadyDownloaded -> "Already downloaded"
+            model.id == bestId -> "Best match for this device and mode"
             ramGb + 0.25 >= model.minimumRamGb -> "Compatible with this device"
             else -> "May be too heavy for this device"
         }
@@ -226,16 +249,206 @@ class MainActivity : AppCompatActivity() {
             append("Best for: ${model.useCase}\n")
             append("License: ${model.licenseLabel}\n\n")
             append(model.notes)
-            append("\n\nAfter downloading, return to Models → Import a downloaded GGUF model.")
+            append("\n\nNanu will download this model inside the app and load it automatically when complete.")
         }
 
         AlertDialog.Builder(this)
             .setTitle(model.name)
             .setMessage(message)
-            .setPositiveButton("Open model page") { _, _ -> openModelPage(model) }
-            .setNeutralButton("Copy filename") { _, _ -> copyText(model.fileName) }
+            .setPositiveButton(if (alreadyDownloaded) "Load model" else "Download in Nanu") { _, _ ->
+                if (alreadyDownloaded) {
+                    lifecycleScope.launch { loadModelFile(target, model.name) }
+                } else {
+                    confirmModelDownload(model)
+                }
+            }
+            .setNeutralButton("Source / license") { _, _ -> openModelPage(model) }
             .setNegativeButton("Close", null)
             .show()
+    }
+
+    private fun confirmModelDownload(model: RecommendedModel) {
+        val existingModel = activeDownloadModel()
+        if (existingModel != null) {
+            if (existingModel.id == model.id) {
+                showActiveDownload(existingModel)
+            } else {
+                Toast.makeText(this, "Another model is already downloading. Cancel or finish it first.", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+
+        val directory = modelDownloader.downloadDirectory
+        val available = StatFs(directory.absolutePath).availableBytes
+        val reserve = 512L * 1024L * 1024L
+        if (available < model.sizeBytes + reserve) {
+            Toast.makeText(
+                this,
+                "Not enough free storage. ${model.sizeLabel} model plus about 512 MB working space is recommended.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Download ${model.name}?")
+            .setMessage(
+                "Size: ${model.sizeLabel}\n\nThe model will download directly inside Nanu Local AI. " +
+                    "Wi-Fi is recommended for large models. Mobile data may be used if allowed by Android. " +
+                    "After download, Nanu will verify that the file is GGUF and load it automatically."
+            )
+            .setPositiveButton("Download") { _, _ -> beginModelDownload(model) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun beginModelDownload(model: RecommendedModel) {
+        try {
+            val id = modelDownloader.enqueue(model)
+            prefs.edit()
+                .putLong(KEY_ACTIVE_DOWNLOAD_ID, id)
+                .putString(KEY_ACTIVE_DOWNLOAD_MODEL, model.id)
+                .apply()
+            showDownloadProgressDialog(model, id)
+            monitorModelDownload(model, id)
+        } catch (e: Exception) {
+            clearActiveDownload()
+            Toast.makeText(this, "Could not start download: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun activeDownloadModel(): RecommendedModel? {
+        val id = prefs.getLong(KEY_ACTIVE_DOWNLOAD_ID, -1L)
+        val modelId = prefs.getString(KEY_ACTIVE_DOWNLOAD_MODEL, null)
+        if (id <= 0L || modelId == null) return null
+        val snapshot = runCatching { modelDownloader.query(id) }.getOrNull()
+        if (snapshot == null || snapshot.status == DownloadManager.STATUS_FAILED) {
+            clearActiveDownload()
+            return null
+        }
+        return ModelCatalog.models.firstOrNull { it.id == modelId }
+    }
+
+    private fun showActiveDownload(model: RecommendedModel) {
+        val id = prefs.getLong(KEY_ACTIVE_DOWNLOAD_ID, -1L)
+        if (id <= 0L) return
+        showDownloadProgressDialog(model, id)
+        if (downloadJob?.isActive != true) monitorModelDownload(model, id)
+    }
+
+    private fun resumePendingModelDownload() {
+        val model = activeDownloadModel() ?: return
+        val id = prefs.getLong(KEY_ACTIVE_DOWNLOAD_ID, -1L)
+        if (id <= 0L) return
+
+        val snapshot = runCatching { modelDownloader.query(id) }.getOrNull()
+        if (snapshot?.status == DownloadManager.STATUS_SUCCESSFUL) {
+            val file = modelDownloader.destinationFile(model)
+            if (modelDownloader.looksLikeGguf(file)) {
+                clearActiveDownload()
+                lifecycleScope.launch { loadModelFile(file, model.name) }
+            } else {
+                file.delete()
+                clearActiveDownload()
+                Toast.makeText(this, "Downloaded file is not a valid GGUF model.", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+
+        showDownloadProgressDialog(model, id)
+        monitorModelDownload(model, id)
+    }
+
+    private fun showDownloadProgressDialog(model: RecommendedModel, downloadId: Long) {
+        downloadDialog?.dismiss()
+        downloadDialog = AlertDialog.Builder(this)
+            .setTitle("Downloading ${model.name}")
+            .setMessage("Starting download…")
+            .setPositiveButton("Hide", null)
+            .setNegativeButton("Cancel download") { _, _ ->
+                modelDownloader.cancel(downloadId)
+                clearActiveDownload()
+                downloadJob?.cancel()
+                Toast.makeText(this, "Model download cancelled.", Toast.LENGTH_SHORT).show()
+            }
+            .create()
+        downloadDialog?.show()
+    }
+
+    private fun monitorModelDownload(model: RecommendedModel, downloadId: Long) {
+        downloadJob?.cancel()
+        downloadJob = lifecycleScope.launch(Dispatchers.IO) {
+            while (true) {
+                val snapshot = modelDownloader.query(downloadId)
+                if (snapshot == null) {
+                    clearActiveDownload()
+                    withContext(Dispatchers.Main) {
+                        downloadDialog?.dismiss()
+                        Toast.makeText(this@MainActivity, "Download could not be found.", Toast.LENGTH_LONG).show()
+                    }
+                    break
+                }
+
+                when (snapshot.status) {
+                    DownloadManager.STATUS_PENDING,
+                    DownloadManager.STATUS_RUNNING,
+                    DownloadManager.STATUS_PAUSED -> {
+                        val total = if (snapshot.totalBytes > 0L) snapshot.totalBytes else model.sizeBytes
+                        val percent = if (total > 0L) ((snapshot.downloadedBytes * 100L) / total).coerceIn(0L, 100L) else 0L
+                        val state = when (snapshot.status) {
+                            DownloadManager.STATUS_PAUSED -> "Paused by Android"
+                            DownloadManager.STATUS_PENDING -> "Waiting to start"
+                            else -> "Downloading"
+                        }
+                        val text = "$state • $percent%\n${formatBytes(snapshot.downloadedBytes)} / ${formatBytes(total)}\n\nYou can hide this window. Android will continue the download in the background."
+                        withContext(Dispatchers.Main) {
+                            if (downloadDialog?.isShowing == true) downloadDialog?.setMessage(text)
+                        }
+                    }
+
+                    DownloadManager.STATUS_SUCCESSFUL -> {
+                        val file = modelDownloader.destinationFile(model)
+                        clearActiveDownload()
+                        withContext(Dispatchers.Main) { downloadDialog?.dismiss() }
+
+                        if (!modelDownloader.looksLikeGguf(file)) {
+                            file.delete()
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@MainActivity, "Download finished, but the file was not a valid GGUF model.", Toast.LENGTH_LONG).show()
+                            }
+                            break
+                        }
+
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "${model.name} downloaded. Loading local AI…", Toast.LENGTH_LONG).show()
+                        }
+                        loadModelFile(file, model.name)
+                        break
+                    }
+
+                    DownloadManager.STATUS_FAILED -> {
+                        clearActiveDownload()
+                        withContext(Dispatchers.Main) {
+                            downloadDialog?.dismiss()
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Model download failed (Android reason ${snapshot.reason}). Please try again.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        break
+                    }
+                }
+                delay(750L)
+            }
+        }
+    }
+
+    private fun clearActiveDownload() {
+        prefs.edit()
+            .remove(KEY_ACTIVE_DOWNLOAD_ID)
+            .remove(KEY_ACTIVE_DOWNLOAD_MODEL)
+            .apply()
     }
 
     private fun openModelPage(model: RecommendedModel) {
@@ -245,7 +458,7 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("Model page", model.pageUrl))
-            Toast.makeText(this, "No browser found. Model page link copied.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "No browser found. Model source link copied.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -359,7 +572,7 @@ class MainActivity : AppCompatActivity() {
         if (!isModelReady || file == null) {
             messages.clear()
             messageAdapter.notifyDataSetChanged()
-            showEmptyState(true, "Import a GGUF model to start a private chat.")
+            showEmptyState(true, "Choose or download a GGUF model to start a private chat.")
             return
         }
 
@@ -492,7 +705,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(Intent.EXTRA_SUBJECT, "Nanu Local AI content report")
             putExtra(
                 Intent.EXTRA_TEXT,
-                "I would like to report this AI-generated response:\n\n$text\n\nApp version: 1.0 RC2"
+                "I would like to report this AI-generated response:\n\n$text\n\nApp version: 1.0 RC3"
             )
         }
         try {
@@ -517,7 +730,7 @@ class MainActivity : AppCompatActivity() {
         modelStatusTv.text = status
         modelStatusTv.setTextColor(getColor(if (ready) R.color.nanu_success else R.color.nanu_muted))
         modelNameTv.text = name ?: "No local model"
-        if (name == null) modelDetailTv.text = "Import any compatible GGUF model"
+        if (name == null) modelDetailTv.text = "Download a recommended model or import a compatible GGUF"
         modelsBtn.isEnabled = true
         newChatBtn.isEnabled = true
         modeBtn.isEnabled = true
@@ -540,11 +753,13 @@ class MainActivity : AppCompatActivity() {
     private fun formatBytes(bytes: Long): String = when {
         bytes >= 1024L * 1024L * 1024L -> String.format(Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
         bytes >= 1024L * 1024L -> String.format(Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
+        bytes >= 1024L -> String.format(Locale.US, "%.0f KB", bytes / 1024.0)
         else -> "$bytes B"
     }
 
     override fun onDestroy() {
         generationJob?.cancel()
+        downloadJob?.cancel()
         if (isFinishing && engineReady) {
             runCatching { engine.destroy() }
         }
@@ -582,6 +797,8 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS_NAME = "nanu_local_ai"
         private const val KEY_LAST_MODEL = "last_model"
         private const val KEY_MODE = "assistant_mode"
+        private const val KEY_ACTIVE_DOWNLOAD_ID = "active_download_id"
+        private const val KEY_ACTIVE_DOWNLOAD_MODEL = "active_download_model"
         private const val DIRECTORY_MODELS = "models"
         private const val FILE_EXTENSION_GGUF = ".gguf"
         private const val REPORT_EMAIL = "nanuai.1991@gmail.com"
