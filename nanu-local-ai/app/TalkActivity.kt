@@ -87,13 +87,36 @@ class TalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             try {
                 engine = AiChat.getInferenceEngine(applicationContext)
                 ensureModelReady()
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
                 withContext(Dispatchers.Main) {
                     statusTv.text = "Local AI unavailable"
-                    answerTv.text = e.message ?: "Could not start the local AI engine."
+                    answerTv.text = t.message ?: "Could not start the local AI engine."
+                    talkBtn.isEnabled = false
                 }
             }
         }
+    }
+
+    private suspend fun waitForStableEngine(timeoutMs: Long = 30_000L): InferenceEngine.State {
+        var waited = 0L
+        while (waited < timeoutMs) {
+            val state = engine.state.value
+            when (state) {
+                is InferenceEngine.State.Uninitialized,
+                is InferenceEngine.State.Initializing,
+                is InferenceEngine.State.LoadingModel,
+                is InferenceEngine.State.UnloadingModel,
+                is InferenceEngine.State.ProcessingSystemPrompt,
+                is InferenceEngine.State.ProcessingUserPrompt,
+                is InferenceEngine.State.Generating,
+                is InferenceEngine.State.Benchmarking -> {
+                    delay(150L)
+                    waited += 150L
+                }
+                else -> return state
+            }
+        }
+        return engine.state.value
     }
 
     private suspend fun ensureModelReady() {
@@ -101,30 +124,59 @@ class TalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         val path = prefs.getString("last_model", null)
         val model = path?.let(::File)
 
-        if (engine.state.value !is InferenceEngine.State.ModelReady) {
-            if (model == null || !model.exists()) {
-                withContext(Dispatchers.Main) {
-                    statusTv.text = "Load an LLM first"
-                    answerTv.text = "Open Models in Nanu, download a recommended LLM, then return to Talk."
-                }
-                return
-            }
-            withContext(Dispatchers.Main) { statusTv.text = "Loading ${model.nameWithoutExtension}…" }
-            engine.loadModel(model.absolutePath)
+        var state = waitForStableEngine()
+
+        // RC5.2 incorrectly called setSystemPrompt() again when Main Chat had
+        // already loaded the singleton engine. llama.cpp only permits the
+        // system prompt immediately after load, so Talk showed Local AI unavailable.
+        if (state is InferenceEngine.State.ModelReady) {
+            markEngineReady("Reusing loaded local AI")
+            return
         }
 
+        if (state is InferenceEngine.State.Error) {
+            runCatching { engine.cleanUp() }
+            state = waitForStableEngine(5_000L)
+        }
+
+        if (state !is InferenceEngine.State.Initialized) {
+            withContext(Dispatchers.Main) {
+                statusTv.text = "Local AI is busy"
+                answerTv.text = "Nanu is still using the local model in another screen. Stop the current response, then return to Talk."
+                talkBtn.isEnabled = false
+            }
+            return
+        }
+
+        if (model == null || !model.exists()) {
+            withContext(Dispatchers.Main) {
+                statusTv.text = "Load an LLM first"
+                answerTv.text = "Open Models in Nanu, download a recommended LLM, then return to Talk."
+                talkBtn.isEnabled = false
+            }
+            return
+        }
+
+        withContext(Dispatchers.Main) { statusTv.text = "Loading ${model.nameWithoutExtension}…" }
+        engine.loadModel(model.absolutePath)
+        // This is legal because Talk itself performed the model load above.
         engine.setSystemPrompt(
-            "You are Nanu in voice conversation mode. Answer naturally and concisely for spoken conversation. " +
+            "You are Nanu. Answer naturally and concisely for spoken conversation. " +
                 "Do not reveal hidden chain-of-thought or <think> blocks."
         )
+        markEngineReady("Local AI loaded")
+    }
+
+    private suspend fun markEngineReady(message: String) {
         engineReady = true
         withContext(Dispatchers.Main) {
-            refreshReadyStatus()
+            answerTv.text = if (answerTv.text.isNullOrBlank()) "Tap to talk and speak naturally." else answerTv.text
+            refreshReadyStatus(message)
             talkBtn.isEnabled = SpeechRecognizer.isRecognitionAvailable(this@TalkActivity)
         }
     }
 
-    private fun refreshReadyStatus() {
+    private fun refreshReadyStatus(prefix: String? = null) {
         if (!engineReady) return
         val speech = when {
             !SpeechRecognizer.isRecognitionAvailable(this) -> "speech recognizer unavailable"
@@ -132,7 +184,7 @@ class TalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             else -> "speech service ready"
         }
         val voice = if (ttsReady) "voice ready" else "voice unavailable"
-        statusTv.text = "Ready • $speech • $voice"
+        statusTv.text = listOfNotNull(prefix, speech, voice).joinToString(" • ")
     }
 
     private fun createSpeechRecognizer() {
@@ -214,7 +266,11 @@ class TalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
     private fun startListening(preferOffline: Boolean) {
         if (!engineReady) {
-            Toast.makeText(this, "Load a local LLM first or wait for it to finish loading.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Local AI is not ready yet.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (engine.state.value !is InferenceEngine.State.ModelReady) {
+            statusTv.text = "Local AI is busy. Try again in a moment."
             return
         }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
@@ -243,6 +299,11 @@ class TalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
     private fun askNanu(prompt: String) {
         if (!engineReady) return
+        if (engine.state.value !is InferenceEngine.State.ModelReady) {
+            statusTv.text = "Local AI is busy. Try again in a moment."
+            return
+        }
+
         answerTv.text = "Thinking locally…"
         statusTv.text = "Nanu is thinking…"
         talkBtn.isEnabled = false
