@@ -24,6 +24,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="44dp"
                 android:text="Back"
+                android:textAllCaps="false"
                 android:textColor="@color/nanu_accent_2" />
 
             <TextView
@@ -33,7 +34,7 @@
                 android:gravity="center"
                 android:text="Nanu Create"
                 android:textColor="@color/nanu_text"
-                android:textSize="22sp"
+                android:textSize="23sp"
                 android:textStyle="bold" />
 
             <Space
@@ -46,7 +47,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:gravity="center"
-            android:text="Text-to-image • local stable-diffusion.cpp engine"
+            android:text="Local text-to-image • images save to Gallery"
             android:textColor="@color/nanu_muted"
             android:textSize="12sp" />
 
@@ -55,7 +56,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             app:cardBackgroundColor="@color/nanu_panel"
-            app:cardCornerRadius="18dp"
+            app:cardCornerRadius="20dp"
             app:strokeColor="@color/nanu_border"
             app:strokeWidth="1dp">
 
@@ -70,6 +71,7 @@
                     android:layout_height="wrap_content"
                     android:text="Image model"
                     android:textColor="@color/nanu_accent_2"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -96,8 +98,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
-            android:text="Prompt"
+            android:text="Describe your image"
             android:textColor="@color/nanu_text"
+            android:textSize="15sp"
             android:textStyle="bold" />
 
         <EditText
@@ -107,7 +110,7 @@
             android:layout_marginTop="6dp"
             android:background="@color/nanu_input"
             android:gravity="top|start"
-            android:hint="A cinematic mountain village at sunrise, detailed illustration…"
+            android:hint="A small red boat on a calm lake at sunrise…"
             android:inputType="textCapSentences|textMultiLine"
             android:maxLines="5"
             android:minHeight="100dp"
@@ -119,7 +122,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:text="Negative prompt (optional)"
+            android:text="Avoid (optional)"
             android:textColor="@color/nanu_text"
             android:textStyle="bold" />
 
@@ -129,7 +132,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:background="@color/nanu_input"
-            android:hint="blurry, low quality, distorted"
+            android:hint="blurry, distorted, low quality"
             android:inputType="textCapSentences|textMultiLine"
             android:maxLines="3"
             android:minHeight="68dp"
@@ -137,15 +140,42 @@
             android:textColor="@color/nanu_text"
             android:textColorHint="@color/nanu_muted" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Generation mode"
+            android:textColor="@color/nanu_text"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/image_quality_button"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="6dp"
+            android:text="Mode: Fast • 384 × 384 • 8 steps"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="Fast is recommended on phones/tablets. Tap the mode button for higher-quality 512×512 generation."
+            android:textColor="@color/nanu_muted"
+            android:textSize="11sp" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/generate_image_button"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="18dp"
+            android:layout_height="58dp"
+            android:layout_marginTop="16dp"
             android:enabled="false"
-            android:text="Generate 512 × 512"
+            android:text="Generate fast image"
             android:textAllCaps="false"
             android:textColor="@android:color/white"
+            android:textSize="16sp"
             app:backgroundTint="@color/nanu_accent" />
 
         <com.google.android.material.button.MaterialButton
@@ -157,14 +187,26 @@
             android:textAllCaps="false"
             android:textColor="@color/nanu_danger" />
 
-        <TextView
-            android:id="@+id/image_status"
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:gravity="center"
-            android:textColor="@color/nanu_muted"
-            android:textSize="12sp" />
+            android:layout_marginTop="8dp"
+            app:cardBackgroundColor="@color/nanu_panel_2"
+            app:cardCornerRadius="16dp"
+            app:strokeColor="@color/nanu_border"
+            app:strokeWidth="1dp">
+
+            <TextView
+                android:id="@+id/image_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="58dp"
+                android:gravity="center"
+                android:padding="12dp"
+                android:text="Ready"
+                android:textColor="@color/nanu_text"
+                android:textSize="12sp" />
+        </com.google.android.material.card.MaterialCardView>
 
         <ImageView
             android:id="@+id/generated_image"
@@ -180,8 +222,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
+            android:layout_marginBottom="18dp"
             android:gravity="center"
-            android:text="The model is downloaded once from Hugging Face. After that, generation uses the bundled local image engine. CPU generation can take several minutes and may warm the device."
+            android:text="While generating, Nanu keeps the screen awake and shows elapsed time. Successful images are copied to Pictures/Nanu in your Gallery."
             android:textColor="@color/nanu_muted"
             android:textSize="11sp" />
 
