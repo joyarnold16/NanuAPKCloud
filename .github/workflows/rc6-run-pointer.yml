@@ -1,0 +1,47 @@
+name: Nanu RC6 Run Pointer
+
+on:
+  push:
+    branches:
+      - feature/nanu-local-ai-v1
+    paths:
+      - '.github/workflows/rc6-run-pointer.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish latest RC6 build run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            RUNS=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build-nanu-local-ai.yml --branch feature/nanu-local-ai-v1 --limit 10 --json databaseId,headSha,status,conclusion,event,createdAt)
+            BUILD_ID=$(echo "$RUNS" | jq -r '.[0].databaseId // empty')
+            if [ -n "$BUILD_ID" ]; then
+              python3 - "$BUILD_ID" <<'PY'
+          import json, os, subprocess, sys
+          repo = os.environ['GITHUB_REPOSITORY']
+          run_id = sys.argv[1]
+          raw = subprocess.check_output(['gh','api',f'repos/{repo}/pulls/6'], text=True)
+          data = json.loads(raw)
+          body = data.get('body') or ''
+          marker = '<!-- nanu-rc6-active-run -->'
+          lines = [ln for ln in body.splitlines() if marker not in ln]
+          body = '\n'.join(lines).rstrip() + f'\n\n{marker} Active RC6 build run: {run_id}'
+          subprocess.check_call(['gh','api','--method','PATCH',f'repos/{repo}/pulls/6','-f',f'body={body}'])
+          print(f'Published RC6 run {run_id}')
+          PY
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "No RC6 build run found"
+          exit 1
