@@ -1,5 +1,6 @@
 package com.example.llama
 
+import android.Manifest
 import android.app.ActivityManager
 import android.app.AlertDialog
 import android.app.DownloadManager
@@ -7,17 +8,29 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.media.AudioAttributes
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.StatFs
 import android.os.SystemClock
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
+import android.view.WindowManager
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -25,7 +38,9 @@ import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
 import com.arm.aichat.gguf.GgufMetadata
 import com.arm.aichat.gguf.GgufMetadataReader
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -40,25 +55,27 @@ import java.io.InputStream
 import java.util.Locale
 import java.util.UUID
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var modelStatusTv: TextView
-    private lateinit var modelNameTv: TextView
-    private lateinit var modelDetailTv: TextView
-    private lateinit var modeTv: TextView
     private lateinit var emptyStateTv: TextView
     private lateinit var statsTv: TextView
     private lateinit var messagesRv: RecyclerView
     private lateinit var userInputEt: EditText
-    private lateinit var sendBtn: MaterialButton
+    private lateinit var actionBtn: MaterialButton
     private lateinit var modelsBtn: MaterialButton
     private lateinit var newChatBtn: MaterialButton
-    private lateinit var modeBtn: MaterialButton
+    private lateinit var plusBtn: MaterialButton
+    private lateinit var modeChip: MaterialButton
+    private lateinit var attachmentCard: MaterialCardView
+    private lateinit var attachmentNameTv: TextView
+    private lateinit var attachmentRemoveTv: TextView
 
     private lateinit var engine: InferenceEngine
     private var engineReady = false
     private var generationJob: Job? = null
     private var downloadJob: Job? = null
+    private var imageDownloadJob: Job? = null
     private var downloadDialog: AlertDialog? = null
 
     private val messages = mutableListOf<Message>()
@@ -67,52 +84,110 @@ class MainActivity : AppCompatActivity() {
     private var currentModelDisplayName: String? = null
     private var isModelReady = false
     private var currentMode = AssistantMode.GENERAL
+    private var currentAttachment: NanuAttachment? = null
+    private var lastUserPrompt: String? = null
 
     private val prefs by lazy { getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
     private val modelDownloader by lazy { ModelDownloadManager(applicationContext) }
+    private val attachmentManager by lazy { AttachmentManager(applicationContext) }
+    private val imageModelManager by lazy { ImageModelManager(applicationContext) }
+    private val imageGenerator by lazy { LocalImageGenerator(applicationContext) }
+
+    private var recognizer: SpeechRecognizer? = null
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var preferOfflineSpeech = true
+
+    private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startListening(true)
+        else Toast.makeText(this, "Microphone permission is required for voice chat.", Toast.LENGTH_LONG).show()
+    }
+
+    private val openModelDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) handleSelectedModel(uri)
+    }
+
+    private val openAttachmentDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        attachmentCard.visibility = View.VISIBLE
+        attachmentNameTv.text = "Reading attachment…"
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { attachmentManager.import(uri) }
+                .onSuccess { attachment ->
+                    withContext(Dispatchers.Main) {
+                        currentAttachment = attachment
+                        refreshAttachmentUi()
+                    }
+                }
+                .onFailure { error ->
+                    withContext(Dispatchers.Main) {
+                        currentAttachment = null
+                        refreshAttachmentUi()
+                        Toast.makeText(this@MainActivity, "Could not attach file: ${error.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.parseColor("#0B0D12")
-        window.navigationBarColor = Color.parseColor("#0B0D12")
+        window.statusBarColor = Color.parseColor("#060B12")
+        window.navigationBarColor = Color.parseColor("#060B12")
         setContentView(R.layout.activity_main)
 
         modelStatusTv = findViewById(R.id.model_status)
-        modelNameTv = findViewById(R.id.model_name)
-        modelDetailTv = findViewById(R.id.model_detail)
-        modeTv = findViewById(R.id.mode_label)
         emptyStateTv = findViewById(R.id.empty_state)
         statsTv = findViewById(R.id.generation_stats)
         messagesRv = findViewById(R.id.messages)
         userInputEt = findViewById(R.id.user_input)
-        sendBtn = findViewById(R.id.send_button)
+        actionBtn = findViewById(R.id.send_button)
         modelsBtn = findViewById(R.id.models_button)
         newChatBtn = findViewById(R.id.new_chat_button)
-        modeBtn = findViewById(R.id.mode_button)
+        plusBtn = findViewById(R.id.plus_button)
+        modeChip = findViewById(R.id.mode_chip)
+        attachmentCard = findViewById(R.id.attachment_card)
+        attachmentNameTv = findViewById(R.id.attachment_name)
+        attachmentRemoveTv = findViewById(R.id.attachment_remove)
 
         currentMode = AssistantMode.fromId(prefs.getString(KEY_MODE, null))
-        modeTv.text = currentMode.label
+        refreshModeUi()
+        refreshAttachmentUi()
 
         messageAdapter = MessageAdapter(
             messages = messages,
             onCopy = ::copyText,
-            onReport = ::reportMessage
+            onSpeak = ::speakText,
+            onRegenerate = ::regenerateMessage,
+            onShare = ::shareMessage,
+            onEditPrompt = ::editMessagePrompt,
+            onSaveImage = ::saveImageMessage
         )
         messagesRv.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
         messagesRv.adapter = messageAdapter
 
         modelsBtn.setOnClickListener { showModelManager() }
         newChatBtn.setOnClickListener { startNewChat() }
-        modeBtn.setOnClickListener { chooseAssistantMode() }
-        sendBtn.setOnClickListener {
-            if (generationJob?.isActive == true) {
-                generationJob?.cancel()
-            } else {
-                handleUserInput()
-            }
+        plusBtn.setOnClickListener { showPlusMenu() }
+        modeChip.setOnClickListener { switchMode(AssistantMode.GENERAL) }
+        attachmentRemoveTv.setOnClickListener {
+            currentAttachment = null
+            refreshAttachmentUi()
         }
+        actionBtn.setOnClickListener {
+            if (generationJob?.isActive == true) stopCurrentGeneration()
+            else if (userInputEt.text.toString().trim().isNotEmpty()) handleUserInput(false)
+            else requestOrStartListening()
+        }
+        userInputEt.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = updateComposerAction()
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
 
+        tts = TextToSpeech(this, this)
+        createSpeechRecognizer()
         setModelUi(null, false, "Starting local engine…")
+        resumeImageModelDownloadIfNeeded()
 
         lifecycleScope.launch(Dispatchers.Default) {
             try {
@@ -124,17 +199,476 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    setModelUi(null, false, "Engine unavailable")
+                    setModelUi(null, false, "Local LLM engine unavailable")
                     Toast.makeText(this@MainActivity, "Local AI engine failed to start: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
     }
 
-    private val openModelDocument = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) handleSelectedModel(uri)
+    private fun showPlusMenu() {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.sheet_plus_menu, null)
+        dialog.setContentView(view)
+
+        fun choose(id: Int, mode: AssistantMode) {
+            view.findViewById<View>(id).setOnClickListener {
+                dialog.dismiss()
+                switchMode(mode)
+            }
+        }
+        choose(R.id.plus_general, AssistantMode.GENERAL)
+        choose(R.id.plus_code, AssistantMode.CODING)
+        choose(R.id.plus_academics, AssistantMode.ACADEMICS)
+        choose(R.id.plus_trading, AssistantMode.TRADING)
+        choose(R.id.plus_image, AssistantMode.IMAGE)
+        view.findViewById<View>(R.id.plus_attach).setOnClickListener {
+            dialog.dismiss()
+            openAttachmentDocument.launch(
+                arrayOf(
+                    "image/*", "application/pdf", "text/*",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                )
+            )
+        }
+        dialog.show()
+    }
+
+    private fun switchMode(mode: AssistantMode) {
+        currentMode = mode
+        prefs.edit().putString(KEY_MODE, mode.id).apply()
+        refreshModeUi()
+        when (mode) {
+            AssistantMode.IMAGE -> {
+                userInputEt.hint = "Describe the image you want…"
+                if (!imageModelReady()) modelStatusTv.text = "Create Image selected • image model needs download"
+            }
+            AssistantMode.TRADING -> userInputEt.hint = "Ask about a market, setup, chart, or risk…"
+            AssistantMode.CODING -> userInputEt.hint = "Ask Nanu to write, debug, or explain code…"
+            AssistantMode.ACADEMICS -> userInputEt.hint = "Ask a study or research question…"
+            AssistantMode.GENERAL -> userInputEt.hint = "Message Nanu…"
+        }
+    }
+
+    private fun refreshModeUi() {
+        if (currentMode == AssistantMode.GENERAL) {
+            modeChip.visibility = View.GONE
+        } else {
+            modeChip.visibility = View.VISIBLE
+            modeChip.text = "${currentMode.label} ×"
+        }
+    }
+
+    private fun refreshAttachmentUi() {
+        val attachment = currentAttachment
+        if (attachment == null) {
+            attachmentCard.visibility = View.GONE
+            attachmentNameTv.text = ""
+        } else {
+            attachmentCard.visibility = View.VISIBLE
+            attachmentNameTv.text = "${attachment.displayName}  •  ${formatBytes(attachment.sizeBytes)}"
+        }
+    }
+
+    private fun updateComposerAction() {
+        actionBtn.text = when {
+            generationJob?.isActive == true -> "Stop"
+            userInputEt.text.toString().trim().isNotEmpty() -> "Send"
+            else -> "Tap to talk"
+        }
+    }
+
+    private fun requestOrStartListening() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startListening(true)
+        } else {
+            micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun createSpeechRecognizer() {
+        recognizer?.destroy()
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) return
+        recognizer = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            } else {
+                SpeechRecognizer.createSpeechRecognizer(this)
+            }
+        }.getOrElse { SpeechRecognizer.createSpeechRecognizer(this) }
+
+        recognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                modelStatusTv.text = if (preferOfflineSpeech) "Listening • offline preferred" else "Listening…"
+                actionBtn.text = "Listening"
+            }
+            override fun onBeginningOfSpeech() { modelStatusTv.text = "Listening…" }
+            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onBufferReceived(buffer: ByteArray?) = Unit
+            override fun onEndOfSpeech() { modelStatusTv.text = "Processing speech…" }
+            override fun onError(error: Int) {
+                actionBtn.text = "Tap to talk"
+                if (preferOfflineSpeech && (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT)) {
+                    preferOfflineSpeech = false
+                    lifecycleScope.launch {
+                        delay(250L)
+                        startListening(false)
+                    }
+                } else {
+                    modelStatusTv.text = speechError(error)
+                }
+            }
+            override fun onResults(results: Bundle?) {
+                preferOfflineSpeech = true
+                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty().trim()
+                if (text.isBlank()) {
+                    modelStatusTv.text = "I didn't catch that. Try again."
+                    updateComposerAction()
+                    return
+                }
+                userInputEt.setText(text)
+                userInputEt.setSelection(text.length)
+                handleUserInput(true)
+            }
+            override fun onPartialResults(partialResults: Bundle?) {
+                val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                if (!text.isNullOrBlank()) {
+                    userInputEt.setText(text)
+                    userInputEt.setSelection(text.length)
+                }
+            }
+            override fun onEvent(eventType: Int, params: Bundle?) = Unit
+        })
+    }
+
+    private fun startListening(preferOffline: Boolean) {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            modelStatusTv.text = "Android speech recognition is unavailable"
+            return
+        }
+        preferOfflineSpeech = preferOffline
+        tts?.stop()
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, preferOffline)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+        }
+        runCatching { recognizer?.startListening(intent) }
+            .onFailure { modelStatusTv.text = "Speech recognition could not start" }
+    }
+
+    private fun speechError(code: Int): String = when (code) {
+        SpeechRecognizer.ERROR_AUDIO -> "Microphone error"
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission required"
+        SpeechRecognizer.ERROR_NO_MATCH -> "I didn't catch that. Try again."
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech recognizer is busy"
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected"
+        else -> "Speech recognition stopped (code $code)"
+    }
+
+    private fun handleUserInput(fromVoice: Boolean) {
+        val userMsg = userInputEt.text.toString().trim()
+        if (userMsg.isEmpty()) return
+
+        if (currentMode == AssistantMode.IMAGE) {
+            if (!imageModelReady()) {
+                offerImageModelDownload()
+                return
+            }
+        } else if (!isModelReady) {
+            showModelManager()
+            return
+        }
+
+        val attachment = currentAttachment
+        userInputEt.text = null
+        currentAttachment = null
+        refreshAttachmentUi()
+        lastUserPrompt = userMsg
+        emptyStateTv.visibility = View.GONE
+
+        val userIndex = messages.size
+        messages.add(
+            Message(
+                id = UUID.randomUUID().toString(),
+                content = userMsg,
+                isUser = true,
+                attachmentName = attachment?.displayName,
+                attachmentInfo = attachment?.let { formatBytes(it.sizeBytes) },
+                sourcePrompt = userMsg
+            )
+        )
+        messageAdapter.notifyItemInserted(userIndex)
+        scrollToBottom()
+
+        if (currentMode == AssistantMode.IMAGE) {
+            generateImageInChat(userMsg, attachment, fromVoice)
+        } else {
+            generateTextInChat(userMsg, attachment, fromVoice)
+        }
+    }
+
+    private fun generateTextInChat(userMsg: String, attachment: NanuAttachment?, fromVoice: Boolean) {
+        val assistantIndex = messages.size
+        val assistantId = UUID.randomUUID().toString()
+        messages.add(Message(assistantId, "Thinking locally…", false, sourcePrompt = userMsg))
+        messageAdapter.notifyItemInserted(assistantIndex)
+        scrollToBottom()
+
+        val prompt = buildEnginePrompt(userMsg, attachment)
+        val rawAssistant = StringBuilder()
+        var emittedTokens = 0
+        val startedAt = SystemClock.elapsedRealtime()
+
+        generationJob = lifecycleScope.launch(Dispatchers.Default) {
+            engine.sendUserPrompt(prompt)
+                .catch { error ->
+                    withContext(Dispatchers.Main) {
+                        updateAssistantById(assistantId, "Generation error: ${error.message ?: "unknown error"}")
+                    }
+                }
+                .onCompletion {
+                    val elapsedMs = (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(1L)
+                    val seconds = elapsedMs / 1000.0
+                    val speed = emittedTokens / seconds
+                    withContext(Dispatchers.Main) {
+                        statsTv.text = if (emittedTokens > 0) String.format(Locale.US, "%d tokens • %.1f tok/s • %.1fs", emittedTokens, speed, seconds) else "Generation stopped"
+                        generationJob = null
+                        updateComposerAction()
+                        setModelUi(currentModelDisplayName, isModelReady, if (isModelReady) "Ready • local" else "No LLM loaded")
+                        val finalText = messages.firstOrNull { it.id == assistantId }?.content.orEmpty()
+                        if (fromVoice && finalText.isNotBlank() && !finalText.startsWith("Generation error")) speakText(finalText)
+                    }
+                }
+                .collect { token ->
+                    emittedTokens++
+                    rawAssistant.append(token)
+                    val visible = stripThinking(rawAssistant.toString()).ifBlank { "Thinking locally…" }
+                    withContext(Dispatchers.Main) {
+                        updateAssistantById(assistantId, visible)
+                        scrollToBottom()
+                    }
+                }
+        }
+        updateComposerAction()
+    }
+
+    private fun generateImageInChat(userMsg: String, attachment: NanuAttachment?, fromVoice: Boolean) {
+        val assistantId = UUID.randomUUID().toString()
+        messages.add(Message(assistantId, "Preparing your image…", false, status = "Starting local image engine", sourcePrompt = userMsg))
+        messageAdapter.notifyItemInserted(messages.lastIndex)
+        scrollToBottom()
+
+        generationJob = lifecycleScope.launch(Dispatchers.Default) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            try {
+                val imagePrompt = createVisualPrompt(userMsg, attachment)
+                val result = imageGenerator.generate(imagePrompt, quality = false) { progress ->
+                    withContext(Dispatchers.Main) {
+                        updateAssistantById(assistantId, "Creating image locally…", status = progress)
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    val saved = if (result.gallerySaved) " • saved to Pictures/Nanu" else ""
+                    updateAssistantById(
+                        assistantId,
+                        "Here is your generated image.",
+                        imagePath = result.file.absolutePath,
+                        status = "Done • generated locally • ${result.elapsedSeconds}s$saved",
+                        sourcePrompt = userMsg
+                    )
+                    if (fromVoice) speakText("Your image is ready.")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    updateAssistantById(assistantId, "Image generation failed.", status = e.message ?: "Unknown image error", sourcePrompt = userMsg)
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    generationJob = null
+                    updateComposerAction()
+                    setModelUi(currentModelDisplayName, isModelReady, if (isModelReady) "Ready • local" else "Ready")
+                }
+            }
+        }
+        updateComposerAction()
+    }
+
+    private suspend fun createVisualPrompt(userMsg: String, attachment: NanuAttachment?): String {
+        val text = attachment?.extractedText?.trim().orEmpty()
+        if (text.isBlank()) return userMsg
+        if (!isModelReady) return "$userMsg. Visual context from ${attachment?.displayName}: ${text.take(1200)}"
+
+        val builder = StringBuilder()
+        val request = "Create one concise Stable Diffusion image prompt (maximum 90 words) for this request. Return only the visual prompt, no explanation.\nRequest: $userMsg\nDocument context:\n${text.take(6000)}"
+        runCatching {
+            engine.sendUserPrompt(request).collect { token -> builder.append(token) }
+        }
+        val cleaned = stripThinking(builder.toString()).trim()
+        return cleaned.ifBlank { userMsg }.take(1200)
+    }
+
+    private fun buildEnginePrompt(userMsg: String, attachment: NanuAttachment?): String = buildString {
+        append("[NANU MODE: ${currentMode.label}]\n")
+        append(currentMode.instruction)
+        append("\n\nUser request:\n$userMsg")
+        if (attachment != null) {
+            append("\n\n")
+            append(attachment.contextForPrompt())
+        }
+    }
+
+    private fun stopCurrentGeneration() {
+        imageGenerator.cancel()
+        generationJob?.cancel()
+        generationJob = null
+        modelStatusTv.text = "Generation stopped"
+        updateComposerAction()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    private fun updateAssistantById(
+        id: String,
+        content: String,
+        imagePath: String? = null,
+        status: String? = null,
+        sourcePrompt: String? = null
+    ) {
+        val index = messages.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val old = messages[index]
+        messages[index] = old.copy(
+            content = content,
+            imagePath = imagePath ?: old.imagePath,
+            status = status,
+            sourcePrompt = sourcePrompt ?: old.sourcePrompt
+        )
+        messageAdapter.notifyItemChanged(index)
+    }
+
+    private fun regenerateMessage(message: Message) {
+        val prompt = message.sourcePrompt ?: lastUserPrompt ?: return
+        if (!message.imagePath.isNullOrBlank()) switchMode(AssistantMode.IMAGE)
+        userInputEt.setText(prompt)
+        userInputEt.setSelection(prompt.length)
+        handleUserInput(false)
+    }
+
+    private fun editMessagePrompt(message: Message) {
+        val prompt = message.sourcePrompt ?: return
+        switchMode(AssistantMode.IMAGE)
+        userInputEt.setText(prompt)
+        userInputEt.setSelection(prompt.length)
+        userInputEt.requestFocus()
+    }
+
+    private fun shareMessage(message: Message) {
+        val imagePath = message.imagePath
+        if (!imagePath.isNullOrBlank()) {
+            val file = File(imagePath)
+            if (!file.exists()) return
+            val uri = FileProvider.getUriForFile(this, "${packageName}.files", file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_TEXT, message.content)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, "Share Nanu image"))
+        } else {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, message.content)
+            }
+            startActivity(Intent.createChooser(intent, "Share Nanu response"))
+        }
+    }
+
+    private fun saveImageMessage(message: Message) {
+        if (message.imagePath.isNullOrBlank()) return
+        Toast.makeText(this, "Nanu automatically saves completed images to Pictures/Nanu when Android allows it.", Toast.LENGTH_LONG).show()
+    }
+
+    private fun imageModelReady(): Boolean {
+        val file = imageModelManager.destinationFile(ImageModelCatalog.starter)
+        return file.exists() && imageModelManager.looksLikeGguf(file)
+    }
+
+    private fun offerImageModelDownload() {
+        val model = ImageModelCatalog.starter
+        if (imageModelReady()) return
+        val active = prefs.getLong(KEY_IMAGE_DOWNLOAD_ID, -1L)
+        if (active > 0L) {
+            Toast.makeText(this, "Image model download is already in progress.", Toast.LENGTH_LONG).show()
+            monitorImageModelDownload(active)
+            return
+        }
+        val free = StatFs(imageModelManager.downloadDirectory.absolutePath).availableBytes
+        if (free < model.sizeBytes + 1024L * 1024L * 1024L) {
+            Toast.makeText(this, "Keep at least about 3 GB free before downloading the image model.", Toast.LENGTH_LONG).show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Download local image model?")
+            .setMessage("${model.name} • ${model.sizeLabel}\n\nIt downloads inside Nanu once. After that, image generation works locally.")
+            .setPositiveButton("Download in Nanu") { _, _ ->
+                val id = imageModelManager.enqueue(model)
+                prefs.edit().putLong(KEY_IMAGE_DOWNLOAD_ID, id).apply()
+                monitorImageModelDownload(id)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun resumeImageModelDownloadIfNeeded() {
+        val id = prefs.getLong(KEY_IMAGE_DOWNLOAD_ID, -1L)
+        if (id > 0L) monitorImageModelDownload(id)
+    }
+
+    private fun monitorImageModelDownload(id: Long) {
+        imageDownloadJob?.cancel()
+        imageDownloadJob = lifecycleScope.launch(Dispatchers.IO) {
+            while (true) {
+                val snapshot = imageModelManager.query(id)
+                if (snapshot == null) {
+                    prefs.edit().remove(KEY_IMAGE_DOWNLOAD_ID).apply()
+                    break
+                }
+                when (snapshot.status) {
+                    DownloadManager.STATUS_PENDING, DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PAUSED -> {
+                        val total = if (snapshot.totalBytes > 0L) snapshot.totalBytes else ImageModelCatalog.starter.sizeBytes
+                        val percent = if (total > 0L) ((snapshot.downloadedBytes * 100L) / total).coerceIn(0L, 100L) else 0L
+                        withContext(Dispatchers.Main) { modelStatusTv.text = "Image model downloading • $percent%" }
+                    }
+                    DownloadManager.STATUS_SUCCESSFUL -> {
+                        val file = imageModelManager.destinationFile(ImageModelCatalog.starter)
+                        val ok = imageModelManager.looksLikeGguf(file) && imageModelManager.verifySha256(file, ImageModelCatalog.starter.sha256)
+                        prefs.edit().remove(KEY_IMAGE_DOWNLOAD_ID).apply()
+                        withContext(Dispatchers.Main) {
+                            if (ok) {
+                                modelStatusTv.text = "Image model ready • generation stays local"
+                                Toast.makeText(this@MainActivity, "Image model ready. Your prompt is still in the message box.", Toast.LENGTH_LONG).show()
+                            } else {
+                                file.delete()
+                                modelStatusTv.text = "Image model verification failed"
+                            }
+                        }
+                        break
+                    }
+                    DownloadManager.STATUS_FAILED -> {
+                        prefs.edit().remove(KEY_IMAGE_DOWNLOAD_ID).apply()
+                        withContext(Dispatchers.Main) { modelStatusTv.text = "Image model download failed (reason ${snapshot.reason})" }
+                        break
+                    }
+                }
+                delay(800L)
+            }
+        }
     }
 
     private fun restoreLastModelOrShowWelcome() {
@@ -143,49 +677,44 @@ class MainActivity : AppCompatActivity() {
         if (file != null && file.exists() && file.isFile) {
             lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension, announce = false) }
         } else {
-            setModelUi(null, false, "No model loaded")
-            showEmptyState(true, "Private AI that runs on your device.\n\nTap Models to choose a recommended LLM, download it inside Nanu, or import your own GGUF.")
+            setModelUi(null, false, "No LLM loaded • tap Model to download one")
+            showEmptyState(true, "Private local AI.\n\nTap Model at the top right to download a recommended LLM. Use + for General, Code, Academics, Trading, Create Image, or Attach File.")
         }
     }
 
     private fun storedModelFiles(): List<File> {
         val directories = listOf(ensureModelsDirectory(), modelDownloader.downloadDirectory)
         return directories.flatMap { directory ->
-            directory.listFiles()
-                ?.filter { it.isFile && it.extension.equals("gguf", ignoreCase = true) }
-                .orEmpty()
-        }.distinctBy { it.absolutePath }
-            .sortedBy { it.name.lowercase(Locale.getDefault()) }
+            directory.listFiles()?.filter { it.isFile && it.extension.equals("gguf", ignoreCase = true) }.orEmpty()
+        }.distinctBy { it.absolutePath }.sortedBy { it.name.lowercase(Locale.getDefault()) }
     }
 
     private fun showModelManager() {
         if (!engineReady) {
-            Toast.makeText(this, "The local engine is still starting.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "The local LLM engine is still starting.", Toast.LENGTH_SHORT).show()
             return
         }
-
         val files = storedModelFiles()
         val ramGb = totalDeviceRamGb()
-        val best = ModelCatalog.bestForRam(ramGb, currentMode.id)
+        val best = ModelCatalog.bestForRam(ramGb, if (currentMode == AssistantMode.CODING) "coding" else null)
         val activeModel = activeDownloadModel()
-
         val labels = mutableListOf(
-            "★ Recommended LLMs  •  Best: ${best.name}",
-            "Import your own GGUF model"
+            "★ Recommended • ${best.name}",
+            "Import your own GGUF"
         )
-        if (activeModel != null) labels += "↓ Download in progress  •  ${activeModel.name}"
+        if (activeModel != null) labels += "↓ Download in progress • ${activeModel.name}"
         val fileStart = labels.size
-        labels += files.map { "${it.nameWithoutExtension}  •  ${formatBytes(it.length())}" }
+        labels += files.map { "${it.nameWithoutExtension} • ${formatBytes(it.length())}" }
         if (files.isNotEmpty()) labels += "Delete a stored model…"
 
         AlertDialog.Builder(this)
-            .setTitle("Models • ${String.format(Locale.US, "%.1f", ramGb)} GB RAM")
+            .setTitle("Local models • ${String.format(Locale.US, "%.1f", ramGb)} GB RAM")
             .setItems(labels.toTypedArray()) { _, which ->
                 when {
                     which == 0 -> showRecommendedModelCatalog(ramGb)
                     which == 1 -> openModelDocument.launch(arrayOf("*/*"))
                     activeModel != null && which == 2 -> showActiveDownload(activeModel)
-                    which in fileStart until (fileStart + files.size) -> {
+                    which in fileStart until fileStart + files.size -> {
                         val file = files[which - fileStart]
                         lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension) }
                     }
@@ -204,27 +733,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showRecommendedModelCatalog(ramGb: Double) {
-        val best = ModelCatalog.bestForRam(ramGb, currentMode.id)
-        val labels = ModelCatalog.models.map { model ->
+        val best = ModelCatalog.bestForRam(ramGb, if (currentMode == AssistantMode.CODING) "coding" else null)
+        val ordered = listOf(best) + ModelCatalog.models.filter { it.id != best.id }
+        val labels = ordered.map { model ->
             val downloaded = modelDownloader.destinationFile(model).let { it.exists() && modelDownloader.looksLikeGguf(it) }
             val badge = when {
                 downloaded -> "✓ DOWNLOADED"
-                model.id == best.id -> "★ BEST MATCH"
+                model.id == best.id -> "★ RECOMMENDED"
                 ramGb + 0.25 >= model.minimumRamGb -> "✓ Compatible"
                 else -> "⚠ ${model.minimumRamGb} GB+ suggested"
             }
             "$badge\n${model.name} • ${model.quant}\n${model.sizeLabel} • ${model.speedLabel} • ${model.useCase}"
         }
-
         AlertDialog.Builder(this)
-            .setTitle("Recommended local LLMs")
-            .setMessage(
-                "Nanu detected about ${String.format(Locale.US, "%.1f", ramGb)} GB RAM. " +
-                    "Choose a model and Nanu can download it directly into private app storage. Internet is used only for optional model downloads; inference remains on-device."
-            )
-            .setItems(labels.toTypedArray()) { _, which ->
-                showModelSuggestionDetail(ModelCatalog.models[which], ramGb, best.id)
-            }
+            .setTitle("Choose a local model")
+            .setMessage("Recommended models appear first. Tap one to see size, RAM, speed, and download it directly inside Nanu.")
+            .setItems(labels.toTypedArray()) { _, which -> showModelSuggestionDetail(ordered[which], ramGb, best.id) }
             .setNegativeButton("Back", null)
             .show()
     }
@@ -234,33 +758,16 @@ class MainActivity : AppCompatActivity() {
         val alreadyDownloaded = target.exists() && modelDownloader.looksLikeGguf(target)
         val status = when {
             alreadyDownloaded -> "Already downloaded"
-            model.id == bestId -> "Best match for this device and mode"
+            model.id == bestId -> "Recommended for this device"
             ramGb + 0.25 >= model.minimumRamGb -> "Compatible with this device"
             else -> "May be too heavy for this device"
         }
-
-        val message = buildString {
-            append("$status\n\n")
-            append("File: ${model.fileName}\n")
-            append("Quant: ${model.quant}\n")
-            append("Download size: ${model.sizeLabel}\n")
-            append("Suggested RAM: ${model.minimumRamGb} GB+\n")
-            append("Expected speed: ${model.speedLabel}\n")
-            append("Best for: ${model.useCase}\n")
-            append("License: ${model.licenseLabel}\n\n")
-            append(model.notes)
-            append("\n\nNanu will download this model inside the app and load it automatically when complete.")
-        }
-
+        val message = "$status\n\nQuant: ${model.quant}\nSize: ${model.sizeLabel}\nRAM: ${model.minimumRamGb} GB+\nSpeed: ${model.speedLabel}\nBest for: ${model.useCase}\nLicense: ${model.licenseLabel}\n\n${model.notes}"
         AlertDialog.Builder(this)
             .setTitle(model.name)
             .setMessage(message)
-            .setPositiveButton(if (alreadyDownloaded) "Load model" else "Download in Nanu") { _, _ ->
-                if (alreadyDownloaded) {
-                    lifecycleScope.launch { loadModelFile(target, model.name) }
-                } else {
-                    confirmModelDownload(model)
-                }
+            .setPositiveButton(if (alreadyDownloaded) "Load" else "Download in Nanu") { _, _ ->
+                if (alreadyDownloaded) lifecycleScope.launch { loadModelFile(target, model.name) } else confirmModelDownload(model)
             }
             .setNeutralButton("Source / license") { _, _ -> openModelPage(model) }
             .setNegativeButton("Close", null)
@@ -268,53 +775,31 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun confirmModelDownload(model: RecommendedModel) {
-        val existingModel = activeDownloadModel()
-        if (existingModel != null) {
-            if (existingModel.id == model.id) {
-                showActiveDownload(existingModel)
-            } else {
-                Toast.makeText(this, "Another model is already downloading. Cancel or finish it first.", Toast.LENGTH_LONG).show()
-            }
+        val active = activeDownloadModel()
+        if (active != null) {
+            showActiveDownload(active)
             return
         }
-
-        val directory = modelDownloader.downloadDirectory
-        val available = StatFs(directory.absolutePath).availableBytes
-        val reserve = 512L * 1024L * 1024L
-        if (available < model.sizeBytes + reserve) {
-            Toast.makeText(
-                this,
-                "Not enough free storage. ${model.sizeLabel} model plus about 512 MB working space is recommended.",
-                Toast.LENGTH_LONG
-            ).show()
+        val available = StatFs(modelDownloader.downloadDirectory.absolutePath).availableBytes
+        if (available < model.sizeBytes + 512L * 1024L * 1024L) {
+            Toast.makeText(this, "Not enough free storage for ${model.sizeLabel} plus working space.", Toast.LENGTH_LONG).show()
             return
         }
-
         AlertDialog.Builder(this)
             .setTitle("Download ${model.name}?")
-            .setMessage(
-                "Size: ${model.sizeLabel}\n\nThe model will download directly inside Nanu Local AI. " +
-                    "Wi-Fi is recommended for large models. Mobile data may be used if allowed by Android. " +
-                    "After download, Nanu will verify that the file is GGUF and load it automatically."
-            )
+            .setMessage("${model.sizeLabel} • ${model.speedLabel}\n\nThe model downloads inside Nanu. Inference remains on-device after download.")
             .setPositiveButton("Download") { _, _ -> beginModelDownload(model) }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
     private fun beginModelDownload(model: RecommendedModel) {
-        try {
+        runCatching {
             val id = modelDownloader.enqueue(model)
-            prefs.edit()
-                .putLong(KEY_ACTIVE_DOWNLOAD_ID, id)
-                .putString(KEY_ACTIVE_DOWNLOAD_MODEL, model.id)
-                .apply()
+            prefs.edit().putLong(KEY_ACTIVE_DOWNLOAD_ID, id).putString(KEY_ACTIVE_DOWNLOAD_MODEL, model.id).apply()
             showDownloadProgressDialog(model, id)
             monitorModelDownload(model, id)
-        } catch (e: Exception) {
-            clearActiveDownload()
-            Toast.makeText(this, "Could not start download: ${e.message}", Toast.LENGTH_LONG).show()
-        }
+        }.onFailure { Toast.makeText(this, "Could not start download: ${it.message}", Toast.LENGTH_LONG).show() }
     }
 
     private fun activeDownloadModel(): RecommendedModel? {
@@ -340,22 +825,6 @@ class MainActivity : AppCompatActivity() {
         val model = activeDownloadModel() ?: return
         val id = prefs.getLong(KEY_ACTIVE_DOWNLOAD_ID, -1L)
         if (id <= 0L) return
-
-        val snapshot = runCatching { modelDownloader.query(id) }.getOrNull()
-        if (snapshot?.status == DownloadManager.STATUS_SUCCESSFUL) {
-            val file = modelDownloader.destinationFile(model)
-            if (modelDownloader.looksLikeGguf(file)) {
-                clearActiveDownload()
-                lifecycleScope.launch { loadModelFile(file, model.name) }
-            } else {
-                file.delete()
-                clearActiveDownload()
-                Toast.makeText(this, "Downloaded file is not a valid GGUF model.", Toast.LENGTH_LONG).show()
-            }
-            return
-        }
-
-        showDownloadProgressDialog(model, id)
         monitorModelDownload(model, id)
     }
 
@@ -365,11 +834,10 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Downloading ${model.name}")
             .setMessage("Starting download…")
             .setPositiveButton("Hide", null)
-            .setNegativeButton("Cancel download") { _, _ ->
+            .setNegativeButton("Cancel") { _, _ ->
                 modelDownloader.cancel(downloadId)
                 clearActiveDownload()
                 downloadJob?.cancel()
-                Toast.makeText(this, "Model download cancelled.", Toast.LENGTH_SHORT).show()
             }
             .create()
         downloadDialog?.show()
@@ -382,59 +850,33 @@ class MainActivity : AppCompatActivity() {
                 val snapshot = modelDownloader.query(downloadId)
                 if (snapshot == null) {
                     clearActiveDownload()
-                    withContext(Dispatchers.Main) {
-                        downloadDialog?.dismiss()
-                        Toast.makeText(this@MainActivity, "Download could not be found.", Toast.LENGTH_LONG).show()
-                    }
                     break
                 }
-
                 when (snapshot.status) {
-                    DownloadManager.STATUS_PENDING,
-                    DownloadManager.STATUS_RUNNING,
-                    DownloadManager.STATUS_PAUSED -> {
+                    DownloadManager.STATUS_PENDING, DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PAUSED -> {
                         val total = if (snapshot.totalBytes > 0L) snapshot.totalBytes else model.sizeBytes
                         val percent = if (total > 0L) ((snapshot.downloadedBytes * 100L) / total).coerceIn(0L, 100L) else 0L
-                        val state = when (snapshot.status) {
-                            DownloadManager.STATUS_PAUSED -> "Paused by Android"
-                            DownloadManager.STATUS_PENDING -> "Waiting to start"
-                            else -> "Downloading"
-                        }
-                        val text = "$state • $percent%\n${formatBytes(snapshot.downloadedBytes)} / ${formatBytes(total)}\n\nYou can hide this window. Android will continue the download in the background."
                         withContext(Dispatchers.Main) {
-                            if (downloadDialog?.isShowing == true) downloadDialog?.setMessage(text)
+                            downloadDialog?.setMessage("Downloading • $percent%\n${formatBytes(snapshot.downloadedBytes)} / ${formatBytes(total)}")
+                            modelStatusTv.text = "${model.name} downloading • $percent%"
                         }
                     }
-
                     DownloadManager.STATUS_SUCCESSFUL -> {
                         val file = modelDownloader.destinationFile(model)
                         clearActiveDownload()
                         withContext(Dispatchers.Main) { downloadDialog?.dismiss() }
-
-                        if (!modelDownloader.looksLikeGguf(file)) {
+                        if (modelDownloader.looksLikeGguf(file)) loadModelFile(file, model.name)
+                        else {
                             file.delete()
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(this@MainActivity, "Download finished, but the file was not a valid GGUF model.", Toast.LENGTH_LONG).show()
-                            }
-                            break
+                            withContext(Dispatchers.Main) { Toast.makeText(this@MainActivity, "Downloaded file is not a valid GGUF model.", Toast.LENGTH_LONG).show() }
                         }
-
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, "${model.name} downloaded. Loading local AI…", Toast.LENGTH_LONG).show()
-                        }
-                        loadModelFile(file, model.name)
                         break
                     }
-
                     DownloadManager.STATUS_FAILED -> {
                         clearActiveDownload()
                         withContext(Dispatchers.Main) {
                             downloadDialog?.dismiss()
-                            Toast.makeText(
-                                this@MainActivity,
-                                "Model download failed (Android reason ${snapshot.reason}). Please try again.",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            modelStatusTv.text = "Model download failed (reason ${snapshot.reason})"
                         }
                         break
                     }
@@ -445,21 +887,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun clearActiveDownload() {
-        prefs.edit()
-            .remove(KEY_ACTIVE_DOWNLOAD_ID)
-            .remove(KEY_ACTIVE_DOWNLOAD_MODEL)
-            .apply()
+        prefs.edit().remove(KEY_ACTIVE_DOWNLOAD_ID).remove(KEY_ACTIVE_DOWNLOAD_MODEL).apply()
     }
 
     private fun openModelPage(model: RecommendedModel) {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(model.pageUrl))
-        try {
-            startActivity(intent)
-        } catch (_: Exception) {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("Model page", model.pageUrl))
-            Toast.makeText(this, "No browser found. Model source link copied.", Toast.LENGTH_LONG).show()
-        }
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(model.pageUrl))) }
+            .onFailure { copyText(model.pageUrl) }
     }
 
     private fun showDeleteModelDialog(files: List<File>) {
@@ -468,16 +901,10 @@ class MainActivity : AppCompatActivity() {
             .setItems(files.map { it.name }.toTypedArray()) { _, which ->
                 val file = files[which]
                 if (currentModelFile?.absolutePath == file.absolutePath && isModelReady) {
-                    Toast.makeText(this, "The active model cannot be deleted. Load another model first.", Toast.LENGTH_LONG).show()
-                    return@setItems
+                    Toast.makeText(this, "Load another model before deleting the active model.", Toast.LENGTH_LONG).show()
+                } else if (file.delete()) {
+                    Toast.makeText(this, "Model deleted.", Toast.LENGTH_SHORT).show()
                 }
-                AlertDialog.Builder(this)
-                    .setMessage("Delete ${file.name} from Nanu Local AI?")
-                    .setPositiveButton("Delete") { _, _ ->
-                        if (file.delete()) Toast.makeText(this, "Model deleted.", Toast.LENGTH_SHORT).show()
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -485,24 +912,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleSelectedModel(uri: Uri) {
         if (!engineReady) return
-        setBusyUi("Reading GGUF model…")
-
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val metadata = contentResolver.openInputStream(uri)?.use {
-                    GgufMetadataReader.create().readStructuredMetadata(it)
-                } ?: error("Unable to read selected file")
-
+                withContext(Dispatchers.Main) { setBusyUi("Reading GGUF model…") }
+                val metadata = contentResolver.openInputStream(uri)?.use { GgufMetadataReader.create().readStructuredMetadata(it) } ?: error("Unable to read selected file")
                 val modelName = metadata.filename() + FILE_EXTENSION_GGUF
-                val modelFile = contentResolver.openInputStream(uri)?.use { input ->
-                    ensureModelFile(modelName, input)
-                } ?: error("Unable to import selected model")
-
+                val modelFile = contentResolver.openInputStream(uri)?.use { input -> ensureModelFile(modelName, input) } ?: error("Unable to import selected model")
                 loadModelFile(modelFile, metadata.basic.name ?: modelFile.nameWithoutExtension)
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     setModelUi(null, false, "Model import failed")
-                    Toast.makeText(this@MainActivity, "Could not load this GGUF: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Could not import GGUF: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -511,229 +931,87 @@ class MainActivity : AppCompatActivity() {
     private suspend fun ensureModelFile(modelName: String, input: InputStream): File = withContext(Dispatchers.IO) {
         val safeName = modelName.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val file = File(ensureModelsDirectory(), safeName)
-        if (!file.exists()) {
-            withContext(Dispatchers.Main) { setBusyUi("Importing model to private storage…") }
-            FileOutputStream(file).use { output -> input.copyTo(output, DEFAULT_BUFFER_SIZE) }
-        }
+        if (!file.exists()) FileOutputStream(file).use { output -> input.copyTo(output, DEFAULT_BUFFER_SIZE) }
         file
     }
 
     private suspend fun loadModelFile(file: File, displayName: String, announce: Boolean = true) {
         if (!engineReady) return
-        withContext(Dispatchers.Main) { setBusyUi("Loading local AI…") }
-
+        withContext(Dispatchers.Main) { setBusyUi("Loading ${displayName.take(28)}…") }
         try {
             generationJob?.cancelAndJoin()
             withContext(Dispatchers.IO) {
                 when (engine.state.value) {
-                    is InferenceEngine.State.ModelReady,
-                    is InferenceEngine.State.Error -> engine.cleanUp()
+                    is InferenceEngine.State.ModelReady, is InferenceEngine.State.Error -> engine.cleanUp()
                     else -> Unit
                 }
                 engine.loadModel(file.absolutePath)
-                engine.setSystemPrompt(currentMode.systemPrompt)
+                engine.setSystemPrompt(BASE_SYSTEM_PROMPT)
             }
-
             currentModelFile = file
             currentModelDisplayName = displayName
             isModelReady = true
-            prefs.edit()
-                .putString(KEY_LAST_MODEL, file.absolutePath)
-                .putString(KEY_MODE, currentMode.id)
-                .apply()
-
+            prefs.edit().putString(KEY_LAST_MODEL, file.absolutePath).apply()
             withContext(Dispatchers.Main) {
-                setModelUi(displayName, true, "Ready")
-                modelDetailTv.text = "${formatBytes(file.length())}  •  ${currentMode.label}  •  On-device"
-                userInputEt.isEnabled = true
-                userInputEt.hint = "Ask Nanu anything…"
-                sendBtn.isEnabled = true
-                sendBtn.text = "Send"
-                if (announce) {
-                    messages.clear()
-                    messageAdapter.notifyDataSetChanged()
-                    statsTv.text = ""
-                }
-                showEmptyState(messages.isEmpty(), "Nanu is ready.\nYour prompts and model stay on this device.")
+                setModelUi(displayName, true, "Ready • local • ${formatBytes(file.length())}")
+                if (announce) statsTv.text = ""
+                showEmptyState(messages.isEmpty(), "Nanu is ready. Use + to switch mode, attach files, or create images.")
+                updateComposerAction()
             }
         } catch (e: Exception) {
             isModelReady = false
             withContext(Dispatchers.Main) {
-                setModelUi(displayName, false, "Load failed")
-                userInputEt.isEnabled = false
-                sendBtn.isEnabled = false
+                setModelUi(displayName, false, "Model load failed")
                 Toast.makeText(this@MainActivity, "Model load failed: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private fun startNewChat() {
+        stopCurrentGeneration()
+        messages.clear()
+        messageAdapter.notifyDataSetChanged()
+        statsTv.text = ""
+        currentAttachment = null
+        refreshAttachmentUi()
+        showEmptyState(true, "New conversation. Your selected model and mode are ready.")
         val file = currentModelFile
-        if (!isModelReady || file == null) {
-            messages.clear()
-            messageAdapter.notifyDataSetChanged()
-            showEmptyState(true, "Choose or download a GGUF model to start a private chat.")
-            return
+        if (isModelReady && file != null) {
+            lifecycleScope.launch { loadModelFile(file, currentModelDisplayName ?: file.nameWithoutExtension, announce = false) }
         }
-
-        lifecycleScope.launch {
-            messages.clear()
-            messageAdapter.notifyDataSetChanged()
-            statsTv.text = ""
-            showEmptyState(true, "Starting a fresh local conversation…")
-            loadModelFile(file, currentModelDisplayName ?: file.nameWithoutExtension, announce = false)
-        }
-    }
-
-    private fun chooseAssistantMode() {
-        val modes = AssistantMode.entries.toTypedArray()
-        val checked = modes.indexOf(currentMode)
-        AlertDialog.Builder(this)
-            .setTitle("Assistant mode")
-            .setSingleChoiceItems(modes.map { it.label }.toTypedArray(), checked) { dialog, which ->
-                val chosen = modes[which]
-                dialog.dismiss()
-                if (chosen == currentMode) return@setSingleChoiceItems
-                currentMode = chosen
-                modeTv.text = currentMode.label
-                prefs.edit().putString(KEY_MODE, currentMode.id).apply()
-                currentModelFile?.let { file ->
-                    lifecycleScope.launch {
-                        Toast.makeText(this@MainActivity, "Mode changed. Starting a fresh chat.", Toast.LENGTH_SHORT).show()
-                        messages.clear()
-                        messageAdapter.notifyDataSetChanged()
-                        loadModelFile(file, currentModelDisplayName ?: file.nameWithoutExtension, announce = false)
-                    }
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun handleUserInput() {
-        if (!isModelReady) {
-            showModelManager()
-            return
-        }
-
-        val userMsg = userInputEt.text.toString().trim()
-        if (userMsg.isEmpty()) return
-
-        userInputEt.text = null
-        userInputEt.isEnabled = false
-        sendBtn.text = "Stop"
-        sendBtn.isEnabled = true
-        emptyStateTv.visibility = View.GONE
-
-        val userIndex = messages.size
-        messages.add(Message(UUID.randomUUID().toString(), userMsg, true))
-        messages.add(Message(UUID.randomUUID().toString(), "Thinking locally…", false))
-        messageAdapter.notifyItemRangeInserted(userIndex, 2)
-        scrollToBottom()
-
-        val rawAssistant = StringBuilder()
-        var emittedTokens = 0
-        val startedAt = SystemClock.elapsedRealtime()
-
-        generationJob = lifecycleScope.launch(Dispatchers.Default) {
-            engine.sendUserPrompt(userMsg)
-                .catch { error ->
-                    withContext(Dispatchers.Main) {
-                        updateLastAssistant("Generation error: ${error.message ?: "unknown error"}")
-                    }
-                }
-                .onCompletion {
-                    val elapsedMs = (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(1L)
-                    val seconds = elapsedMs / 1000.0
-                    val speed = emittedTokens / seconds
-                    withContext(Dispatchers.Main) {
-                        userInputEt.isEnabled = true
-                        userInputEt.requestFocus()
-                        sendBtn.text = "Send"
-                        sendBtn.isEnabled = true
-                        statsTv.text = if (emittedTokens > 0) {
-                            String.format(Locale.US, "%d tokens  •  %.1f tok/s  •  %.1fs", emittedTokens, speed, seconds)
-                        } else {
-                            "Generation stopped"
-                        }
-                    }
-                }
-                .collect { token ->
-                    emittedTokens++
-                    rawAssistant.append(token)
-                    val visible = stripThinking(rawAssistant.toString()).ifBlank { "Thinking locally…" }
-                    withContext(Dispatchers.Main) {
-                        updateLastAssistant(visible)
-                        scrollToBottom()
-                    }
-                }
-        }
-    }
-
-    private fun updateLastAssistant(text: String) {
-        val index = messages.indexOfLast { !it.isUser }
-        if (index < 0) return
-        messages[index] = messages[index].copy(content = text)
-        messageAdapter.notifyItemChanged(index)
     }
 
     private fun stripThinking(raw: String): String {
         var text = raw.replace(Regex("(?s)<think>.*?</think>"), "")
         val open = text.indexOf("<think>")
         if (open >= 0) text = text.substring(0, open)
-        text = text.replace("</think>", "")
-
-        val partialTags = listOf("<think", "<thin", "<thi", "<th", "<t", "<")
-        for (partial in partialTags) {
-            if (text.endsWith(partial)) {
-                text = text.dropLast(partial.length)
-                break
-            }
-        }
-        return text.trimStart()
+        return text.replace("</think>", "").trimStart()
     }
 
     private fun copyText(text: String) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("Nanu Local AI", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("Nanu", text))
         Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun reportMessage(text: String) {
-        val intent = Intent(Intent.ACTION_SENDTO).apply {
-            data = Uri.parse("mailto:$REPORT_EMAIL")
-            putExtra(Intent.EXTRA_SUBJECT, "Nanu Local AI content report")
-            putExtra(
-                Intent.EXTRA_TEXT,
-                "I would like to report this AI-generated response:\n\n$text\n\nApp version: 1.0 RC3"
-            )
-        }
-        try {
-            startActivity(intent)
-        } catch (_: Exception) {
-            copyText(text)
-            Toast.makeText(this, "No email app found. The response was copied so you can report it manually.", Toast.LENGTH_LONG).show()
-        }
     }
 
     private fun setBusyUi(status: String) {
         modelStatusTv.text = status
         modelStatusTv.setTextColor(getColor(R.color.nanu_accent_2))
-        userInputEt.isEnabled = false
-        sendBtn.isEnabled = false
         modelsBtn.isEnabled = false
         newChatBtn.isEnabled = false
-        modeBtn.isEnabled = false
     }
 
     private fun setModelUi(name: String?, ready: Boolean, status: String) {
         modelStatusTv.text = status
         modelStatusTv.setTextColor(getColor(if (ready) R.color.nanu_success else R.color.nanu_muted))
-        modelNameTv.text = name ?: "No local model"
-        if (name == null) modelDetailTv.text = "Download a recommended model or import a compatible GGUF"
+        modelsBtn.text = if (name.isNullOrBlank()) "Model ▾" else "${compactModelName(name)} ▾"
         modelsBtn.isEnabled = true
         newChatBtn.isEnabled = true
-        modeBtn.isEnabled = true
+    }
+
+    private fun compactModelName(name: String): String {
+        val cleaned = name.replace(Regex("(?i)instruct|q4_k_m|gguf"), "").replace(Regex("[-_]+"), " ").trim()
+        return if (cleaned.length <= 18) cleaned else cleaned.take(16) + "…"
     }
 
     private fun showEmptyState(show: Boolean, text: String) {
@@ -757,36 +1035,49 @@ class MainActivity : AppCompatActivity() {
         else -> "$bytes B"
     }
 
+    private fun speakText(text: String) {
+        if (!ttsReady || text.isBlank()) return
+        tts?.speak(text.take(3500), TextToSpeech.QUEUE_FLUSH, null, "nanu_reply_${System.currentTimeMillis()}")
+    }
+
+    override fun onInit(status: Int) {
+        if (status != TextToSpeech.SUCCESS) {
+            ttsReady = false
+            return
+        }
+        tts?.setAudioAttributes(
+            AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
+        )
+        tts?.setSpeechRate(0.96f)
+        val candidates = listOf(Locale.getDefault(), Locale.US, Locale.UK).distinct()
+        val selected = candidates.firstOrNull { (tts?.isLanguageAvailable(it) ?: TextToSpeech.LANG_NOT_SUPPORTED) >= TextToSpeech.LANG_AVAILABLE }
+        ttsReady = selected != null && (tts?.setLanguage(selected) ?: TextToSpeech.LANG_NOT_SUPPORTED) >= TextToSpeech.LANG_AVAILABLE
+        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) = Unit
+            override fun onDone(utteranceId: String?) = Unit
+            @Deprecated("Deprecated in Java") override fun onError(utteranceId: String?) = Unit
+        })
+    }
+
     override fun onDestroy() {
         generationJob?.cancel()
         downloadJob?.cancel()
-        if (isFinishing && engineReady) {
-            runCatching { engine.destroy() }
-        }
+        imageDownloadJob?.cancel()
+        imageGenerator.cancel()
+        recognizer?.cancel()
+        recognizer?.destroy()
+        tts?.stop()
+        tts?.shutdown()
+        if (isFinishing && engineReady) runCatching { engine.destroy() }
         super.onDestroy()
     }
 
-    enum class AssistantMode(val id: String, val label: String, val systemPrompt: String) {
-        GENERAL(
-            "general",
-            "General",
-            "You are Nanu Local AI, a private on-device assistant. Give clear, accurate, useful answers. Do not reveal hidden chain-of-thought, private reasoning, or <think> blocks. Provide only the final answer and concise explanation when useful."
-        ),
-        CODING(
-            "coding",
-            "Coding",
-            "You are Nanu Local AI in Coding mode. Help with programming, debugging, architecture, and code explanation. Prefer correct runnable examples. Do not reveal hidden chain-of-thought, private reasoning, or <think> blocks."
-        ),
-        STUDY(
-            "study",
-            "Study",
-            "You are Nanu Local AI in Study mode. Teach step by step using simple language, examples, and short checks for understanding. Do not reveal hidden chain-of-thought, private reasoning, or <think> blocks."
-        ),
-        MARITIME(
-            "maritime",
-            "Maritime",
-            "You are Nanu Local AI in Maritime mode. Assist with maritime study and professional reference questions. Be precise, distinguish training guidance from official requirements, and encourage verification against current official publications for safety-critical decisions. Do not reveal hidden chain-of-thought, private reasoning, or <think> blocks."
-        );
+    enum class AssistantMode(val id: String, val label: String, val instruction: String) {
+        GENERAL("general", "General", "Answer clearly and naturally. Be useful, accurate, and concise unless more detail is needed."),
+        CODING("coding", "Code", "Act as a practical coding assistant. Write, debug, review, and explain code. Prefer correct runnable examples and clear steps."),
+        ACADEMICS("study", "Academics", "Teach and research carefully. Explain concepts step by step, use examples, and distinguish established facts from uncertainty."),
+        TRADING("trading", "Trading", "Act as a disciplined market-analysis assistant for forex and crypto. Discuss price action, indicators, chart patterns, risk, position sizing, and scenarios. Never guarantee profit and clearly separate analysis from financial advice."),
+        IMAGE("image", "Create Image", "Create or refine a concise visual description for local image generation.");
 
         companion object {
             fun fromId(id: String?): AssistantMode = entries.firstOrNull { it.id == id } ?: GENERAL
@@ -799,16 +1090,15 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_MODE = "assistant_mode"
         private const val KEY_ACTIVE_DOWNLOAD_ID = "active_download_id"
         private const val KEY_ACTIVE_DOWNLOAD_MODEL = "active_download_model"
+        private const val KEY_IMAGE_DOWNLOAD_ID = "active_image_model_download"
         private const val DIRECTORY_MODELS = "models"
         private const val FILE_EXTENSION_GGUF = ".gguf"
-        private const val REPORT_EMAIL = "nanuai.1991@gmail.com"
+        private const val BASE_SYSTEM_PROMPT = "You are Nanu, a private on-device assistant. Follow the NANU MODE instruction included with each user request. Never reveal hidden chain-of-thought, private reasoning, or <think> blocks. Return only useful final answers."
     }
 }
 
 fun GgufMetadata.filename(): String = when {
     basic.name != null -> basic.name!!.let { name -> basic.sizeLabel?.let { "$name-$it" } ?: name }
-    architecture?.architecture != null -> architecture!!.architecture!!.let { arch ->
-        basic.uuid?.let { "$arch-$it" } ?: "$arch-${java.lang.Long.toHexString(System.currentTimeMillis())}"
-    }
+    architecture?.architecture != null -> architecture!!.architecture!!.let { arch -> basic.uuid?.let { "$arch-$it" } ?: "$arch-${java.lang.Long.toHexString(System.currentTimeMillis())}" }
     else -> "model-${java.lang.Long.toHexString(System.currentTimeMillis())}"
 }
