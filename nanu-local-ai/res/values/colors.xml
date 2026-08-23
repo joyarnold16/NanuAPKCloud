@@ -8,17 +8,23 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <color name="nanu_bg">#0B0D12</color>
-    <color name="nanu_panel">#11151D</color>
-    <color name="nanu_panel_2">#151A24</color>
-    <color name="nanu_input">#10141B</color>
-    <color name="nanu_border">#293142</color>
-    <color name="nanu_text">#F4F7FB</color>
-    <color name="nanu_muted">#97A3B6</color>
-    <color name="nanu_accent">#7257F5</color>
-    <color name="nanu_accent_2">#A594FF</color>
-    <color name="nanu_success">#49D69B</color>
-    <color name="nanu_user">#3478F6</color>
-    <color name="nanu_assistant">#171C26</color>
-    <color name="nanu_danger">#FF6B79</color>
+    <color name="nanu_bg">#060B12</color>
+    <color name="nanu_panel">#0D1520</color>
+    <color name="nanu_panel_2">#111C29</color>
+    <color name="nanu_input">#0E1824</color>
+    <color name="nanu_border">#26384B</color>
+    <color name="nanu_text">#F7FBFF</color>
+    <color name="nanu_muted">#8FA1B7</color>
+    <color name="nanu_accent">#08B9D7</color>
+    <color name="nanu_accent_2">#49DFF7</color>
+    <color name="nanu_success">#43D7A0</color>
+    <color name="nanu_user">#073A52</color>
+    <color name="nanu_user_border">#0A7EA1</color>
+    <color name="nanu_assistant">#111C29</color>
+    <color name="nanu_danger">#FF7181</color>
+    <color name="nanu_code">#AF7CFF</color>
+    <color name="nanu_academic">#B877FF</color>
+    <color name="nanu_trading">#FFBD3D</color>
+    <color name="nanu_image">#45DB78</color>
+    <color name="nanu_file">#4DA3FF</color>
 </resources>
