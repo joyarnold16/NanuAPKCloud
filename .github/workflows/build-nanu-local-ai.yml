@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   build:
@@ -19,6 +20,24 @@ jobs:
     timeout-minutes: 90
 
     steps:
+      - name: Publish active RC6 run ID
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          repo = os.environ['GITHUB_REPOSITORY']
+          run_id = os.environ['GITHUB_RUN_ID']
+          raw = subprocess.check_output(['gh', 'api', f'repos/{repo}/pulls/6'], text=True)
+          data = json.loads(raw)
+          body = data.get('body') or ''
+          marker = '<!-- nanu-rc6-active-run -->'
+          lines = [line for line in body.splitlines() if marker not in line]
+          body = '\n'.join(lines).rstrip() + f'\n\n{marker} Active RC6 build run: {run_id}'
+          subprocess.check_call(['gh', 'api', '--method', 'PATCH', f'repos/{repo}/pulls/6', '-f', f'body={body}'])
+          print(f'Published RC6 run ID {run_id}')
+          PY
+
       - name: Checkout Nanu project
         uses: actions/checkout@v4
 
