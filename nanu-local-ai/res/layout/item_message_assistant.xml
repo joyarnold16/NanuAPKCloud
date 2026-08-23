@@ -3,67 +3,177 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="4dp"
-    android:layout_marginVertical="7dp"
+    android:layout_marginVertical="6dp"
     android:gravity="start"
-    android:orientation="vertical">
+    android:orientation="horizontal">
 
     <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="6dp"
-        android:layout_marginBottom="4dp"
-        android:text="Nanu"
-        android:textColor="@color/nanu_accent_2"
-        android:textSize="11sp"
-        android:textStyle="bold" />
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/ic_nanu_launcher"
+        android:gravity="center"
+        android:text=""
+        android:contentDescription="Nanu" />
 
-    <com.google.android.material.card.MaterialCardView
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/nanu_assistant"
-        app:cardCornerRadius="17dp"
-        app:strokeColor="@color/nanu_border"
-        app:strokeWidth="1dp">
+        android:layout_weight="1"
+        android:layout_marginStart="8dp"
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/msg_content"
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:maxWidth="760dp"
-            android:padding="14dp"
-            android:textColor="@color/nanu_text"
-            android:textIsSelectable="true"
-            android:textSize="15sp"
-            android:lineSpacingExtra="2dp" />
-    </com.google.android.material.card.MaterialCardView>
+            app:cardBackgroundColor="@color/nanu_assistant"
+            app:cardCornerRadius="18dp"
+            app:strokeColor="@color/nanu_border"
+            app:strokeWidth="1dp">
 
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="3dp"
-        android:orientation="horizontal">
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
 
-        <TextView
-            android:id="@+id/msg_copy"
+                <TextView
+                    android:id="@+id/msg_content"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxWidth="720dp"
+                    android:textColor="@color/nanu_text"
+                    android:textIsSelectable="true"
+                    android:textSize="15sp"
+                    android:lineSpacingExtra="2dp" />
+
+                <ImageView
+                    android:id="@+id/msg_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="280dp"
+                    android:layout_marginTop="12dp"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="Generated image"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/msg_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/nanu_success"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/msg_image_actions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/image_save"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="Save"
+                        android:textColor="@color/nanu_text"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/image_share"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="Share"
+                        android:textColor="@color/nanu_text"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/image_regenerate"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="Regenerate"
+                        android:textColor="@color/nanu_text"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/image_edit"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="Edit prompt"
+                        android:textColor="@color/nanu_text"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <LinearLayout
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:gravity="center"
-            android:paddingHorizontal="8dp"
-            android:text="Copy"
-            android:textColor="@color/nanu_muted"
-            android:textSize="11sp" />
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/msg_report"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:gravity="center"
-            android:paddingHorizontal="8dp"
-            android:text="Report"
-            android:textColor="@color/nanu_muted"
-            android:textSize="11sp" />
+            <TextView
+                android:id="@+id/msg_copy"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:paddingHorizontal="8dp"
+                android:text="Copy"
+                android:textColor="@color/nanu_muted"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/msg_copy_code"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:paddingHorizontal="8dp"
+                android:text="Copy code"
+                android:textColor="@color/nanu_accent_2"
+                android:textSize="10sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/msg_speak"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:paddingHorizontal="8dp"
+                android:text="Speak"
+                android:textColor="@color/nanu_muted"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/msg_regenerate"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:paddingHorizontal="8dp"
+                android:text="Regenerate"
+                android:textColor="@color/nanu_muted"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/msg_share"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:gravity="center"
+                android:paddingHorizontal="8dp"
+                android:text="Share"
+                android:textColor="@color/nanu_muted"
+                android:textSize="10sp" />
+        </LinearLayout>
     </LinearLayout>
-
 </LinearLayout>
