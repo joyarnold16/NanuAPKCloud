@@ -74,12 +74,26 @@ app_gradle.write_text(text)'''
 base = base.replace(old_gradle, new_gradle, 1)
 
 old_manifest = 'manifest.write_text(text)'
-new_manifest = '''provider = r'''\n        <provider\n            android:name="androidx.core.content.FileProvider"\n            android:authorities="${applicationId}.files"\n            android:exported="false"\n            android:grantUriPermissions="true">\n            <meta-data\n                android:name="android.support.FILE_PROVIDER_PATHS"\n                android:resource="@xml/nanu_file_paths" />\n        </provider>\n'''\nif 'androidx.core.content.FileProvider' not in text:\n    text = text.replace('</application>', provider + '\\n    </application>', 1)\nmanifest.write_text(text)'''
+new_manifest = (
+    "provider = '''\\n"
+    "        <provider\\n"
+    "            android:name=\\\"androidx.core.content.FileProvider\\\"\\n"
+    "            android:authorities=\\\"${applicationId}.files\\\"\\n"
+    "            android:exported=\\\"false\\\"\\n"
+    "            android:grantUriPermissions=\\\"true\\\">\\n"
+    "            <meta-data\\n"
+    "                android:name=\\\"android.support.FILE_PROVIDER_PATHS\\\"\\n"
+    "                android:resource=\\\"@xml/nanu_file_paths\\\" />\\n"
+    "        </provider>\\n"
+    "'''\\n"
+    "if 'androidx.core.content.FileProvider' not in text:\\n"
+    "    text = text.replace('</application>', provider + '\\\\n    </application>', 1)\\n"
+    "manifest.write_text(text)"
+)
 base = base.replace(old_manifest, new_manifest, 1)
 
-# The RC5 script patches its older task chooser into MainActivity. RC6 keeps the
-# top-right model chooser and the approved unified + menu instead, so disable
-# that legacy replacement block by making its regex impossible to match.
+# Keep the RC6 top-right model chooser instead of injecting the older RC5
+# task-chooser implementation into MainActivity.
 base = base.replace(
     "pattern = r'    private fun showRecommendedModelCatalog\\(ramGb: Double\\) \\{.*?\\n    \\}\\n\\n    private fun showModelSuggestionDetail'",
     "pattern = r'__RC6_DO_NOT_PATCH_MODEL_CATALOG__'"
