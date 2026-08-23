@@ -74,22 +74,20 @@ app_gradle.write_text(text)'''
 base = base.replace(old_gradle, new_gradle, 1)
 
 old_manifest = 'manifest.write_text(text)'
-new_manifest = (
-    "provider = '''\\n"
-    "        <provider\\n"
-    "            android:name=\\\"androidx.core.content.FileProvider\\\"\\n"
-    "            android:authorities=\\\"${applicationId}.files\\\"\\n"
-    "            android:exported=\\\"false\\\"\\n"
-    "            android:grantUriPermissions=\\\"true\\\">\\n"
-    "            <meta-data\\n"
-    "                android:name=\\\"android.support.FILE_PROVIDER_PATHS\\\"\\n"
-    "                android:resource=\\\"@xml/nanu_file_paths\\\" />\\n"
-    "        </provider>\\n"
-    "'''\\n"
-    "if 'androidx.core.content.FileProvider' not in text:\\n"
-    "    text = text.replace('</application>', provider + '\\\\n    </application>', 1)\\n"
-    "manifest.write_text(text)"
-)
+new_manifest = """provider = '''
+        <provider
+            android:name=\"androidx.core.content.FileProvider\"
+            android:authorities=\"${applicationId}.files\"
+            android:exported=\"false\"
+            android:grantUriPermissions=\"true\">
+            <meta-data
+                android:name=\"android.support.FILE_PROVIDER_PATHS\"
+                android:resource=\"@xml/nanu_file_paths\" />
+        </provider>
+'''
+if 'androidx.core.content.FileProvider' not in text:
+    text = text.replace('</application>', provider + '\\n    </application>', 1)
+manifest.write_text(text)"""
 base = base.replace(old_manifest, new_manifest, 1)
 
 # Keep the RC6 top-right model chooser instead of injecting the older RC5
