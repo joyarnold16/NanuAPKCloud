@@ -56,7 +56,7 @@ class MessageAdapter(
             true
         }
 
-        item.findViewById<TextView?>(R.id.msg_attachment)?.apply {
+        item.findViewById<TextView>(R.id.msg_attachment)?.apply {
             val label = message.attachmentName?.let { name ->
                 val detail = message.attachmentInfo?.takeIf { it.isNotBlank() }
                 if (detail == null) "📎  $name" else "📎  $name  •  $detail"
@@ -65,21 +65,21 @@ class MessageAdapter(
             visibility = if (label == null) View.GONE else View.VISIBLE
         }
 
-        item.findViewById<TextView?>(R.id.msg_copy)?.setOnClickListener { onCopy(message.content) }
+        item.findViewById<TextView>(R.id.msg_copy)?.setOnClickListener { onCopy(message.content) }
 
         if (!message.isUser) {
-            item.findViewById<TextView?>(R.id.msg_speak)?.setOnClickListener { onSpeak(message.content) }
-            item.findViewById<TextView?>(R.id.msg_regenerate)?.setOnClickListener { onRegenerate(message) }
-            item.findViewById<TextView?>(R.id.msg_share)?.setOnClickListener { onShare(message) }
+            item.findViewById<TextView>(R.id.msg_speak)?.setOnClickListener { onSpeak(message.content) }
+            item.findViewById<TextView>(R.id.msg_regenerate)?.setOnClickListener { onRegenerate(message) }
+            item.findViewById<TextView>(R.id.msg_share)?.setOnClickListener { onShare(message) }
 
-            item.findViewById<TextView?>(R.id.msg_copy_code)?.apply {
+            item.findViewById<TextView>(R.id.msg_copy_code)?.apply {
                 visibility = if (message.content.contains("```")) View.VISIBLE else View.GONE
                 setOnClickListener { onCopy(extractCode(message.content)) }
             }
 
-            val image = item.findViewById<ImageView?>(R.id.msg_image)
-            val imageActions = item.findViewById<View?>(R.id.msg_image_actions)
-            val status = item.findViewById<TextView?>(R.id.msg_status)
+            val image = item.findViewById<ImageView>(R.id.msg_image)
+            val imageActions = item.findViewById<View>(R.id.msg_image_actions)
+            val status = item.findViewById<TextView>(R.id.msg_status)
             val path = message.imagePath
             if (!path.isNullOrBlank()) {
                 val bitmap = BitmapFactory.decodeFile(path)
@@ -95,10 +95,10 @@ class MessageAdapter(
             status?.text = message.status.orEmpty()
             status?.visibility = if (message.status.isNullOrBlank()) View.GONE else View.VISIBLE
 
-            item.findViewById<TextView?>(R.id.image_save)?.setOnClickListener { onSaveImage(message) }
-            item.findViewById<TextView?>(R.id.image_share)?.setOnClickListener { onShare(message) }
-            item.findViewById<TextView?>(R.id.image_regenerate)?.setOnClickListener { onRegenerate(message) }
-            item.findViewById<TextView?>(R.id.image_edit)?.setOnClickListener { onEditPrompt(message) }
+            item.findViewById<TextView>(R.id.image_save)?.setOnClickListener { onSaveImage(message) }
+            item.findViewById<TextView>(R.id.image_share)?.setOnClickListener { onShare(message) }
+            item.findViewById<TextView>(R.id.image_regenerate)?.setOnClickListener { onRegenerate(message) }
+            item.findViewById<TextView>(R.id.image_edit)?.setOnClickListener { onEditPrompt(message) }
         }
     }
 
