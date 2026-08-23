@@ -1,4 +1,4 @@
-name: Build Nanu Local AI RC5.3
+name: Build Nanu Local AI RC6
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Nanu Local AI 1.0 RC5.3
+    name: Build Nanu Local AI 1.0 RC6
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -43,13 +43,13 @@ jobs:
             "ndk;29.0.13113456" \
             "cmake;3.31.6"
 
-      - name: Build and validate RC5.3
-        run: bash nanu-local-ai/ci/build_rc53.sh
+      - name: Build and validate RC6
+        run: bash nanu-local-ai/ci/build_rc6.sh
 
-      - name: Upload RC5.3 APK and AAB
+      - name: Upload RC6 APK and AAB
         uses: actions/upload-artifact@v4
         with:
-          name: nanu-local-ai-v1.0-rc5.3
+          name: nanu-local-ai-v1.0-rc6
           path: out/*
           if-no-files-found: error
           retention-days: 14
