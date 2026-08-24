@@ -5,9 +5,14 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - 'ror-colreg/**'
-      - '.github/workflows/build-ror-colreg.yml'
+    paths:
+      - 'app/**'
+      - 'build.gradle'
+      - 'build.gradle.kts'
+      - 'settings.gradle'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradle/**'
 
 permissions:
   contents: write
