@@ -1,0 +1,71 @@
+name: Build Nanu Local AI RC6 Branch
+
+on:
+  push:
+    branches:
+      - feature/nanu-local-ai-v1
+    paths:
+      - 'nanu-local-ai/**'
+      - '.github/workflows/build-nanu-local-ai-branch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nanu-local-ai-rc6-branch
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Preflight and build Nanu Local AI 1.0 RC6
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout RC6 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;29.0.13113456" \
+            "cmake;3.31.6"
+
+      - name: Static RC6 preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n nanu-local-ai/ci/build_rc6.sh
+          python3 nanu-local-ai/ci/preflight_rc6.py
+
+      - name: Build and validate RC6
+        shell: bash
+        run: bash nanu-local-ai/ci/build_rc6.sh
+
+      - name: Upload RC6 APK and AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: nanu-local-ai-v1.0-rc6
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
