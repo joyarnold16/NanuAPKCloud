@@ -36,8 +36,10 @@ REQUIRED = [
 
 errors = []
 
+
 def fail(message: str) -> None:
     errors.append(message)
+
 
 for path in REQUIRED:
     if not path.exists():
@@ -45,11 +47,14 @@ for path in REQUIRED:
     elif path.stat().st_size < 20:
         fail(f'empty/suspiciously small: {path}')
 
+# Construct conflict markers dynamically so this checker does not flag its own
+# source merely for containing the strings it is supposed to search for.
+merge_markers = ('<' * 7, '=' * 7, '>' * 7)
 for path in ROOT.rglob('*'):
     if not path.is_file() or path.suffix not in {'.kt', '.xml', '.sh', '.py'}:
         continue
     text = path.read_text(errors='replace')
-    for marker in ('<<<<<<<', '=======', '>>>>>>>'):
+    for marker in merge_markers:
         if marker in text:
             fail(f'merge-conflict marker {marker!r} in {path}')
 
@@ -136,11 +141,12 @@ if build6.exists():
         if marker not in text:
             fail(f'build_rc6.sh missing safety/build marker: {marker}')
 
-# Catch a few common Kotlin mistakes cheaply before Gradle is started.
+# Keep only source checks that are safe without a full Kotlin lexer. A raw
+# count of block-comment delimiters creates false positives when delimiters
+# appear inside string literals; the Kotlin compiler is authoritative for
+# syntax and will run immediately after this preflight.
 for path in (ROOT / 'app').glob('*.kt'):
     text = path.read_text()
-    if text.count('/*') != text.count('*/'):
-        fail(f'unbalanced block comment in {path}')
     if re.search(r'\bTODO\s*\(\s*"fatal', text, re.IGNORECASE):
         fail(f'fatal TODO marker in {path}')
 
