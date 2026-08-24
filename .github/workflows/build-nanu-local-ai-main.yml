@@ -8,12 +8,17 @@ on:
         required: true
         default: 'feature/nanu-local-ai-v1'
         type: string
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'nanu-local-ai/**'
 
 permissions:
   contents: read
 
 concurrency:
-  group: nanu-local-ai-rc6-${{ inputs.source_ref }}
+  group: nanu-local-ai-rc6-${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -26,7 +31,7 @@ jobs:
       - name: Checkout requested Nanu source
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       - name: Set up Java 17
