@@ -1,1 +1,2 @@
 Nanu Local AI RC6 unified chat build trigger.
+Automatic PR build trigger enabled 2026-08-24.
