@@ -98,7 +98,7 @@ class ImageModelManager(private val context: Context) {
         state.edit()
             .putBoolean(KEY_CANCELLED, true)
             .putInt(KEY_STATUS, DownloadManager.STATUS_FAILED)
-            .putInt(KEY_REASON, DownloadManager.ERROR_CANCELED)
+            .putInt(KEY_REASON, DownloadManager.ERROR_UNKNOWN)
             .apply()
         workers.remove(id)?.interrupt()
         partialFile().delete()
@@ -219,7 +219,7 @@ class ImageModelManager(private val context: Context) {
                 if (redirects > MAX_REDIRECTS) throw HttpFailure(code)
                 continue
             }
-            if (code == HttpURLConnection.HTTP_REQUESTED_RANGE_NOT_SATISFIABLE) {
+            if (code == 416) {
                 connection.disconnect()
                 part.delete()
                 existing = 0L
