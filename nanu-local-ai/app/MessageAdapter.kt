@@ -1,11 +1,13 @@
 package com.example.llama
 
 import android.graphics.BitmapFactory
+import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 
 
@@ -23,16 +25,24 @@ data class Message(
 class MessageAdapter(
     private val messages: List<Message>,
     private val onCopy: (String) -> Unit,
-    private val onSpeak: (String) -> Unit,
+    private val onSpeak: (Message) -> Unit,
     private val onRegenerate: (Message) -> Unit,
     private val onShare: (Message) -> Unit,
     private val onEditPrompt: (Message) -> Unit,
     private val onSaveImage: (Message) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
+    private var speakingMessageId: String? = null
+
     companion object {
         private const val VIEW_TYPE_USER = 1
         private const val VIEW_TYPE_ASSISTANT = 2
+    }
+
+    fun setSpeakingMessage(messageId: String?) {
+        if (speakingMessageId == messageId) return
+        speakingMessageId = messageId
+        notifyDataSetChanged()
     }
 
     override fun getItemViewType(position: Int): Int = if (messages[position].isUser) VIEW_TYPE_USER else VIEW_TYPE_ASSISTANT
@@ -68,7 +78,22 @@ class MessageAdapter(
         item.findViewById<TextView>(R.id.msg_copy)?.setOnClickListener { onCopy(message.content) }
 
         if (!message.isUser) {
-            item.findViewById<TextView>(R.id.msg_speak)?.setOnClickListener { onSpeak(message.content) }
+            item.findViewById<TextView>(R.id.msg_speak)?.apply {
+                val active = speakingMessageId == message.id
+                text = if (active) "Speaking • tap to stop" else "Speak"
+                if (active) {
+                    val radius = 12f * resources.displayMetrics.density
+                    background = GradientDrawable().apply {
+                        cornerRadius = radius
+                        setColor(ContextCompat.getColor(context, R.color.nanu_accent))
+                    }
+                    setTextColor(ContextCompat.getColor(context, android.R.color.white))
+                } else {
+                    background = null
+                    setTextColor(ContextCompat.getColor(context, R.color.nanu_muted))
+                }
+                setOnClickListener { onSpeak(message) }
+            }
             item.findViewById<TextView>(R.id.msg_regenerate)?.setOnClickListener { onRegenerate(message) }
             item.findViewById<TextView>(R.id.msg_share)?.setOnClickListener { onShare(message) }
 
