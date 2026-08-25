@@ -26,7 +26,9 @@ required_files = [
     'nanu-local-ai/app/PaperTradingActivity.kt',
     'nanu-local-ai/app/SafetyPrivacyActivity.kt',
     'nanu-local-ai/app/AiReportClient.kt',
+    'nanu-local-ai/app/SafetyGuard.kt',
     'nanu-local-ai/ci/patch_main_rc8.py',
+    'nanu-local-ai/ci/patch_safety_rc8.py',
     'nanu-local-ai/res/layout/activity_main.xml',
     'nanu-local-ai/res/layout/activity_talk.xml',
     'nanu-local-ai/res/layout/activity_create.xml',
@@ -108,7 +110,8 @@ base = replace_once(
   CreateStudioActivity.kt \\
   PaperTradingActivity.kt \\
   SafetyPrivacyActivity.kt \\
-  AiReportClient.kt; do''',
+  AiReportClient.kt \\
+  SafetyGuard.kt; do''',
     'RC8 Kotlin source list'
 )
 
@@ -198,7 +201,8 @@ for required in [
     'versionCode = 22', 'versionName = "1.0-rc8"', 'pdfbox-android:2.0.27.0',
     '-dontwarn com.gemalto.jp2.**', 'AttachmentManager.kt', 'LocalImageGenerator.kt',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
-    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt', 'AiReportClient.kt',
+    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
+    'AiReportClient.kt', 'SafetyGuard.kt',
     'activity_rc8_home.xml', 'activity_file_chat.xml', 'activity_talk_rc8.xml',
     'activity_create_studio.xml', 'activity_paper_trading.xml', 'activity_safety_privacy.xml',
     'android:allowBackup="false"', 'androidx.core.content.FileProvider',
@@ -213,6 +217,7 @@ print('RC8 build script generation/patch validation passed.')
 PY
 
 python3 nanu-local-ai/ci/patch_main_rc8.py
+python3 nanu-local-ai/ci/patch_safety_rc8.py
 
 chmod +x /tmp/build_nanu_rc8.sh
 bash -n /tmp/build_nanu_rc8.sh
