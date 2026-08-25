@@ -29,7 +29,8 @@ class MessageAdapter(
     private val onRegenerate: (Message) -> Unit,
     private val onShare: (Message) -> Unit,
     private val onEditPrompt: (Message) -> Unit,
-    private val onSaveImage: (Message) -> Unit
+    private val onSaveImage: (Message) -> Unit,
+    private val onReport: (Message) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private var speakingMessageId: String? = null
@@ -96,6 +97,7 @@ class MessageAdapter(
             }
             item.findViewById<TextView>(R.id.msg_regenerate)?.setOnClickListener { onRegenerate(message) }
             item.findViewById<TextView>(R.id.msg_share)?.setOnClickListener { onShare(message) }
+            item.findViewById<TextView>(R.id.msg_report)?.setOnClickListener { onReport(message) }
 
             item.findViewById<TextView>(R.id.msg_copy_code)?.apply {
                 visibility = if (message.content.contains("```")) View.VISIBLE else View.GONE
