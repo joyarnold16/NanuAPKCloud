@@ -15,6 +15,7 @@ required = [
     'app/ImageModelManager.kt', 'app/Rc8HomeActivity.kt', 'app/FileChatActivity.kt',
     'app/ContinuousTalkActivity.kt', 'app/CreateStudioActivity.kt',
     'app/PaperTradingActivity.kt', 'app/SafetyPrivacyActivity.kt', 'app/AiReportClient.kt',
+    'app/SafetyGuard.kt',
     'res/layout/activity_main.xml', 'res/layout/activity_talk.xml',
     'res/layout/activity_create.xml', 'res/layout/activity_trading.xml',
     'res/layout/activity_rc8_home.xml', 'res/layout/activity_file_chat.xml',
@@ -23,7 +24,7 @@ required = [
     'res/layout/sheet_plus_menu.xml', 'res/layout/item_message_assistant.xml',
     'res/layout/item_message_user.xml', 'res/xml/nanu_file_paths.xml',
     'res/drawable/ic_nanu_launcher.xml', 'strings.xml', 'ci/build_rc8.sh',
-    'ci/build_play_release.sh', 'ci/patch_main_rc8.py',
+    'ci/build_play_release.sh', 'ci/patch_main_rc8.py', 'ci/patch_safety_rc8.py',
     'docs/PLAY_STORE_READINESS_RC8.md', 'docs/DATA_SAFETY_RC8.md'
 ]
 
@@ -53,7 +54,8 @@ build = (ROOT / 'ci/build_rc8.sh').read_text() if (ROOT / 'ci/build_rc8.sh').exi
 for marker in [
     'versionCode = 22', 'versionName = "1.0-rc8"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
-    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt', 'AiReportClient.kt',
+    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
+    'AiReportClient.kt', 'SafetyGuard.kt', 'patch_safety_rc8.py',
     'android:allowBackup=\\"false\\"', '-dontwarn com.gemalto.jp2.**',
     'out/nanu-local-ai-v1.0-rc8.apk'
 ]:
@@ -82,6 +84,20 @@ report_client = (ROOT / 'app/AiReportClient.kt').read_text() if (ROOT / 'app/AiR
 for marker in ['https://', 'requestMethod = "POST"', 'nanu_report_endpoint']:
     if marker not in report_client:
         errors.append(f'AI report client missing marker: {marker}')
+
+safety_guard = (ROOT / 'app/SafetyGuard.kt').read_text() if (ROOT / 'app/SafetyGuard.kt').exists() else ''
+for marker in ['SYSTEM_RULES', 'blockedReason', 'sexual or nude', 'self-harm', 'phishing']:
+    if marker not in safety_guard:
+        errors.append(f'SafetyGuard missing marker: {marker}')
+
+image_generator = (ROOT / 'app/LocalImageGenerator.kt').read_text() if (ROOT / 'app/LocalImageGenerator.kt').exists() else ''
+if 'SafetyGuard.blockedReason(prompt, image = true)' not in image_generator:
+    errors.append('LocalImageGenerator missing pre-generation safety check')
+
+safety_patch = (ROOT / 'ci/patch_safety_rc8.py').read_text() if (ROOT / 'ci/patch_safety_rc8.py').exists() else ''
+for marker in ['SafetyGuard.blockedReason(userMsg', 'ContinuousTalkActivity.kt', 'FileChatActivity.kt', 'SafetyGuard.SYSTEM_RULES']:
+    if marker not in safety_patch:
+        errors.append(f'safety patch missing marker: {marker}')
 
 message_adapter = (ROOT / 'app/MessageAdapter.kt').read_text() if (ROOT / 'app/MessageAdapter.kt').exists() else ''
 message_layout = (ROOT / 'res/layout/item_message_assistant.xml').read_text() if (ROOT / 'res/layout/item_message_assistant.xml').exists() else ''
@@ -134,5 +150,6 @@ print('RC8 static preflight passed.')
 print(' - feature files present and XML parses')
 print(' - Play-sensitive permission guardrails passed')
 print(' - direct AI reporting + Play release markers passed')
+print(' - shared generative-AI safety guardrails passed')
 print(' - privacy/safety/paper-trading markers passed')
 print(' - Android API 36 workflow + RC8 artifact markers passed')
