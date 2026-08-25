@@ -107,8 +107,21 @@ base = replace_once(
 old_gradle = "app_gradle.write_text(text)"
 new_gradle = '''if 'pdfbox-android' not in text:
     text = text.replace('dependencies {', 'dependencies {\\n    implementation("com.tom-roush:pdfbox-android:2.0.27.0")', 1)
-app_gradle.write_text(text)'''
-base = replace_once(base, old_gradle, new_gradle, 'pdfbox dependency')
+app_gradle.write_text(text)
+
+# pdfbox-android can reference Gemalto's optional JPEG-2000 decoder. The
+# decoder is not required for Nanu's normal PDF text/attachment workflow, but
+# R8 treats the absent optional class as fatal when debug minification is on.
+# Keep shrinking enabled and explicitly silence only that optional namespace.
+proguard = Path('llama-upstream/examples/llama.android/app/proguard-rules.pro')
+proguard_text = proguard.read_text() if proguard.exists() else ''
+r8_rule = '-dontwarn com.gemalto.jp2.**'
+if r8_rule not in proguard_text:
+    if proguard_text and not proguard_text.endswith('\\n'):
+        proguard_text += '\\n'
+    proguard_text += '\\n# Optional PDFBox JPEG-2000 decoder is not bundled.\\n' + r8_rule + '\\n'
+    proguard.write_text(proguard_text)'''
+base = replace_once(base, old_gradle, new_gradle, 'pdfbox dependency and R8 rule')
 
 old_manifest = 'manifest.write_text(text)'
 new_manifest = """provider = '''
@@ -150,6 +163,7 @@ for required in [
     'versionCode = 19',
     'versionName = "1.0-rc6"',
     'pdfbox-android:2.0.27.0',
+    '-dontwarn com.gemalto.jp2.**',
     'AttachmentManager.kt',
     'LocalImageGenerator.kt',
     'nanu_file_paths.xml',
