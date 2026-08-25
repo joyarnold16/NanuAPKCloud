@@ -25,6 +25,7 @@ required_files = [
     'nanu-local-ai/app/CreateStudioActivity.kt',
     'nanu-local-ai/app/PaperTradingActivity.kt',
     'nanu-local-ai/app/SafetyPrivacyActivity.kt',
+    'nanu-local-ai/app/AiReportClient.kt',
     'nanu-local-ai/ci/patch_main_rc8.py',
     'nanu-local-ai/res/layout/activity_main.xml',
     'nanu-local-ai/res/layout/activity_talk.xml',
@@ -106,7 +107,8 @@ base = replace_once(
   ContinuousTalkActivity.kt \\
   CreateStudioActivity.kt \\
   PaperTradingActivity.kt \\
-  SafetyPrivacyActivity.kt; do''',
+  SafetyPrivacyActivity.kt \\
+  AiReportClient.kt; do''',
     'RC8 Kotlin source list'
 )
 
@@ -146,8 +148,6 @@ provider = '''
 if 'androidx.core.content.FileProvider' not in text:
     text = text.replace('</application>', provider + '\\n    </application>', 1)
 
-# MainActivity remains the proven RC6 chat/model engine, but RC8 Home becomes
-# the single launcher. Secondary activities are intentionally not exported.
 main_pattern = r'(<activity\\s+android:name=\"\\.MainActivity\"[^>]*>)(.*?)(</activity>)'
 match = re.search(main_pattern, text, flags=re.S)
 if not match:
@@ -177,8 +177,6 @@ if 'android:name=\".Rc8HomeActivity\"' not in text:
 manifest.write_text(text)"""
 base = replace_once(base, old_manifest, new_manifest, 'RC8 manifest injection')
 
-# Keep the checked-in unified MainActivity as the source of truth instead of
-# applying the old RC5 model-catalog regex patch.
 base = replace_once(
     base,
     "pattern = r'    private fun showRecommendedModelCatalog\\(ramGb: Double\\) \\{.*?\\n    \\}\\n\\n    private fun showModelSuggestionDetail'",
@@ -200,7 +198,7 @@ for required in [
     'versionCode = 22', 'versionName = "1.0-rc8"', 'pdfbox-android:2.0.27.0',
     '-dontwarn com.gemalto.jp2.**', 'AttachmentManager.kt', 'LocalImageGenerator.kt',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
-    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
+    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt', 'AiReportClient.kt',
     'activity_rc8_home.xml', 'activity_file_chat.xml', 'activity_talk_rc8.xml',
     'activity_create_studio.xml', 'activity_paper_trading.xml', 'activity_safety_privacy.xml',
     'android:allowBackup="false"', 'androidx.core.content.FileProvider',
@@ -214,9 +212,6 @@ out.write_text(base)
 print('RC8 build script generation/patch validation passed.')
 PY
 
-# Patch the unified chat source immediately before the generated build copies it.
-# This keeps the final model-picker/Speak-toggle hardening deterministic in every
-# workflow that calls build_rc8.sh, including pull-request builds from main.
 python3 nanu-local-ai/ci/patch_main_rc8.py
 
 chmod +x /tmp/build_nanu_rc8.sh
