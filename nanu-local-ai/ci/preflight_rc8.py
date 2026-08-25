@@ -14,7 +14,7 @@ required = [
     'app/TradingActivity.kt', 'app/TradingEngine.kt', 'app/MarketSnapshotClient.kt',
     'app/ImageModelManager.kt', 'app/Rc8HomeActivity.kt', 'app/FileChatActivity.kt',
     'app/ContinuousTalkActivity.kt', 'app/CreateStudioActivity.kt',
-    'app/PaperTradingActivity.kt', 'app/SafetyPrivacyActivity.kt',
+    'app/PaperTradingActivity.kt', 'app/SafetyPrivacyActivity.kt', 'app/AiReportClient.kt',
     'res/layout/activity_main.xml', 'res/layout/activity_talk.xml',
     'res/layout/activity_create.xml', 'res/layout/activity_trading.xml',
     'res/layout/activity_rc8_home.xml', 'res/layout/activity_file_chat.xml',
@@ -23,6 +23,7 @@ required = [
     'res/layout/sheet_plus_menu.xml', 'res/layout/item_message_assistant.xml',
     'res/layout/item_message_user.xml', 'res/xml/nanu_file_paths.xml',
     'res/drawable/ic_nanu_launcher.xml', 'strings.xml', 'ci/build_rc8.sh',
+    'ci/build_play_release.sh', 'ci/patch_main_rc8.py',
     'docs/PLAY_STORE_READINESS_RC8.md', 'docs/DATA_SAFETY_RC8.md'
 ]
 
@@ -52,7 +53,7 @@ build = (ROOT / 'ci/build_rc8.sh').read_text() if (ROOT / 'ci/build_rc8.sh').exi
 for marker in [
     'versionCode = 22', 'versionName = "1.0-rc8"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
-    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
+    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt', 'AiReportClient.kt',
     'android:allowBackup=\\"false\\"', '-dontwarn com.gemalto.jp2.**',
     'out/nanu-local-ai-v1.0-rc8.apk'
 ]:
@@ -73,17 +74,32 @@ for marker in ['MainActivity::class.java', 'ContinuousTalkActivity::class.java',
         errors.append(f'RC8 home missing destination: {marker}')
 
 safety = (ROOT / 'app/SafetyPrivacyActivity.kt').read_text() if (ROOT / 'app/SafetyPrivacyActivity.kt').exists() else ''
-for marker in ['PRIVACY_POLICY.md', 'TERMS_OF_USE.md', 'saveReport()', 'Export safety report']:
+for marker in ['PRIVACY_POLICY.md', 'TERMS_OF_USE.md', 'submitReport()', 'AiReportClient', 'Submit to developer', 'Export safety report']:
     if marker not in safety:
         errors.append(f'safety/privacy activity missing marker: {marker}')
+
+report_client = (ROOT / 'app/AiReportClient.kt').read_text() if (ROOT / 'app/AiReportClient.kt').exists() else ''
+for marker in ['https://', 'requestMethod = "POST"', 'nanu_report_endpoint']:
+    if marker not in report_client:
+        errors.append(f'AI report client missing marker: {marker}')
+
+message_adapter = (ROOT / 'app/MessageAdapter.kt').read_text() if (ROOT / 'app/MessageAdapter.kt').exists() else ''
+message_layout = (ROOT / 'res/layout/item_message_assistant.xml').read_text() if (ROOT / 'res/layout/item_message_assistant.xml').exists() else ''
+if 'onReport: (Message) -> Unit' not in message_adapter:
+    errors.append('MessageAdapter missing AI report callback')
+if 'msg_report' not in message_layout:
+    errors.append('Assistant message layout missing Report action')
+
+play_build = (ROOT / 'ci/build_play_release.sh').read_text() if (ROOT / 'ci/build_play_release.sh').exists() else ''
+for marker in ['NANU_REPORT_ENDPOINT', 'NANU_UPLOAD_KEYSTORE_BASE64', 'versionName = "1.0"', ':app:bundleRelease', 'jarsigner -verify']:
+    if marker not in play_build:
+        errors.append(f'Play release script missing marker: {marker}')
 
 paper = (ROOT / 'app/PaperTradingActivity.kt').read_text() if (ROOT / 'app/PaperTradingActivity.kt').exists() else ''
 for marker in ['No real trade was placed', 'Virtual balance', 'KEY_POSITIONS', 'KEY_HISTORY']:
     if marker not in paper:
         errors.append(f'paper trading missing safety marker: {marker}')
 
-# Play-oriented permission guardrails. Exclude this checker itself so its own
-# blocklist is not mistaken for an app permission declaration.
 scan_files = [
     p for p in ROOT.rglob('*')
     if p.is_file()
@@ -101,7 +117,6 @@ for permission in forbidden_permissions:
     if permission in source_text:
         errors.append(f'forbidden/unnecessary sensitive permission marker found: {permission}')
 
-# RC8 should not contain an execution/wallet integration.
 for risky_marker in ['PRIVATE_KEY', 'seed phrase', 'walletConnect', 'sendTransaction(', 'placeRealTrade(', 'binary options']:
     if risky_marker.lower() in source_text.lower():
         errors.append(f'RC8 contains disallowed/unwanted real-money execution marker: {risky_marker}')
@@ -118,5 +133,6 @@ if errors:
 print('RC8 static preflight passed.')
 print(' - feature files present and XML parses')
 print(' - Play-sensitive permission guardrails passed')
+print(' - direct AI reporting + Play release markers passed')
 print(' - privacy/safety/paper-trading markers passed')
 print(' - Android API 36 workflow + RC8 artifact markers passed')
