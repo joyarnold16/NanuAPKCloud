@@ -25,6 +25,8 @@ if "private var speakingMessageId: String?" not in text:
 
 # Put every downloadable model directly in the first Model dialog. Downloaded
 # catalog models load from the same row; custom imported GGUF files stay below.
+# Do NOT combine setMessage() with setItems() here: on some Samsung/Material
+# AlertDialog implementations the message view replaces/suppresses the list.
 model_manager = r'''    private fun showModelManager() {
         if (!engineReady) {
             Toast.makeText(this, "The local LLM engine is still starting.", Toast.LENGTH_SHORT).show()
@@ -67,8 +69,7 @@ model_manager = r'''    private fun showModelManager() {
         if (deleteIndex >= 0) labels += "Delete a stored model…"
 
         AlertDialog.Builder(this)
-            .setTitle("Choose a local model • ${String.format(Locale.US, "%.1f", ramGb)} GB RAM")
-            .setMessage("All Nanu models are shown here. Tap any model to download or load it. Only one large model downloads at a time.")
+            .setTitle("Local models • ${String.format(Locale.US, "%.1f", ramGb)} GB RAM")
             .setItems(labels.toTypedArray()) { _, which ->
                 when {
                     which < ordered.size -> {
@@ -182,7 +183,7 @@ if "MESSAGE_SPEAK_PREFIX" not in text.split("companion object {", 1)[-1]:
 for marker in [
     "onSpeak = ::toggleSpeakMessage",
     "Everyday • fast balance",
-    "All Nanu models are shown here",
+    ".setItems(labels.toTypedArray())",
     "private fun toggleSpeakMessage(message: Message)",
     "messageAdapter.setSpeakingMessage(message.id)",
     "MESSAGE_SPEAK_PREFIX",
