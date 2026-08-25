@@ -202,7 +202,7 @@ for required in [
     'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
     'activity_rc8_home.xml', 'activity_file_chat.xml', 'activity_talk_rc8.xml',
     'activity_create_studio.xml', 'activity_paper_trading.xml', 'activity_safety_privacy.xml',
-    'android:allowBackup=\\"false\\"', 'androidx.core.content.FileProvider',
+    'android:allowBackup="false"', 'androidx.core.content.FileProvider',
     'out/nanu-local-ai-v1.0-rc8.apk'
 ]:
     if required not in base:
