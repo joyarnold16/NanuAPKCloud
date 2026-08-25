@@ -28,7 +28,7 @@ class AiReportClient(private val context: Context) {
             readTimeout = 20_000
             requestMethod = "POST"
             doOutput = true
-            instanceFollowRedirects = false
+            instanceFollowRedirects = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "application/json,text/plain,*/*")
             setRequestProperty("User-Agent", "NanuLocalAI/1.0 Android")
@@ -38,6 +38,16 @@ class AiReportClient(private val context: Context) {
             connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body) }
             val code = connection.responseCode
             if (code !in 200..299) error("Reporting service returned HTTP $code")
+
+            val responseText = runCatching {
+                connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText().take(16_000) }
+            }.getOrDefault("").trim()
+            if (responseText.startsWith("{") && responseText.endsWith("}")) {
+                val response = runCatching { JSONObject(responseText) }.getOrNull()
+                if (response != null && response.has("ok") && !response.optBoolean("ok", false)) {
+                    error(response.optString("error", "Reporting service rejected the report"))
+                }
+            }
             reportId
         } finally {
             connection.disconnect()
