@@ -43,6 +43,8 @@ class LocalImageGenerator(private val context: Context) {
         stepsOverride: Int? = null,
         onProgress: suspend (String) -> Unit
     ): ImageGenerationResult = withContext(Dispatchers.IO) {
+        SafetyGuard.blockedReason(prompt, image = true)?.let { reason -> error(reason) }
+
         val manager = ImageModelManager(context)
         val model = ImageModelCatalog.starter
         val modelFile = manager.destinationFile(model)
