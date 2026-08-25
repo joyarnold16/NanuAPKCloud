@@ -25,6 +25,7 @@ required_files = [
     'nanu-local-ai/app/CreateStudioActivity.kt',
     'nanu-local-ai/app/PaperTradingActivity.kt',
     'nanu-local-ai/app/SafetyPrivacyActivity.kt',
+    'nanu-local-ai/ci/patch_main_rc8.py',
     'nanu-local-ai/res/layout/activity_main.xml',
     'nanu-local-ai/res/layout/activity_talk.xml',
     'nanu-local-ai/res/layout/activity_create.xml',
@@ -212,6 +213,11 @@ out = Path('/tmp/build_nanu_rc8.sh')
 out.write_text(base)
 print('RC8 build script generation/patch validation passed.')
 PY
+
+# Patch the unified chat source immediately before the generated build copies it.
+# This keeps the final model-picker/Speak-toggle hardening deterministic in every
+# workflow that calls build_rc8.sh, including pull-request builds from main.
+python3 nanu-local-ai/ci/patch_main_rc8.py
 
 chmod +x /tmp/build_nanu_rc8.sh
 bash -n /tmp/build_nanu_rc8.sh
