@@ -38,6 +38,9 @@ class LocalImageGenerator(private val context: Context) {
         prompt: String,
         negativePrompt: String = "blurry, low quality, distorted, malformed",
         quality: Boolean = false,
+        width: Int? = null,
+        height: Int? = null,
+        stepsOverride: Int? = null,
         onProgress: suspend (String) -> Unit
     ): ImageGenerationResult = withContext(Dispatchers.IO) {
         val manager = ImageModelManager(context)
@@ -55,17 +58,19 @@ class LocalImageGenerator(private val context: Context) {
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         val output = File(outputDir, "nanu-$stamp.png")
 
-        val size = if (quality) 512 else 384
-        val steps = if (quality) 14 else 8
-        val timeoutMs = if (quality) 60L * 60L * 1000L else 30L * 60L * 1000L
+        val defaultSize = if (quality) 512 else 384
+        val imageWidth = normalizeDimension(width ?: defaultSize)
+        val imageHeight = normalizeDimension(height ?: defaultSize)
+        val steps = (stepsOverride ?: if (quality) 14 else 8).coerceIn(4, 30)
+        val timeoutMs = if (quality || imageWidth * imageHeight > 384 * 384) 60L * 60L * 1000L else 30L * 60L * 1000L
         val command = mutableListOf(
             native.absolutePath,
             "-m", modelFile.absolutePath,
             "-p", prompt,
             "-o", output.absolutePath,
             "--steps", steps.toString(),
-            "-W", size.toString(),
-            "-H", size.toString(),
+            "-W", imageWidth.toString(),
+            "-H", imageHeight.toString(),
             "--vae-tiling"
         )
         if (negativePrompt.isNotBlank()) command += listOf("-n", negativePrompt)
@@ -74,7 +79,7 @@ class LocalImageGenerator(private val context: Context) {
         processBuilder.environment()["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir
         processBuilder.environment()["TMPDIR"] = context.cacheDir.absolutePath
 
-        onProgress("Loading local image model…")
+        onProgress("Loading local image model • ${imageWidth}×${imageHeight} • $steps steps…")
         val process = processBuilder.start()
         activeProcess = process
         val started = SystemClock.elapsedRealtime()
@@ -116,6 +121,11 @@ class LocalImageGenerator(private val context: Context) {
         } finally {
             activeProcess = null
         }
+    }
+
+    private fun normalizeDimension(value: Int): Int {
+        val clamped = value.coerceIn(256, 768)
+        return (clamped / 8) * 8
     }
 
     private fun saveToGallery(source: File): Boolean {
