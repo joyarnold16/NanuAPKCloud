@@ -24,28 +24,14 @@
                 android:contentDescription="Nanu"
                 android:src="@drawable/ic_nanu_launcher" />
 
-            <LinearLayout
+            <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Nanu"
-                    android:textColor="@color/nanu_text"
-                    android:textSize="28sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Your private local AI workspace"
-                    android:textColor="@color/nanu_muted"
-                    android:textSize="12sp" />
-            </LinearLayout>
+                android:text="Your private local AI workspace"
+                android:textColor="@color/nanu_muted"
+                android:textSize="13sp" />
         </LinearLayout>
 
         <com.google.android.material.card.MaterialCardView
