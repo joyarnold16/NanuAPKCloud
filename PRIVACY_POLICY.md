@@ -6,13 +6,13 @@ Nanu Local AI is designed as a local-first Android assistant. This policy explai
 
 ## Local AI and user content
 
-Nanu's downloaded language-model inference runs on the user's device. Prompts, generated text, imported documents, extracted document text, local chat/file-session data, generated images, paper-trading data, and app settings are stored locally in the app's storage unless the user intentionally shares or exports them.
+Nanu's downloaded language-model inference runs on the user's device. Prompts, generated text, imported documents, extracted document text, local chat/file-session data, generated images, paper-trading data, and app settings are stored locally in the app's storage unless the user intentionally shares, exports, or submits a safety report.
 
-Nanu does not require a Nanu account and does not include advertising or analytics SDKs in the RC8 build.
+Nanu does not require a Nanu account and does not include advertising or analytics SDKs in the current build.
 
 ## Model downloads
 
-When the user chooses to download a language or image model, Android's download service connects to the model host identified in the app (currently Hugging Face-hosted model files). The remote host may receive ordinary network information such as the device IP address and request metadata according to that host's own privacy practices.
+When the user chooses to download a language or image model, Nanu connects to the model host identified in the app (currently Hugging Face-hosted model files). The remote host may receive ordinary network information such as the device IP address and request metadata according to that host's own privacy practices.
 
 ## Live market snapshots
 
@@ -28,23 +28,29 @@ Files are selected with Android's system document picker. Nanu does not request 
 
 ## Financial features
 
-Nanu provides market information, technical-analysis tools, risk calculators, a local journal, and paper-trading simulation. RC8 does not execute real-money trades, operate a cryptocurrency exchange, or provide a custodial cryptocurrency wallet.
+Nanu provides market information, technical-analysis tools, risk calculators, a local journal, and paper-trading simulation. Nanu does not execute real-money trades, operate a cryptocurrency exchange, or provide a custodial cryptocurrency wallet.
 
 ## AI safety reports
 
-RC8 includes an in-app safety-report form. In RC8 test builds, reports are stored locally on the device and can be exported by the user. A production Play release must use an approved developer reporting endpoint before submission if required by Google Play's AI-generated-content policy. Nanu will not silently upload report content.
+Nanu includes an in-app safety-report form and a **Report** action on AI responses. Report details are not silently uploaded.
+
+When a production build is configured with the developer reporting service and the user explicitly taps **Submit to developer**, Nanu sends the report category, the selected/reported AI output or details, a generated report reference, app identifier, timestamp, and ordinary network metadata to the configured HTTPS developer reporting endpoint so the developer can review and act on the report.
+
+The user may separately save a local copy of a report or export a local report through Android's share sheet. Test builds may have developer submission disabled until the production endpoint is configured.
 
 ## Permissions
 
-Nanu uses the minimum permissions needed for its features. Internet access is used for user-initiated model downloads, optional source/license links, and live market snapshots. Microphone access is requested for voice conversation. File access uses Android's system pickers rather than broad storage permissions.
+Nanu uses the minimum permissions needed for its features. Internet access is used for user-initiated model downloads, optional source/license links, live market snapshots, and AI safety reports the user explicitly submits. Microphone access is requested for voice conversation. File access uses Android's system pickers rather than broad storage permissions.
 
 ## Data retention and deletion
 
-Local Nanu data remains on the device until the user deletes it, clears app storage, removes specific stored content, or uninstalls Nanu. Because RC8 does not create a Nanu account, there is no server-side Nanu account to delete.
+Local Nanu data remains on the device until the user deletes it, clears app storage, removes specific stored content, or uninstalls Nanu. Because Nanu does not create a Nanu account, there is no server-side Nanu account to delete.
+
+Submitted AI safety reports are retained only according to the production developer reporting service's moderation and support process. Before public release, the developer must publish the final retention/contact details that match the configured reporting backend.
 
 ## Security
 
-Nanu uses Android app-private storage for local data where appropriate and avoids unnecessary sensitive permissions. No software can guarantee absolute security, and users should avoid placing secrets in prompts or documents unless they are comfortable storing them on the device.
+Nanu uses Android app-private storage for local data where appropriate, requires HTTPS for the production AI-report endpoint, disables cleartext traffic, and avoids unnecessary sensitive permissions. No software can guarantee absolute security, and users should avoid placing secrets in prompts or documents unless they are comfortable storing them on the device.
 
 ## Children
 
@@ -56,4 +62,4 @@ This policy may be updated when Nanu's features or data practices change. The pu
 
 ## Contact
 
-Before public Play Store release, the developer must publish and maintain a valid support contact and in-app AI-safety reporting destination in Play Console and in the app. Repository: `joyarnold16/NanuAPKCloud`.
+Before public Play Store release, the developer will publish and maintain a valid support contact in Play Console and in this policy. Repository: `joyarnold16/NanuAPKCloud`.
