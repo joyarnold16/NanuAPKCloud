@@ -4,6 +4,8 @@ import re
 import xml.etree.ElementTree as ET
 
 ROOT = Path('nanu-local-ai')
+WORKFLOW = Path('.github/workflows/build-nanu-local-ai-branch.yml')
+CHECKER = ROOT / 'ci/preflight_rc8.py'
 
 required = [
     'app/MainActivity.kt', 'app/MessageAdapter.kt', 'app/AttachmentManager.kt',
@@ -48,7 +50,7 @@ for xml in [p for p in (ROOT / 'res/layout').glob('*.xml')] + [ROOT / 'res/xml/n
 
 build = (ROOT / 'ci/build_rc8.sh').read_text() if (ROOT / 'ci/build_rc8.sh').exists() else ''
 for marker in [
-    'versionCode = 22', 'versionName = "1.0-rc8"', 'platforms;android-36',
+    'versionCode = 22', 'versionName = "1.0-rc8"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
     'android:allowBackup=\\"false\\"', '-dontwarn com.gemalto.jp2.**',
@@ -56,6 +58,14 @@ for marker in [
 ]:
     if marker not in build:
         errors.append(f'build_rc8.sh missing marker: {marker}')
+
+workflow = WORKFLOW.read_text() if WORKFLOW.exists() else ''
+for marker in [
+    'platforms;android-36', 'build_rc8.sh', 'preflight_rc8.py',
+    'nanu-local-ai-v1.0-rc8'
+]:
+    if marker not in workflow:
+        errors.append(f'RC8 branch workflow missing marker: {marker}')
 
 home = (ROOT / 'app/Rc8HomeActivity.kt').read_text() if (ROOT / 'app/Rc8HomeActivity.kt').exists() else ''
 for marker in ['MainActivity::class.java', 'ContinuousTalkActivity::class.java', 'FileChatActivity::class.java', 'CreateStudioActivity::class.java', 'TradingActivity::class.java', 'PaperTradingActivity::class.java', 'SafetyPrivacyActivity::class.java']:
@@ -72,14 +82,21 @@ for marker in ['No real trade was placed', 'Virtual balance', 'KEY_POSITIONS', '
     if marker not in paper:
         errors.append(f'paper trading missing safety marker: {marker}')
 
-# Play-oriented permission guardrails. Nanu should use system pickers and
-# contextual microphone permission, not broad/sensitive access.
+# Play-oriented permission guardrails. Exclude this checker itself so its own
+# blocklist is not mistaken for an app permission declaration.
+scan_files = [
+    p for p in ROOT.rglob('*')
+    if p.is_file()
+    and p.suffix.lower() in {'.kt', '.xml', '.sh', '.py'}
+    and p != CHECKER
+]
+source_text = '\n'.join(p.read_text(errors='ignore') for p in scan_files)
+
 forbidden_permissions = [
     'MANAGE_EXTERNAL_STORAGE', 'READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE',
     'READ_CONTACTS', 'WRITE_CONTACTS', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION',
     'QUERY_ALL_PACKAGES', 'READ_SMS', 'RECEIVE_SMS', 'READ_CALL_LOG', 'SYSTEM_ALERT_WINDOW'
 ]
-source_text = '\n'.join(p.read_text(errors='ignore') for p in ROOT.rglob('*') if p.is_file() and p.suffix.lower() in {'.kt', '.xml', '.sh', '.py'})
 for permission in forbidden_permissions:
     if permission in source_text:
         errors.append(f'forbidden/unnecessary sensitive permission marker found: {permission}')
@@ -102,4 +119,4 @@ print('RC8 static preflight passed.')
 print(' - feature files present and XML parses')
 print(' - Play-sensitive permission guardrails passed')
 print(' - privacy/safety/paper-trading markers passed')
-print(' - Android API 36 + RC8 artifact markers passed')
+print(' - Android API 36 workflow + RC8 artifact markers passed')
