@@ -17,20 +17,16 @@
         android:orientation="horizontal">
 
         <ImageView
-            android:layout_width="46dp"
+            android:layout_width="58dp"
             android:layout_height="46dp"
             android:contentDescription="Nanu"
+            android:scaleType="centerInside"
             android:src="@drawable/ic_nanu_launcher" />
 
-        <TextView
+        <Space
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:text="Nanu"
-            android:textColor="@color/nanu_text"
-            android:textSize="24sp"
-            android:textStyle="bold" />
+            android:layout_height="1dp"
+            android:layout_weight="1" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/new_chat_button"
@@ -62,7 +58,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:paddingStart="56dp"
+        android:paddingStart="4dp"
         android:text="Starting local engine…"
         android:textColor="@color/nanu_muted"
         android:textSize="11sp" />
