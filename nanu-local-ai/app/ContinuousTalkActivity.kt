@@ -3,6 +3,7 @@ package com.example.llama
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.media.AudioAttributes
 import android.os.Bundle
@@ -43,13 +44,20 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private var voiceReplies = true
     private var continuousMode = true
     private var loopArmed = false
+    private var sessionActive = false
     private var preferOffline = true
     private lateinit var engine: InferenceEngine
     private var engineReady = false
     private var job: Job? = null
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startConversation() else Toast.makeText(this, "Microphone permission is required.", Toast.LENGTH_LONG).show()
+        if (granted) {
+            startConversation()
+        } else {
+            sessionActive = false
+            refreshTalkButton()
+            Toast.makeText(this, "Microphone permission is required.", Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,26 +75,41 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         continuousBtn = findViewById(R.id.talk8_continuous)
 
         findViewById<MaterialButton>(R.id.talk8_back).setOnClickListener { finish() }
-        talkBtn.setOnClickListener { requestMicAndStart() }
+        talkBtn.setOnClickListener {
+            if (sessionActive) stopEverything() else requestMicAndStart()
+        }
         stopBtn.setOnClickListener { stopEverything() }
         voiceBtn.setOnClickListener {
             voiceReplies = !voiceReplies
             voiceBtn.text = if (voiceReplies) "Voice reply: On" else "Voice reply: Off"
-            if (!voiceReplies) tts?.stop()
+            if (!voiceReplies) {
+                tts?.stop()
+                if (sessionActive) {
+                    if (loopArmed) scheduleListen(180L)
+                    else finishSession("Voice reply stopped • tap Speak when ready")
+                }
+            }
         }
         continuousBtn.setOnClickListener {
             continuousMode = !continuousMode
             continuousBtn.text = if (continuousMode) "Continuous: On" else "Continuous: Off"
-            if (!continuousMode) loopArmed = false
+            loopArmed = sessionActive && continuousMode
         }
 
+        refreshTalkButton()
         tts = TextToSpeech(this, this)
         createRecognizer()
         lifecycleScope.launch(Dispatchers.Default) {
             runCatching {
                 engine = AiChat.getInferenceEngine(applicationContext)
                 ensureModelReady()
-            }.onFailure { error -> withContext(Dispatchers.Main) { statusTv.text = "Local AI unavailable: ${error.message}" } }
+            }.onFailure { error ->
+                withContext(Dispatchers.Main) {
+                    statusTv.text = "Local AI unavailable: ${error.message}"
+                    sessionActive = false
+                    refreshTalkButton()
+                }
+            }
         }
     }
 
@@ -102,12 +125,21 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             state = waitForStableEngine(5_000L)
         }
         if (state !is InferenceEngine.State.Initialized) {
-            withContext(Dispatchers.Main) { statusTv.text = "Local AI is busy in another screen." }
+            withContext(Dispatchers.Main) {
+                statusTv.text = "Local AI is busy in another screen."
+                refreshTalkButton()
+            }
             return
         }
-        val model = getSharedPreferences("nanu_local_ai", MODE_PRIVATE).getString("last_model", null)?.let(::File)?.takeIf { it.exists() }
+        val model = getSharedPreferences("nanu_local_ai", MODE_PRIVATE)
+            .getString("last_model", null)
+            ?.let(::File)
+            ?.takeIf { it.exists() }
         if (model == null) {
-            withContext(Dispatchers.Main) { statusTv.text = "Load an LLM from Chat + Models first." }
+            withContext(Dispatchers.Main) {
+                statusTv.text = "Load an LLM from Chat + Models first."
+                refreshTalkButton()
+            }
             return
         }
         withContext(Dispatchers.Main) { statusTv.text = "Loading ${model.nameWithoutExtension}…" }
@@ -129,7 +161,10 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 is InferenceEngine.State.ProcessingSystemPrompt,
                 is InferenceEngine.State.ProcessingUserPrompt,
                 is InferenceEngine.State.Generating,
-                is InferenceEngine.State.Benchmarking -> { delay(150L); waited += 150L }
+                is InferenceEngine.State.Benchmarking -> {
+                    delay(150L)
+                    waited += 150L
+                }
                 else -> return state
             }
         }
@@ -143,12 +178,30 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             else -> "speech service ready"
         }
         statusTv.text = "$prefix • $speech • ${if (ttsReady) "voice ready" else "voice starting"}"
-        talkBtn.isEnabled = SpeechRecognizer.isRecognitionAvailable(this)
+        refreshTalkButton()
+    }
+
+    private fun refreshTalkButton() {
+        if (!::talkBtn.isInitialized) return
+        val canUse = engineReady && SpeechRecognizer.isRecognitionAvailable(this)
+        talkBtn.isEnabled = canUse || sessionActive
+        talkBtn.text = if (sessionActive) "Speak: ON • tap to stop" else "Speak"
+        talkBtn.backgroundTintList = ColorStateList.valueOf(
+            ContextCompat.getColor(this, if (sessionActive) R.color.nanu_accent else R.color.nanu_panel_2)
+        )
+        talkBtn.setTextColor(
+            ContextCompat.getColor(this, if (sessionActive) android.R.color.white else R.color.nanu_accent_2)
+        )
+        talkBtn.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.nanu_accent))
+        talkBtn.strokeWidth = if (sessionActive) 0 else resources.displayMetrics.density.toInt().coerceAtLeast(1)
     }
 
     private fun requestMicAndStart() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startConversation()
-        else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startConversation()
+        } else {
+            micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     private fun startConversation() {
@@ -156,52 +209,88 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             Toast.makeText(this, "Local AI is not ready yet.", Toast.LENGTH_SHORT).show()
             return
         }
+        sessionActive = true
         loopArmed = continuousMode
+        refreshTalkButton()
         startListening(true)
     }
 
     private fun createRecognizer() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) return
         recognizer = runCatching {
-            if (SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-            else SpeechRecognizer.createSpeechRecognizer(this)
+            if (SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            } else {
+                SpeechRecognizer.createSpeechRecognizer(this)
+            }
         }.getOrElse { SpeechRecognizer.createSpeechRecognizer(this) }
+
         recognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) { statusTv.text = if (preferOffline) "Listening • offline preferred" else "Listening"; talkBtn.text = "Listening" }
-            override fun onBeginningOfSpeech() { statusTv.text = "Listening…" }
+            override fun onReadyForSpeech(params: Bundle?) {
+                if (!sessionActive) return
+                statusTv.text = if (preferOffline) "Listening • offline preferred" else "Listening"
+            }
+
+            override fun onBeginningOfSpeech() {
+                if (sessionActive) statusTv.text = "Listening…"
+            }
+
             override fun onRmsChanged(rmsdB: Float) = Unit
             override fun onBufferReceived(buffer: ByteArray?) = Unit
-            override fun onEndOfSpeech() { statusTv.text = "Processing speech…" }
+
+            override fun onEndOfSpeech() {
+                if (sessionActive) statusTv.text = "Processing speech…"
+            }
+
             override fun onError(error: Int) {
-                talkBtn.text = "Start talking"
+                if (!sessionActive) return
                 if (preferOffline && (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT)) {
                     preferOffline = false
-                    lifecycleScope.launch { delay(250L); startListening(false) }
+                    lifecycleScope.launch {
+                        delay(250L)
+                        if (sessionActive) startListening(false)
+                    }
+                    return
+                }
+
+                statusTv.text = speechError(error)
+                val recoverable = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                if (loopArmed && recoverable) {
+                    scheduleListen(650L)
                 } else {
-                    statusTv.text = speechError(error)
-                    if (loopArmed && error in setOf(SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) scheduleListen(650L)
+                    finishSession("${speechError(error)} • tap Speak to try again")
                 }
             }
+
             override fun onResults(results: Bundle?) {
+                if (!sessionActive) return
                 preferOffline = true
-                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty().trim()
+                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull().orEmpty().trim()
                 if (text.isBlank()) {
                     statusTv.text = "I didn't catch that."
                     if (loopArmed) scheduleListen(500L)
+                    else finishSession("I didn't catch that • tap Speak to try again")
                     return
                 }
                 heardTv.text = text
                 askNanu(text)
             }
+
             override fun onPartialResults(partialResults: Bundle?) {
-                partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { heardTv.text = it }
+                if (!sessionActive) return
+                partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { heardTv.text = it }
             }
+
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
         })
     }
 
     private fun startListening(offline: Boolean) {
-        if (!engineReady || engine.state.value !is InferenceEngine.State.ModelReady) return
+        if (!sessionActive || !engineReady || engine.state.value !is InferenceEngine.State.ModelReady) return
         preferOffline = offline
         tts?.stop()
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -211,29 +300,49 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, offline)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         }
-        runCatching { recognizer?.startListening(intent) }.onFailure { statusTv.text = "Speech recognition could not start" }
+        runCatching { recognizer?.startListening(intent) }
+            .onFailure {
+                if (sessionActive) finishSession("Speech recognition could not start • tap Speak to retry")
+            }
     }
 
     private fun askNanu(prompt: String) {
+        if (!sessionActive) return
         answerTv.text = "Thinking locally…"
         statusTv.text = "Nanu is thinking…"
-        talkBtn.isEnabled = false
         val raw = StringBuilder()
         job?.cancel()
         job = lifecycleScope.launch(Dispatchers.Default) {
             engine.sendUserPrompt(prompt)
-                .catch { error -> withContext(Dispatchers.Main) { answerTv.text = "Generation error: ${error.message}" } }
-                .collect { token -> raw.append(token); withContext(Dispatchers.Main) { answerTv.text = stripThinking(raw.toString()).ifBlank { "Thinking locally…" } } }
+                .catch { error ->
+                    if (sessionActive) {
+                        withContext(Dispatchers.Main) {
+                            answerTv.text = "Generation error: ${error.message}"
+                            finishSession("Generation stopped • tap Speak to try again")
+                        }
+                    }
+                }
+                .collect { token ->
+                    raw.append(token)
+                    if (sessionActive) {
+                        withContext(Dispatchers.Main) {
+                            answerTv.text = stripThinking(raw.toString()).ifBlank { "Thinking locally…" }
+                        }
+                    }
+                }
+
+            if (!sessionActive) return@launch
             val finalText = stripThinking(raw.toString()).trim()
             withContext(Dispatchers.Main) {
-                talkBtn.isEnabled = true
-                talkBtn.text = "Start talking"
+                if (!sessionActive) return@withContext
                 if (finalText.isNotBlank() && voiceReplies && ttsReady) {
-                    statusTv.text = "Speaking…"
+                    statusTv.text = "Speaking… • tap Speak to stop"
                     tts?.speak(finalText.take(4000), TextToSpeech.QUEUE_FLUSH, null, REPLY_UTTERANCE)
+                } else if (loopArmed) {
+                    statusTv.text = "Reply ready • listening again…"
+                    scheduleListen(450L)
                 } else {
-                    statusTv.text = "Reply ready"
-                    if (loopArmed) scheduleListen(450L)
+                    finishSession("Reply ready • tap Speak when ready")
                 }
             }
         }
@@ -242,18 +351,28 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private fun scheduleListen(delayMs: Long) {
         lifecycleScope.launch {
             delay(delayMs)
-            if (loopArmed && continuousMode && engineReady && engine.state.value is InferenceEngine.State.ModelReady) startListening(true)
+            if (sessionActive && loopArmed && continuousMode && engineReady && engine.state.value is InferenceEngine.State.ModelReady) {
+                startListening(true)
+            }
         }
     }
 
+    private fun finishSession(message: String) {
+        sessionActive = false
+        loopArmed = false
+        refreshTalkButton()
+        statusTv.text = message
+    }
+
     private fun stopEverything() {
+        sessionActive = false
         loopArmed = false
         recognizer?.cancel()
         job?.cancel()
+        job = null
         tts?.stop()
-        talkBtn.text = "Start talking"
-        talkBtn.isEnabled = engineReady && SpeechRecognizer.isRecognitionAvailable(this)
-        statusTv.text = "Stopped • tap Start talking when ready"
+        refreshTalkButton()
+        statusTv.text = "Stopped • tap Speak when ready"
     }
 
     private fun stripThinking(raw: String): String {
@@ -273,22 +392,50 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     }
 
     override fun onInit(status: Int) {
-        if (status != TextToSpeech.SUCCESS) { ttsReady = false; return }
-        tts?.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+        if (status != TextToSpeech.SUCCESS) {
+            ttsReady = false
+            return
+        }
+        tts?.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+        )
         tts?.setSpeechRate(0.96f)
         val selected = listOf(Locale.getDefault(), Locale.US, Locale.UK).distinct().firstOrNull {
             (tts?.isLanguageAvailable(it) ?: TextToSpeech.LANG_NOT_SUPPORTED) >= TextToSpeech.LANG_AVAILABLE
         }
-        ttsReady = selected != null && (tts?.setLanguage(selected) ?: TextToSpeech.LANG_NOT_SUPPORTED) >= TextToSpeech.LANG_AVAILABLE
+        ttsReady = selected != null &&
+            (tts?.setLanguage(selected) ?: TextToSpeech.LANG_NOT_SUPPORTED) >= TextToSpeech.LANG_AVAILABLE
+
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) = Unit
-            override fun onDone(utteranceId: String?) { if (utteranceId == REPLY_UTTERANCE) runOnUiThread { if (loopArmed) scheduleListen(350L) } }
-            @Deprecated("Deprecated in Java") override fun onError(utteranceId: String?) { if (utteranceId == REPLY_UTTERANCE) runOnUiThread { if (loopArmed) scheduleListen(500L) } }
+
+            override fun onDone(utteranceId: String?) {
+                if (utteranceId != REPLY_UTTERANCE) return
+                runOnUiThread {
+                    if (!sessionActive) return@runOnUiThread
+                    if (loopArmed) scheduleListen(350L)
+                    else finishSession("Reply finished • tap Speak when ready")
+                }
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                if (utteranceId != REPLY_UTTERANCE) return
+                runOnUiThread {
+                    if (!sessionActive) return@runOnUiThread
+                    if (loopArmed) scheduleListen(500L)
+                    else finishSession("Voice stopped • tap Speak when ready")
+                }
+            }
         })
         if (engineReady) markReady("Local AI ready")
     }
 
     override fun onDestroy() {
+        sessionActive = false
         loopArmed = false
         job?.cancel()
         recognizer?.cancel()
@@ -298,5 +445,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         super.onDestroy()
     }
 
-    companion object { private const val REPLY_UTTERANCE = "nanu_rc8_reply" }
+    companion object {
+        private const val REPLY_UTTERANCE = "nanu_rc8_reply"
+    }
 }
