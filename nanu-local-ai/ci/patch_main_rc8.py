@@ -13,15 +13,17 @@ if "onSpeak = ::toggleSpeakMessage" not in text:
         raise SystemExit("Could not locate MessageAdapter onSpeak binding")
     text = text.replace(old, "            onSpeak = ::toggleSpeakMessage,", 1)
 
+if "onReport = ::reportMessage" not in text:
+    old = "            onSaveImage = ::saveImageMessage\n        )"
+    if old not in text:
+        raise SystemExit("Could not locate MessageAdapter report binding anchor")
+    text = text.replace(old, "            onSaveImage = ::saveImageMessage,\n            onReport = ::reportMessage\n        )", 1)
+
 if "private var speakingMessageId: String?" not in text:
     old = "    private var lastUserPrompt: String? = null\n"
     if old not in text:
         raise SystemExit("Could not locate MainActivity message state anchor")
-    text = text.replace(
-        old,
-        old + "    private var speakingMessageId: String? = null\n",
-        1,
-    )
+    text = text.replace(old, old + "    private var speakingMessageId: String? = null\n", 1)
 
 # Put every downloadable model directly in the first Model dialog. Downloaded
 # catalog models load from the same row; custom imported GGUF files stay below.
@@ -96,6 +98,27 @@ text, count = re.subn(pattern, lambda _: replacement, text, count=1, flags=re.S)
 if count != 1:
     raise SystemExit(f"Could not patch MainActivity model manager; matches={count}")
 
+if "private fun reportMessage(message: Message)" not in text:
+    anchor = "    private fun shareMessage(message: Message) {\n"
+    if anchor not in text:
+        raise SystemExit("Could not locate MainActivity report method anchor")
+    report_method = r'''    private fun reportMessage(message: Message) {
+        val reportText = buildString {
+            append(message.content.take(8000))
+            message.sourcePrompt?.takeIf { it.isNotBlank() }?.let {
+                append("\n\nUser prompt:\n")
+                append(it.take(2000))
+            }
+            if (!message.imagePath.isNullOrBlank()) append("\n\nThis response included a locally generated image.")
+        }
+        startActivity(Intent(this, SafetyPrivacyActivity::class.java).apply {
+            putExtra(SafetyPrivacyActivity.EXTRA_REPORTED_CONTENT, reportText)
+        })
+    }
+
+'''
+    text = text.replace(anchor, report_method + anchor, 1)
+
 if "private fun toggleSpeakMessage(message: Message)" not in text:
     anchor = "    private fun speakText(text: String) {\n"
     if anchor not in text:
@@ -132,7 +155,6 @@ if "private fun toggleSpeakMessage(message: Message)" not in text:
 '''
     text = text.replace(anchor, addition + anchor, 1)
 
-# Automatic voice replies should clear a manually highlighted Speak action.
 old_speak = '''    private fun speakText(text: String) {
         if (!ttsReady || text.isBlank()) return
         tts?.speak(text.take(3500), TextToSpeech.QUEUE_FLUSH, null, "nanu_reply_${System.currentTimeMillis()}")
@@ -182,8 +204,10 @@ if "MESSAGE_SPEAK_PREFIX" not in text.split("companion object {", 1)[-1]:
 
 for marker in [
     "onSpeak = ::toggleSpeakMessage",
+    "onReport = ::reportMessage",
     "Everyday • fast balance",
     ".setItems(labels.toTypedArray())",
+    "private fun reportMessage(message: Message)",
     "private fun toggleSpeakMessage(message: Message)",
     "messageAdapter.setSpeakingMessage(message.id)",
     "MESSAGE_SPEAK_PREFIX",
@@ -192,4 +216,4 @@ for marker in [
         raise SystemExit(f"RC8 MainActivity patch missing marker: {marker}")
 
 path.write_text(text)
-print("RC8 MainActivity model picker + Speak toggle patch applied.")
+print("RC8 MainActivity model picker + Speak toggle + Report action patch applied.")
