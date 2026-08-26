@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y ninja-build
+          sudo apt-get install -y ninja-build binutils
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager \
             "platform-tools" \
@@ -57,10 +57,15 @@ jobs:
           set -euo pipefail
           bash -n nanu-local-ai/ci/build_rc8.sh
           python3 nanu-local-ai/ci/preflight_rc8.py
+          python3 nanu-local-ai/ci/preflight_play_release.py
 
       - name: Build and validate RC8
         shell: bash
-        run: bash nanu-local-ai/ci/build_rc8.sh
+        run: |
+          set -euo pipefail
+          bash nanu-local-ai/ci/build_rc8.sh
+          python3 nanu-local-ai/ci/verify_16k_native.py out/nanu-local-ai-v1.0-rc8.apk
+          python3 nanu-local-ai/ci/verify_16k_native.py out/nanu-local-ai-v1.0-rc8-debug.aab
 
       - name: Upload RC8 APK and AAB
         uses: actions/upload-artifact@v4
