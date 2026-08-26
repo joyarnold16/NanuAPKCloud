@@ -44,7 +44,7 @@ for marker in [
     'versionCode = 100',
     'versionName = "1.0"',
     ':app:bundleRelease',
-    'jarsigner -verify -strict',
+    'jarsigner -verify "$PLAY_AAB"',
     'verify_16k_native.py',
     'nanu-upload-certificate.pem',
     'PLAY_RELEASE_SHA256.txt',
@@ -52,6 +52,9 @@ for marker in [
 ]:
     if marker not in build:
         errors.append(f'Play build script missing marker: {marker}')
+
+if 'jarsigner -verify -strict' in build:
+    errors.append('Play build must not use jarsigner -strict with a normal self-signed Android upload certificate')
 
 report = (ROOT / 'app/AiReportClient.kt').read_text(errors='ignore')
 for marker in [
