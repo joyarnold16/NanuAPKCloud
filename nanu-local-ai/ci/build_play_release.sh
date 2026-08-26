@@ -47,7 +47,6 @@ for name, value in values.items():
 ET.indent(tree, space='    ')
 tree.write(path, encoding='unicode')
 
-# Production builds must never ship an empty or non-HTTPS report destination.
 verify = ET.parse(path).getroot()
 resolved = {x.attrib.get('name'): (x.text or '').strip() for x in verify.findall('string')}
 if not resolved.get('nanu_report_endpoint', '').startswith('https://'):
@@ -56,8 +55,6 @@ if '@' not in resolved.get('nanu_support_email', ''):
     raise SystemExit('Injected support email is invalid')
 PY
 
-# Build and validate the complete app first. This leaves the generated Android
-# project under llama-upstream/examples/llama.android.
 bash nanu-local-ai/ci/build_rc8.sh
 
 ANDROID_PROJECT="llama-upstream/examples/llama.android"
@@ -68,7 +65,6 @@ chmod 600 "$KEYSTORE"
 test -s "$KEYSTORE"
 export NANU_UPLOAD_KEYSTORE_PATH="$KEYSTORE"
 
-# Fail early if the keystore credentials do not open the expected alias.
 keytool -list \
   -keystore "$KEYSTORE" \
   -storepass "$NANU_UPLOAD_STORE_PASSWORD" \
@@ -129,14 +125,13 @@ PLAY_AAB="out/nanu-local-ai-v1.0-play-release.aab"
 cp "$ANDROID_PROJECT/app/build/outputs/bundle/release/app-release.aab" "$PLAY_AAB"
 test -s "$PLAY_AAB"
 
-# Verify the release is signed by the permanent upload key.
-jarsigner -verify -strict "$PLAY_AAB" >/dev/null
+# Verify JAR/AAB signature integrity. Android upload keys are normally
+# self-signed certificates, so -strict would incorrectly fail solely because
+# the certificate chain is not rooted in a public CA.
+jarsigner -verify "$PLAY_AAB" >/dev/null
 
-# Google Play requires 16 KB page-size compatibility for native-code apps.
 python3 nanu-local-ai/ci/verify_16k_native.py "$PLAY_AAB"
 
-# Export only the PUBLIC upload certificate. This is safe to provide to Play
-# Console and is useful if an upload-key reset/verification is ever required.
 keytool -exportcert -rfc \
   -alias "$NANU_UPLOAD_KEY_ALIAS" \
   -keystore "$KEYSTORE" \
@@ -168,5 +163,4 @@ print(f'Play release AAB ready: {path} ({path.stat().st_size} bytes)')
 print(f'SHA256: {digest}')
 PY
 
-# Never retain the private upload key in the CI workspace longer than needed.
 rm -f "$KEYSTORE"
