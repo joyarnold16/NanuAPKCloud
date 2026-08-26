@@ -11,6 +11,11 @@ on:
         description: 'Public Nanu support email (optional; defaults to current Nanu support mailbox)'
         required: false
         type: string
+  push:
+    branches:
+      - main
+    paths:
+      - 'nanu-local-ai/PLAY_RELEASE_TRIGGER.txt'
 
 permissions:
   contents: read
