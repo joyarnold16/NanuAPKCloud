@@ -46,7 +46,7 @@ Nanu uses the minimum permissions needed for its features. Internet access is us
 
 Local Nanu data remains on the device until the user deletes it, clears app storage, removes specific stored content, or uninstalls Nanu. Because Nanu does not create a Nanu account, there is no server-side Nanu account to delete.
 
-Submitted AI safety reports are retained only according to the production developer reporting service's moderation and support process. Before public release, the developer must publish the final retention/contact details that match the configured reporting backend.
+Submitted AI safety reports are retained only according to the production developer reporting service's moderation and support process. Before public release, the developer should keep the reporting service and support mailbox available and apply a reasonable moderation/retention process.
 
 ## Security
 
@@ -62,4 +62,4 @@ This policy may be updated when Nanu's features or data practices change. The pu
 
 ## Contact
 
-Before public Play Store release, the developer will publish and maintain a valid support contact in Play Console and in this policy. Repository: `joyarnold16/NanuAPKCloud`.
+Questions about Nanu Local AI, privacy, or safety reports can be sent to: **nanuai.1991@gmail.com**
