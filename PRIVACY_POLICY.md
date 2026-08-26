@@ -46,7 +46,7 @@ Nanu uses the minimum permissions needed for its features. Internet access is us
 
 Local Nanu data remains on the device until the user deletes it, clears app storage, removes specific stored content, or uninstalls Nanu. Because Nanu does not create a Nanu account, there is no server-side Nanu account to delete.
 
-Submitted AI safety reports are retained only according to the production developer reporting service's moderation and support process. Before public release, the developer should keep the reporting service and support mailbox available and apply a reasonable moderation/retention process.
+Submitted AI safety reports are retained only for moderation, safety, support and compliance purposes through the production reporting service/support mailbox. A user can request deletion of a submitted safety report by contacting the support address below and, when available, including the report reference shown by Nanu after submission so the report can be located. Reports may be retained longer only when reasonably necessary for abuse prevention, security, legal or compliance purposes.
 
 ## Security
 
@@ -62,4 +62,4 @@ This policy may be updated when Nanu's features or data practices change. The pu
 
 ## Contact
 
-Questions about Nanu Local AI, privacy, or safety reports can be sent to: **nanuai.1991@gmail.com**
+Questions about Nanu Local AI, privacy, safety reports, or deletion requests can be sent to: **nanuai.1991@gmail.com**
