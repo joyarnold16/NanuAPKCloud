@@ -2,5 +2,5 @@
     <string name="app_name">Nanu Local AI</string>
     <string name="app_tagline">Private AI that runs on your device</string>
     <string name="nanu_report_endpoint" translatable="false"></string>
-    <string name="nanu_support_email" translatable="false"></string>
+    <string name="nanu_support_email" translatable="false">nanuai.1991@gmail.com</string>
 </resources>
