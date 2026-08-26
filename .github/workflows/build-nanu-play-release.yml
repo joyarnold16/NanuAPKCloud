@@ -2,6 +2,15 @@ name: Build Nanu 1.0 Play Release
 
 on:
   workflow_dispatch:
+    inputs:
+      report_endpoint:
+        description: 'Production HTTPS AI-report endpoint (optional if repository variable is configured)'
+        required: false
+        type: string
+      support_email:
+        description: 'Public Nanu support email (optional if repository variable is configured)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -16,8 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      NANU_REPORT_ENDPOINT: ${{ vars.NANU_REPORT_ENDPOINT }}
-      NANU_SUPPORT_EMAIL: ${{ vars.NANU_SUPPORT_EMAIL }}
+      NANU_REPORT_ENDPOINT: ${{ inputs.report_endpoint || vars.NANU_REPORT_ENDPOINT }}
+      NANU_SUPPORT_EMAIL: ${{ inputs.support_email || vars.NANU_SUPPORT_EMAIL }}
       NANU_UPLOAD_KEYSTORE_BASE64: ${{ secrets.NANU_UPLOAD_KEYSTORE_BASE64 }}
       NANU_UPLOAD_STORE_PASSWORD: ${{ secrets.NANU_UPLOAD_STORE_PASSWORD }}
       NANU_UPLOAD_KEY_ALIAS: ${{ secrets.NANU_UPLOAD_KEY_ALIAS }}
@@ -43,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y ninja-build
+          sudo apt-get install -y ninja-build binutils
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager \
             "platform-tools" \
@@ -63,19 +72,23 @@ jobs:
           test -n "$NANU_UPLOAD_KEY_ALIAS"
           test -n "$NANU_UPLOAD_KEY_PASSWORD"
           [[ "$NANU_REPORT_ENDPOINT" == https://* ]]
+          [[ "$NANU_SUPPORT_EMAIL" == *@*.* ]]
           bash -n nanu-local-ai/ci/build_play_release.sh
           python3 nanu-local-ai/ci/preflight_rc8.py
+          python3 nanu-local-ai/ci/preflight_play_release.py
 
       - name: Build signed Play release AAB
         shell: bash
         run: bash nanu-local-ai/ci/build_play_release.sh
 
-      - name: Upload Play release AAB
+      - name: Upload Play release AAB and certificate
         uses: actions/upload-artifact@v4
         with:
           name: nanu-local-ai-v1.0-play-release
           path: |
             out/nanu-local-ai-v1.0-play-release.aab
             out/PLAY_RELEASE_SHA256.txt
+            out/nanu-upload-certificate.pem
+            out/UPLOAD_CERTIFICATE_INFO.txt
           if-no-files-found: error
           retention-days: 30
