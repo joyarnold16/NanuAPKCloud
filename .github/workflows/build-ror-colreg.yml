@@ -49,15 +49,15 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.0.apk
-          sha256sum ROR-Visual-Deck-v4.0.apk
-          ls -lh ROR-Visual-Deck-v4.0.apk
+          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.3.apk
+          sha256sum ROR-Visual-Deck-v4.3.apk
+          ls -lh ROR-Visual-Deck-v4.3.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.0-APK
-          path: ROR-Visual-Deck-v4.0.apk
+          name: ROR-Visual-Deck-v4.3-APK
+          path: ROR-Visual-Deck-v4.3.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -66,10 +66,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-v4.0-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.0.apk \
-            --title "Nanu ROR Visual Deck v4.0" \
-            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.0 resynchronises the sound signal player with its timeline. The playhead and flash lamp are now driven from the Web Audio clock rather than the wall clock and are offset by the output latency, so the cursor follows what is audible instead of what has merely been scheduled; playback also waits for the AudioContext to actually resume, which on Android leaves the audio clock frozen and previously let the cursor run ahead of the sound. The timeline length now ends at the last blast instead of overshooting it by the trailing inter-blast gap. v4.0 pins the Sound & Light 'Selected sequence' panel below the top bar so the timeline and playhead stay visible while scrolling the signal list. v4.0 also targets Android 16 (API 36), which Google Play requires for new app submissions from 31 Aug 2026; this moves AGP to 8.13.0 and Gradle to 8.13 because AGP 8.7.x cannot compile against API 36. v4.0 renames the app to Nanu ROR Visual Deck and hardens the in-app purchase path: the billing client now reconnects with backoff when Play drops the connection (previously it stayed dead for the rest of the process, so the paywall never got a price and entitlements never restored); a failed purchase query no longer revokes a paying customer's unlock; pending payments such as cash or bank transfer are now reported instead of appearing to fail silently; and a failed acknowledgement is retried, since Google auto-refunds purchases left unacknowledged for three days. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
+          TAG="ror-visual-deck-v4.3-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.3.apk \
+            --title "Nanu ROR Visual Deck v4.3" \
+            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.3 corrects a store-facing string and replaces the Play Store screenshots. The home screen described the app as a PWA, left over from its origin as a web app; it is a native Android app on Play, so the stat now reads No account needed, which is both true and worth saying. The four phone screenshots dated from before the rename and sold the app poorly: the Encounter Lab was represented by a page of sliders rather than the radar plot, and Lights and Shapes by a list rather than a rendered night aspect. All four are regenerated from the current build by test/screenshots.js, which is committed so they can be refreshed rather than recaptured by hand. The Encounter Lab shot now sets up a starboard crossing inside the plot scale, showing the relative-motion vector, the CPA point and live CPA/TCPA readouts, because the default head-on at 10.8 NM pins both vessels to the rim and leaves the plot looking empty. Lights and Shapes shows the rendered masthead and sidelights under its rule heading. Sound and Light shows the pinned sequence panel mid-playback. Capturing these needed two workarounds worth recording: headless Chromium renders the top bar backdrop filter over scrolled content as a white band instead of a blur, and the app scrolls smoothly, so a measurement taken straight after scrollTo still reports the pre-scroll position and every candidate frame looks clean. Both are neutralised for the capture only. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
             --latest
 
   verify-release-build:
@@ -122,15 +122,77 @@ jobs:
         working-directory: ror-colreg
         run: gradle --no-daemon clean bundleRelease --stacktrace
 
-      - name: Report bundle and discard
+      - name: Inspect the release bundle
+        working-directory: ror-colreg
         run: |
-          ls -lh ror-colreg/app/build/outputs/bundle/release/app-release.aab
+          # Compiling proves the build works. It does not prove the bundle
+          # contains what is supposed to ship, and the release artifact is the
+          # one nobody opens until Play rejects it.
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          ls -lh "$AAB"
+          WORK="$RUNNER_TEMP/aab"
+          rm -rf "$WORK"; mkdir -p "$WORK"
+          unzip -q "$AAB" -d "$WORK"
+
+          fail=0
+          ok()  { echo "  ok   $1"; }
+          bad() { echo "  FAIL $1"; fail=1; }
+
+          # The web app is the product. Confirm the bundle ships the file that
+          # is in git rather than a stale copy from an earlier build.
+          if cmp -s app/src/main/assets/index.html "$WORK/base/assets/index.html"; then
+            ok "assets/index.html matches the source tree"
+          else
+            bad "assets/index.html in the bundle differs from the source tree"
+          fi
+
+          # A paywall whose product id did not ship can never show a price.
+          if grep -qa ror_premium_unlock "$WORK"/base/dex/classes*.dex; then
+            ok "billing product id ror_premium_unlock is present"
+          else
+            bad "ror_premium_unlock is in no dex in the bundle"
+          fi
+
+          # premium_unlocked caches a Play entitlement. Carried in a backup it
+          # unlocks the app on an account that never bought it.
+          backup_rules="$(find "$WORK/base/res" -name '*backup_rules*')"
+          extract_rules="$(find "$WORK/base/res" -name '*data_extraction_rules*')"
+          if [ -n "$backup_rules" ] && [ -n "$extract_rules" ]; then
+            ok "backup exclusion rules are packaged"
+          else
+            bad "backup exclusion rules are missing from the bundle"
+          fi
+
+          # Signing this with a throwaway key is the only reason the key exists.
+          # Not by jarsigner's exit code: it returns 0 for a completely unsigned
+          # jar and 4 for a correctly signed one whose self-signed chain it will
+          # not vouch for, which is exactly backwards here. Check the signature
+          # block is present and that jarsigner says it verified.
+          sigblock="$(find "$WORK/META-INF" -maxdepth 1 \
+                      \( -name '*.RSA' -o -name '*.DSA' -o -name '*.EC' \) 2>/dev/null)"
+          if [ -n "$sigblock" ] && jarsigner -verify "$AAB" 2>/dev/null | grep -q 'jar verified'; then
+            ok "bundle carries a valid signature"
+          else
+            bad "bundle is not signed, or its signature does not verify"
+          fi
+
+          echo
+          if [ "$fail" -ne 0 ]; then
+            echo "The release bundle is not shippable. See the FAIL lines above."
+            exit 1
+          fi
           echo "Release build path is sound."
           echo "This bundle is signed with a disposable CI key and is deliberately not uploaded."
-          rm -f "$ROR_RELEASE_KEYSTORE_PATH" ror-colreg/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Discard the disposable key and bundle
+        if: always()
+        run: |
+          rm -rf "$ROR_RELEASE_KEYSTORE_PATH" \
+                 ror-colreg/app/build/outputs/bundle/release/app-release.aab \
+                 "$RUNNER_TEMP/aab"
 
   check-release-secret:
-    name: Check for release signing secret
+    name: Check for release signing secrets
     runs-on: ubuntu-latest
     # Also runs on workflow_dispatch so the release bundle can be re-triggered
     # from the Actions tab after adding or rotating the signing secrets,
@@ -139,15 +201,51 @@ jobs:
     outputs:
       has_secret: ${{ steps.check.outputs.has_secret }}
     steps:
-      - name: Check whether ROR_RELEASE_KEYSTORE_B64 is set
+      - name: Check whether the release signing secrets are set
         id: check
         env:
           ROR_RELEASE_KEYSTORE_B64: ${{ secrets.ROR_RELEASE_KEYSTORE_B64 }}
+          ROR_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ROR_RELEASE_KEYSTORE_PASSWORD }}
+          ROR_RELEASE_KEY_ALIAS: ${{ secrets.ROR_RELEASE_KEY_ALIAS }}
+          ROR_RELEASE_KEY_PASSWORD: ${{ secrets.ROR_RELEASE_KEY_PASSWORD }}
         run: |
-          if [ -n "$ROR_RELEASE_KEYSTORE_B64" ]; then
+          # Reports presence only - never a value, never a length. Knowing that three
+          # of four landed is the difference between "the script failed" and "the
+          # secrets went to the wrong scope", and the old single-secret gate could
+          # tell those apart only by guesswork.
+          missing=0
+          for name in ROR_RELEASE_KEYSTORE_B64 ROR_RELEASE_KEYSTORE_PASSWORD \
+                      ROR_RELEASE_KEY_ALIAS ROR_RELEASE_KEY_PASSWORD; do
+            if [ -n "${!name}" ]; then
+              echo "  present : $name"
+            else
+              echo "  MISSING : $name"
+              missing=$((missing + 1))
+            fi
+          done
+
+          if [ "$missing" -eq 0 ]; then
             echo "has_secret=true" >> "$GITHUB_OUTPUT"
+            echo "All four signing secrets are visible to Actions."
           else
             echo "has_secret=false" >> "$GITHUB_OUTPUT"
+            echo
+            echo "$missing of 4 signing secrets are not visible to this workflow."
+            echo "The signed .aab job will be skipped."
+            echo
+            if [ "$missing" -eq 4 ]; then
+              echo "None are visible at all. The usual causes, in order of likelihood:"
+              echo "  1. They were added under Settings > Secrets and variables >"
+              echo "     Actions > *Environment secrets* rather than *Repository"
+              echo "     secrets*. Environment secrets only reach a job that declares"
+              echo "     that environment, and no job here does."
+              echo "  2. They were added under *Dependabot* secrets, which Actions"
+              echo "     cannot read."
+              echo "  3. gh was authenticated to a different account, so they landed"
+              echo "     on a fork or another repository of the same name."
+              echo "Run 'gh secret list --repo joyarnold16/NanuAPKCloud' to see what"
+              echo "actually exists at repository scope."
+            fi
           fi
 
   build-release-bundle:
@@ -199,15 +297,15 @@ jobs:
 
       - name: Prepare AAB
         run: |
-          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.0.aab
-          sha256sum ROR-Visual-Deck-v4.0.aab
-          ls -lh ROR-Visual-Deck-v4.0.aab
+          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.3.aab
+          sha256sum ROR-Visual-Deck-v4.3.aab
+          ls -lh ROR-Visual-Deck-v4.3.aab
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.0-AAB
-          path: ROR-Visual-Deck-v4.0.aab
+          name: ROR-Visual-Deck-v4.3-AAB
+          path: ROR-Visual-Deck-v4.3.aab
           if-no-files-found: error
           retention-days: 90
 
@@ -215,8 +313,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-release-v4.0-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.0.aab \
-            --title "Nanu ROR Visual Deck v4.0 (Play Store bundle)" \
+          TAG="ror-visual-deck-release-v4.3-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.3.aab \
+            --title "Nanu ROR Visual Deck v4.3 (Play Store bundle)" \
             --notes "Signed Android App Bundle (.aab) for Google Play Console upload. Not for direct installation on a device — use the debug APK from the other workflow run for that." \
             --latest=false

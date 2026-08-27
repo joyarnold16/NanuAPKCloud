@@ -51,9 +51,37 @@ cd ror-colreg
 ```
 
 It needs `keytool` (any JDK) and the GitHub CLI logged in (`gh auth login`).
-It refuses to overwrite an existing keystore, strips trailing newlines from
-every secret (a stray newline is a classic cause of "keystore was tampered
-with" and alias-mismatch failures), and prints the password once at the end.
+
+> **If you ran an earlier copy of this script and no secrets appeared, that
+> was a bug in the script, not something you did wrong.** It generated its
+> password with `tr -dc … </dev/urandom | head -c 32`. `head` exits after 32
+> bytes, `tr` dies of SIGPIPE, and under `set -euo pipefail` that killed the
+> run on that very line — before creating the key, before uploading anything,
+> and without printing an error. It failed this way every time, not
+> intermittently. Fixed by reading a fixed number of bytes with `od`.
+
+The script now:
+
+- confirms which GitHub account it is authenticated as and that the account
+  is an **admin** of the target repo, before generating anything;
+- asks you to confirm the target repo;
+- checks the new keystore can actually be opened with the password it just set;
+- round-trips the base64 and byte-compares it with the keystore, so an
+  encoding problem surfaces here rather than as Gradle's unhelpful "keystore
+  was tampered with" in CI;
+- strips trailing newlines from every secret (a stray newline is a classic
+  cause of tamper and alias-mismatch failures);
+- **reads the secrets back** with `gh secret list` and fails loudly if any of
+  the four is not at *repository* scope — `gh secret set` exiting 0 is not
+  proof a workflow can see the secret;
+- triggers a build so the signed `.aab` is produced immediately;
+- prints the password once at the end.
+
+If the secrets still do not reach CI, the build's **"Check for release signing
+secrets"** job now lists each of the four as `present` or `MISSING` by name
+(never values), and explains the three usual causes: Environment secrets
+instead of Repository secrets, Dependabot secrets, or `gh` logged into the
+wrong account.
 
 **Save the keystore file and that password to a password manager immediately.**
 GitHub will not show the secrets again, and the keystore cannot be
@@ -76,8 +104,10 @@ for new accounts), at https://play.google.com/console.
 The app is already wired to sell one product with the ID
 `ror_premium_unlock` (see `BillingManager.PREMIUM_PRODUCT_ID` in the Java
 source) — this ID must match exactly what you create in Play Console, or
-the app will never find a price and the paywall's "Unlock premium" button
-will just show a "store connection not ready" error.
+Play returns an empty product list and the paywall cannot show a price. The
+paywall now says so in place of the price ("Premium is not available on your
+account yet…") rather than sitting blank, and "Unlock premium" repeats that
+reason instead of blaming the connection.
 
 You'll need the app created in Play Console first (step 2's account plus
 at least a draft app listing), then:
@@ -89,19 +119,54 @@ at least a draft app listing), then:
 
 The app also needs to actually be installed via a Play-associated build
 (internal testing track or later) for the purchase flow to work at all —
-Play Billing doesn't function against a sideloaded debug APK.
+Play Billing doesn't function against a sideloaded debug APK. On a build
+that has no working Play Billing the paywall now explains that too
+("Google Play billing is not available on this device…"), so a failed
+purchase is never silent.
+
+**Add yourself as a licence tester** before testing the buy flow: Play
+Console → Setup → Licence testing → add your Google account. Licence testers
+run the complete purchase flow, including acknowledgement and restore,
+without being charged.
 
 ### 4. Host the privacy policy at a public URL
 
-Done — `docs/privacy-policy.html` is in the repo, ready for GitHub Pages.
-Enable it once: **Settings → Pages → Source: Deploy from a branch →
-Branch: `main`, Folder: `/docs` → Save**. After a minute the policy is live at:
+Play requires a publicly reachable privacy policy URL. There are two ways to
+get one here, and **the first works right now with nothing to configure**.
 
-`https://joyarnold16.github.io/NanuAPKCloud/privacy-policy.html`
+**Option A — the rendered Markdown file (available immediately)**
 
-That is the URL to paste into Play Console. The support address on the page
-is `nanuai.1991@gmail.com` (matching the Blastgrid listing) — change it in
-`docs/privacy-policy.html` if you'd rather use a different one.
+```
+https://github.com/joyarnold16/NanuAPKCloud/blob/main/ror-colreg/PRIVACY.md
+```
+
+GitHub renders that page publicly, with no login, for anyone. It is a stable
+URL, it is not editable by the public, and it carries the full policy. Paste it
+into Play Console and the listing requirement is met. Plenty of published apps
+use exactly this.
+
+**Option B — GitHub Pages (nicer, needs one setting)**
+
+`docs/privacy-policy.html` is a styled standalone page ready to serve. Enable
+it once: **Settings → Pages → Source: Deploy from a branch → Branch: `main`,
+Folder: `/docs` → Save**, which publishes it at:
+
+```
+https://joyarnold16.github.io/NanuAPKCloud/privacy-policy.html
+```
+
+You will know the save took because a **pages-build-deployment** run appears
+under Actions within seconds and the settings page shows a green
+"Your site is live at" banner. If neither appears, it did not save.
+
+As of the last check Pages was **not** enabled on this repository — GitHub's
+API answered `Get Pages site failed: Not Found`. Note that a workflow cannot
+turn it on for you: `actions/configure-pages` with `enablement: true` is
+refused here with `Create Pages site failed: Resource not accessible by
+integration`, so the settings page is the only route.
+
+Keep both files in step if you edit one. The support address in both is
+`nanuai.1991@gmail.com`.
 
 ### 5. Store listing content
 
@@ -153,8 +218,24 @@ Drafted for you — trim/adjust freely:
   generated from the same artwork as the in-app icon.
 - **Feature graphic (1024×500 PNG)** — delivered to you separately,
   matching the in-app dark-navy/cyan look.
-- **Phone screenshots** (min 2, recommend 4-8) — delivered to you
-  separately, captured directly from the running app at phone size.
+- **Phone screenshots** (min 2, recommend 4-8) — four in
+  `store-assets/`, 824x1830, captured from the running app.
+
+  Regenerate them after any UI change rather than recapturing by hand:
+
+  ```
+  npm i playwright
+  node test/screenshots.js app/src/main/assets/index.html store-assets
+  ```
+
+  The script sets the dev-unlock key so the premium views render instead of
+  their paywall, sets up a starboard crossing in the Encounter Lab (the
+  default head-on at 10.8 NM pins both vessels to the rim and leaves the plot
+  looking empty), and works around two capture traps: headless Chromium
+  renders the top bar's `backdrop-filter` over scrolled content as a white
+  band rather than a blur, and the app scrolls smoothly, so a measurement
+  taken straight after `scrollTo` still reports the pre-scroll position.
+  Both are neutralised for the capture only, not in the app.
 
 ### 7. Play Console forms (must be filled in by the account holder)
 

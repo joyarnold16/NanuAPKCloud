@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 and below (android:fullBackupContent).
+
+  Everything the user actually created - exam history, topic accuracy,
+  flashcard ratings, favourites, all of it in the WebView's localStorage - is
+  backed up as before. Only the billing cache is excluded.
+
+  premium_unlocked in ror_billing.xml is a cache of a Play entitlement, not user
+  data. Included in a backup it becomes a way to carry an unlock somewhere the
+  purchase does not exist: restore the archive onto a device signed into a
+  different Google account and premium comes with it, and a refunded purchase
+  stays unlocked. Excluding it costs a genuine buyer nothing, because
+  queryPurchasesAsync runs on every start and restores a real entitlement from
+  Play, which is the actual source of truth.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="ror_billing.xml" />
+</full-backup-content>
