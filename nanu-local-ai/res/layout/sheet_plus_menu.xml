@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/nanu_panel"
+    android:orientation="vertical"
+    android:paddingHorizontal="18dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="20dp">
+
+    <View
+        android:layout_width="46dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="10dp"
+        android:background="@color/nanu_border" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Choose what Nanu should do"
+        android:textColor="@color/nanu_text"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:paddingBottom="6dp" />
+
+    <LinearLayout
+        android:id="@+id/plus_general"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp">
+        <TextView android:layout_width="42dp" android:layout_height="42dp" android:gravity="center" android:text="💬" android:textSize="22sp" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="General" android:textColor="@color/nanu_text" android:textSize="16sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Chat about anything" android:textColor="@color/nanu_muted" android:textSize="12sp" />
+        </LinearLayout>
+        <TextView android:layout_width="32dp" android:layout_height="match_parent" android:gravity="center" android:text="›" android:textColor="@color/nanu_text" android:textSize="28sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/plus_code"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp">
+        <TextView android:layout_width="42dp" android:layout_height="42dp" android:gravity="center" android:text="‹/›" android:textColor="@color/nanu_code" android:textSize="17sp" android:textStyle="bold" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Code" android:textColor="@color/nanu_text" android:textSize="16sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Write, debug, and explain code" android:textColor="@color/nanu_muted" android:textSize="12sp" />
+        </LinearLayout>
+        <TextView android:layout_width="32dp" android:layout_height="match_parent" android:gravity="center" android:text="›" android:textColor="@color/nanu_text" android:textSize="28sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/plus_academics"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp">
+        <TextView android:layout_width="42dp" android:layout_height="42dp" android:gravity="center" android:text="🎓" android:textSize="22sp" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Academics" android:textColor="@color/nanu_text" android:textSize="16sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Learn, research, and solve problems" android:textColor="@color/nanu_muted" android:textSize="12sp" />
+        </LinearLayout>
+        <TextView android:layout_width="32dp" android:layout_height="match_parent" android:gravity="center" android:text="›" android:textColor="@color/nanu_text" android:textSize="28sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/plus_trading"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp">
+        <TextView android:layout_width="42dp" android:layout_height="42dp" android:gravity="center" android:text="↗" android:textColor="@color/nanu_trading" android:textSize="26sp" android:textStyle="bold" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Trading" android:textColor="@color/nanu_text" android:textSize="16sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Market insights and analysis" android:textColor="@color/nanu_muted" android:textSize="12sp" />
+        </LinearLayout>
+        <TextView android:layout_width="32dp" android:layout_height="match_parent" android:gravity="center" android:text="›" android:textColor="@color/nanu_text" android:textSize="28sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/plus_image"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp">
+        <TextView android:layout_width="42dp" android:layout_height="42dp" android:gravity="center" android:text="▣" android:textColor="@color/nanu_image" android:textSize="24sp" android:textStyle="bold" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Create Image" android:textColor="@color/nanu_text" android:textSize="16sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Generate or analyze images" android:textColor="@color/nanu_muted" android:textSize="12sp" />
+        </LinearLayout>
+        <TextView android:layout_width="32dp" android:layout_height="match_parent" android:gravity="center" android:text="›" android:textColor="@color/nanu_text" android:textSize="28sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/plus_attach"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp">
+        <TextView android:layout_width="42dp" android:layout_height="42dp" android:gravity="center" android:text="▤" android:textColor="@color/nanu_file" android:textSize="24sp" android:textStyle="bold" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Attach File" android:textColor="@color/nanu_text" android:textSize="16sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Images, PDF, Word, Excel, CSV, more" android:textColor="@color/nanu_muted" android:textSize="12sp" />
+        </LinearLayout>
+        <TextView android:layout_width="32dp" android:layout_height="match_parent" android:gravity="center" android:text="›" android:textColor="@color/nanu_text" android:textSize="28sp" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <color name="nanu_bg">#060B12</color>
+    <color name="nanu_panel">#0D1520</color>
+    <color name="nanu_panel_2">#111C29</color>
+    <color name="nanu_input">#0E1824</color>
+    <color name="nanu_border">#26384B</color>
+    <color name="nanu_text">#F7FBFF</color>
+    <color name="nanu_muted">#8FA1B7</color>
+    <color name="nanu_accent">#08B9D7</color>
+    <color name="nanu_accent_2">#49DFF7</color>
+    <color name="nanu_success">#43D7A0</color>
+    <color name="nanu_user">#073A52</color>
+    <color name="nanu_user_border">#0A7EA1</color>
+    <color name="nanu_assistant">#111C29</color>
+    <color name="nanu_danger">#FF7181</color>
+    <color name="nanu_code">#AF7CFF</color>
+    <color name="nanu_academic">#B877FF</color>
+    <color name="nanu_trading">#FFBD3D</color>
+    <color name="nanu_image">#45DB78</color>
+    <color name="nanu_file">#4DA3FF</color>
+</resources>

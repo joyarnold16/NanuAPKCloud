@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/nanu_bg"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical"
+    android:paddingHorizontal="14dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="58dp"
+            android:layout_height="46dp"
+            android:contentDescription="Nanu"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_nanu_launcher" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/new_chat_button"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
+            android:text="＋"
+            android:textColor="@color/nanu_text"
+            android:textSize="20sp"
+            app:strokeColor="@color/nanu_border" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/models_button"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:minWidth="112dp"
+            android:text="Model ▾"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_accent" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/model_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:paddingStart="4dp"
+        android:text="Starting local engine…"
+        android:textColor="@color/nanu_muted"
+        android:textSize="11sp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="6dp">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/messages"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingBottom="10dp"
+            android:scrollbars="vertical" />
+
+        <TextView
+            android:id="@+id/empty_state"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:padding="30dp"
+            android:text="Private local AI.\nChoose a model at the top right, or use + to choose what Nanu should do."
+            android:textColor="@color/nanu_muted"
+            android:textSize="15sp" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/generation_stats"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="end"
+        android:minHeight="20dp"
+        android:paddingHorizontal="4dp"
+        android:textColor="@color/nanu_muted"
+        android:textSize="10sp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/mode_chip"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="wrap_content"
+        android:layout_height="38dp"
+        android:layout_marginBottom="5dp"
+        android:text="Code ×"
+        android:textAllCaps="false"
+        android:textColor="@color/nanu_accent_2"
+        android:visibility="gone"
+        app:strokeColor="@color/nanu_accent" />
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/attachment_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="6dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="@color/nanu_panel_2"
+        app:cardCornerRadius="13dp"
+        app:strokeColor="@color/nanu_border"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="10dp">
+
+            <TextView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="▤"
+                android:textColor="@color/nanu_file"
+                android:textSize="22sp" />
+
+            <TextView
+                android:id="@+id/attachment_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/nanu_text"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/attachment_remove"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:gravity="center"
+                android:text="×"
+                android:textColor="@color/nanu_muted"
+                android:textSize="24sp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="bottom"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/plus_button"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="54dp"
+            android:layout_height="54dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
+            android:text="＋"
+            android:textColor="@color/nanu_text"
+            android:textSize="25sp"
+            app:strokeColor="@color/nanu_accent" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            app:cardBackgroundColor="@color/nanu_input"
+            app:cardCornerRadius="20dp"
+            app:strokeColor="@color/nanu_border"
+            app:strokeWidth="1dp">
+
+            <EditText
+                android:id="@+id/user_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:gravity="top|start"
+                android:hint="Message Nanu…"
+                android:inputType="textCapSentences|textMultiLine"
+                android:maxLines="5"
+                android:minHeight="54dp"
+                android:paddingHorizontal="15dp"
+                android:paddingVertical="14dp"
+                android:textColor="@color/nanu_text"
+                android:textColorHint="@color/nanu_muted"
+                android:textSize="15sp" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/send_button"
+            android:layout_width="wrap_content"
+            android:layout_height="54dp"
+            android:layout_marginStart="8dp"
+            android:minWidth="112dp"
+            android:text="Tap to talk"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
+            app:backgroundTint="@color/nanu_accent" />
+    </LinearLayout>
+</LinearLayout>

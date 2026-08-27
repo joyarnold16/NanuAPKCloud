@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/nanu_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/safety_back"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="Back"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_accent_2" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Privacy &amp; Safety"
+                android:textColor="@color/nanu_text"
+                android:textSize="23sp"
+                android:textStyle="bold" />
+            <Space android:layout_width="64dp" android:layout_height="1dp" />
+        </LinearLayout>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="@color/nanu_panel"
+            app:cardCornerRadius="18dp"
+            app:strokeColor="@color/nanu_border"
+            app:strokeWidth="1dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Local-first by design" android:textColor="@color/nanu_success" android:textSize="17sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="LLM inference, document extraction, generated images, paper trades and most app data stay on this device. Internet is used for model downloads, optional live market snapshots, AI safety reports you explicitly submit, and links you choose to open. Speech recognition may use the installed Android speech service when offline recognition is unavailable." android:textColor="@color/nanu_text" android:textSize="13sp" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/privacy_policy_button" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="14dp" android:text="Read privacy policy" android:textAllCaps="false" android:textColor="@color/nanu_text" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/terms_button" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:text="Read terms of use" android:textAllCaps="false" android:textColor="@color/nanu_text" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="@color/nanu_panel_2"
+            app:cardCornerRadius="18dp"
+            app:strokeColor="@color/nanu_border"
+            app:strokeWidth="1dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Report AI output" android:textColor="@color/nanu_accent_2" android:textSize="17sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="Flag offensive, unsafe, deceptive or otherwise problematic AI output. Submitted reports are sent only when you tap Submit to developer. You can also keep a local copy." android:textColor="@color/nanu_muted" android:textSize="11sp" />
+                <EditText android:id="@+id/report_category" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="12dp" android:background="@color/nanu_input" android:hint="Category, e.g. unsafe or offensive" android:paddingHorizontal="12dp" android:singleLine="true" android:textColor="@color/nanu_text" android:textColorHint="@color/nanu_muted" />
+                <EditText android:id="@+id/report_details" android:layout_width="match_parent" android:layout_height="130dp" android:layout_marginTop="8dp" android:background="@color/nanu_input" android:gravity="top|start" android:hint="Describe the problem or paste the AI output…" android:inputType="textCapSentences|textMultiLine" android:padding="12dp" android:textColor="@color/nanu_text" android:textColorHint="@color/nanu_muted" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/submit_report_button" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="10dp" android:text="Submit to developer" android:textAllCaps="false" android:textColor="@android:color/white" app:backgroundTint="@color/nanu_accent" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/save_report_button" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:text="Save local copy" android:textAllCaps="false" android:textColor="@color/nanu_text" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/export_report_button" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:text="Export latest local report" android:textAllCaps="false" android:textColor="@color/nanu_text" />
+                <TextView android:id="@+id/report_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:gravity="center" android:textColor="@color/nanu_muted" android:textSize="11sp" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/clear_reports_button" style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="44dp" android:text="Clear local reports" android:textAllCaps="false" android:textColor="@color/nanu_danger" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="18dp"
+            android:gravity="center"
+            android:text="Markets are informational. Paper Trading uses virtual funds. Nanu does not execute real-money trades or operate a crypto wallet/exchange."
+            android:textColor="@color/nanu_muted"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>

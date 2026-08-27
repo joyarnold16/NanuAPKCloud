@@ -1,0 +1,2 @@
+Nanu Local AI RC6 unified chat build trigger.
+Fresh corrected RC6 build requested 2026-08-25 after preflight fixes.

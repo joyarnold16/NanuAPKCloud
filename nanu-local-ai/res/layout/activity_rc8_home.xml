@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/nanu_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="58dp"
+                android:layout_height="58dp"
+                android:contentDescription="Nanu"
+                android:src="@drawable/ic_nanu_launcher" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="Your private local AI workspace"
+                android:textColor="@color/nanu_muted"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="@color/nanu_panel_2"
+            app:cardCornerRadius="16dp"
+            app:strokeColor="@color/nanu_border"
+            app:strokeWidth="1dp">
+
+            <TextView
+                android:id="@+id/home_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="14dp"
+                android:text="RC8 • private local AI"
+                android:textColor="@color/nanu_success"
+                android:textSize="12sp" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="AI"
+            android:textColor="@color/nanu_muted"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_chat"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start|center_vertical"
+            android:text="💬   Chat + Models\n       Local chat, coding, study, attachments"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_accent" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_talk"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start|center_vertical"
+            android:text="🎙   Continuous Talk\n       Speak → Nanu replies → listens again"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_accent" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_files"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start|center_vertical"
+            android:text="▤   Ask My Files\n       PDF, Word, Excel, PPTX, CSV, text"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_file" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_create"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start|center_vertical"
+            android:text="▣   Create Studio\n       Local images, aspect ratios, history"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_image" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="MARKETS"
+            android:textColor="@color/nanu_muted"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_markets"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start|center_vertical"
+            android:text="↗   Nanu Markets\n       Forex + crypto technical analysis"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_trading" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_paper"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start|center_vertical"
+            android:text="◎   Paper Trading\n       Practice locally with virtual money only"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_trading" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="TRUST &amp; PRIVACY"
+            android:textColor="@color/nanu_muted"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_safety"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start|center_vertical"
+            android:text="✓   Privacy, Safety &amp; Reports\n       Data practices, AI report form, terms"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_success" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:layout_marginBottom="18dp"
+            android:gravity="center"
+            android:text="RC8 keeps real-money execution out of the app. Market tools are informational and paper trading uses virtual funds only."
+            android:textColor="@color/nanu_muted"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>
