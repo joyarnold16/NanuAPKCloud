@@ -70,12 +70,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$NANU_REPORT_ENDPOINT"
-          test -n "$NANU_SUPPORT_EMAIL"
-          test -n "$NANU_UPLOAD_KEYSTORE_BASE64"
-          test -n "$NANU_UPLOAD_STORE_PASSWORD"
-          test -n "$NANU_UPLOAD_KEY_ALIAS"
-          test -n "$NANU_UPLOAD_KEY_PASSWORD"
+          missing=0
+          for name in \
+            NANU_REPORT_ENDPOINT \
+            NANU_SUPPORT_EMAIL \
+            NANU_UPLOAD_KEYSTORE_BASE64 \
+            NANU_UPLOAD_STORE_PASSWORD \
+            NANU_UPLOAD_KEY_ALIAS \
+            NANU_UPLOAD_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing required Play release configuration: $name"
+              missing=1
+            fi
+          done
+          (( missing == 0 ))
           [[ "$NANU_REPORT_ENDPOINT" == https://* ]]
           [[ "$NANU_SUPPORT_EMAIL" == *@*.* ]]
           bash -n nanu-local-ai/ci/build_play_release.sh
