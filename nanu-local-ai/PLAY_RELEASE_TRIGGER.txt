@@ -1,0 +1,2 @@
+Nanu Local AI 1.0 production Play release requested after green PR #6 validation.
+Requested: 2026-08-27
