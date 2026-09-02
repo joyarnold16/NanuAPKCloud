@@ -51,6 +51,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private var job: Job? = null
     private var spokenReply: String? = null
     private val taskSession = TaskScreenSession(this, "talk_conversation") { rows ->
+        if (rows.isEmpty()) { heardTv.text = ""; answerTv.text = "" }
         rows.lastOrNull { it.isUser }?.let { heardTv.text = it.content }
         rows.lastOrNull { !it.isUser }?.let { reply ->
             answerTv.text = reply.content

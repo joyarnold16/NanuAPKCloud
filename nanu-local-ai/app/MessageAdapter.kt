@@ -21,7 +21,8 @@ data class Message(
     val status: String? = null,
     val sourcePrompt: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val attachmentContext: String? = null
+    val attachmentContext: String? = null,
+    val generationStats: String? = null
 )
 
 class MessageAdapter(

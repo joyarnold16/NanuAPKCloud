@@ -38,6 +38,7 @@ class FileChatActivity : AppCompatActivity() {
     private var engineReady = false
     private var job: Job? = null
     private val taskSession = TaskScreenSession(this, "files_conversation") { rows ->
+        if (rows.isEmpty()) answerTv.text = ""
         rows.lastOrNull { !it.isUser }?.let { answerTv.text = it.content; statusTv.text = it.status }
         askBtn.isEnabled = !LocalTaskService.active.value && engineReady
     }

@@ -59,12 +59,16 @@ class LocalTaskService : Service() {
         }
         if (job?.isActive == true) return START_NOT_STICKY
         active.value = true
-        job = scope.launch {
+        job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             var task: ChatTask? = null
             var reply: Message? = null
             try {
-                task = store.claim(id) ?: return@launch
-                reply = store.messages(task!!.conversation).first { it.id == task!!.message }
+                withContext(NonCancellable) {
+                    task = store.claim(id)
+                    task?.let { claimed -> reply = store.messages(claimed.conversation).first { it.id == claimed.message } }
+                }
+                if (task == null) return@launch
+                ensureActive()
                 wakeLock = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Nanu:LocalTask").apply { acquire(65 * 60 * 1000L) }
                 val request = JSONObject(task!!.request)
                 withTimeout(60 * 60 * 1000L) {
@@ -88,14 +92,18 @@ class LocalTaskService : Service() {
                             engine.setSystemPrompt(request.getString("system"))
                             val raw = StringBuilder()
                             var saved = 0L
+                            var tokens = 0
+                            val started = android.os.SystemClock.elapsedRealtime()
                             engine.sendUserPrompt(request.getString("prompt")).collect { token ->
+                                tokens++
                                 raw.append(token)
                                 reply = reply!!.copy(content=visibleText(raw.toString()).ifBlank { "Thinking locally…" }, status="Generating")
                                 val now = android.os.SystemClock.elapsedRealtime()
                                 if (now - saved >= 300) { store.update(task!!, reply!!); saved = now }
                             }
                             check(raw.isNotEmpty()) { "The model returned no answer. Try a shorter prompt or conversation." }
-                            reply = reply!!.copy(status="Complete")
+                            val seconds = (android.os.SystemClock.elapsedRealtime() - started).coerceAtLeast(1) / 1000.0
+                            reply = reply!!.copy(status="Complete", generationStats=String.format(java.util.Locale.US, "%d tokens • %.1f tok/s • %.1fs", tokens, tokens / seconds, seconds))
                         } finally {
                             withContext(NonCancellable) { runCatching { engine.cleanUp() } }
                         }

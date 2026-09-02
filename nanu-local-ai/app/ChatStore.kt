@@ -43,7 +43,7 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
     suspend fun create(mode: String): String = access(true) { db ->
         val id = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
-        db.execSQL("INSERT INTO conversations VALUES(?, ?, ?, ?, ?)", arrayOf(id, "New conversation", now, now, mode))
+        db.execSQL("INSERT INTO conversations VALUES(?, ?, ?, ?, ?)", arrayOf<Any>(id, "New conversation", now, now, mode))
         id
     }
     suspend fun list(query: String = ""): List<Conversation> = access { db ->
@@ -71,7 +71,7 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
     suspend fun enqueue(conversation: String, user: Message, assistant: Message, request: String, mode: String): String = access(true) { db ->
         db.rawQuery("SELECT id FROM tasks WHERE state IN ('queued','running')", null).use { check(!it.moveToFirst()) { "Another local task is still running." } }
         put(db, conversation, user); put(db, conversation, assistant)
-        db.execSQL("UPDATE conversations SET title=CASE WHEN title='New conversation' THEN ? ELSE title END, updated=?, mode=? WHERE id=?", arrayOf(user.content.take(70), System.currentTimeMillis(), mode, conversation))
+        db.execSQL("UPDATE conversations SET title=CASE WHEN title='New conversation' THEN ? ELSE title END, updated=?, mode=? WHERE id=?", arrayOf<Any>(user.content.take(70), System.currentTimeMillis(), mode, conversation))
         val id = UUID.randomUUID().toString()
         db.execSQL("INSERT INTO tasks VALUES(?,?,?,?, 'queued')", arrayOf(id, conversation, assistant.id, request))
         id
@@ -84,7 +84,7 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
     }
     suspend fun update(task: ChatTask, message: Message, state: String? = null) = access(true) { db ->
         put(db, task.conversation, message)
-        db.execSQL("UPDATE conversations SET updated=? WHERE id=?", arrayOf(System.currentTimeMillis(), task.conversation))
+        db.execSQL("UPDATE conversations SET updated=? WHERE id=?", arrayOf<Any>(System.currentTimeMillis(), task.conversation))
         if (state != null) db.execSQL("UPDATE tasks SET state=?, request='' WHERE id=?", arrayOf(state, task.id))
     }
     suspend fun failQueued(id: String) = access(true) { db ->
@@ -101,7 +101,7 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
             val row = old.optJSONObject(index) ?: continue
             val id = "rc8-file-$index-${row.optLong("time") }"
             val time = row.optLong("time", System.currentTimeMillis())
-            db.execSQL("INSERT OR IGNORE INTO conversations VALUES(?,?,?,?,?)", arrayOf(id, row.optString("file", "Imported file chat"), time, time, "general"))
+            db.execSQL("INSERT OR IGNORE INTO conversations VALUES(?,?,?,?,?)", arrayOf<Any>(id, row.optString("file", "Imported file chat"), time, time, "general"))
             put(db, id, Message("$id-user", row.optString("question"), true, attachmentName=row.optString("file"), createdAt=time))
             put(db, id, Message("$id-answer", row.optString("answer"), false, status="Imported from RC8", sourcePrompt=row.optString("question"), createdAt=time + 1))
         }
@@ -127,10 +127,11 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
             put("attachment", m.attachmentName); put("info", m.attachmentInfo); put("image", m.imagePath)
             put("status", m.status); put("prompt", m.sourcePrompt)
             put("attachmentContext", m.attachmentContext)
+            put("stats", m.generationStats)
         }.toString()
         private fun decode(raw: String): Message = JSONObject(raw).let { j ->
             fun optional(key: String) = if (j.isNull(key)) null else j.optString(key).takeIf { it.isNotEmpty() }
-            Message(j.getString("id"), j.getString("content"), j.getBoolean("user"), optional("attachment"), optional("info"), optional("image"), optional("status"), optional("prompt"), j.getLong("created"), optional("attachmentContext"))
+            Message(j.getString("id"), j.getString("content"), j.getBoolean("user"), optional("attachment"), optional("info"), optional("image"), optional("status"), optional("prompt"), j.getLong("created"), optional("attachmentContext"), optional("stats"))
         }
     }
 }

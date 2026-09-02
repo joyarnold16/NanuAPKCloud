@@ -24,7 +24,7 @@ tree.write(path, encoding='utf-8', xml_declaration=True)
 gradle = project / 'app/build.gradle.kts'
 text = gradle.read_text()
 if 'robolectric' not in text:
-    text = text.replace('dependencies {', 'dependencies {\n    testImplementation("org.robolectric:robolectric:4.14.1")', 1)
+    text = text.replace('dependencies {', 'dependencies {\n    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")\n    testImplementation("org.robolectric:robolectric:4.14.1")', 1)
     text = text.replace('android {', 'android {\n    testOptions { unitTests.isIncludeAndroidResources = true }', 1)
 gradle.write_text(text)
 tests = project / 'app/src/test/java/com/example/llama'

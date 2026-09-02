@@ -40,6 +40,7 @@ class CreateStudioActivity : AppCompatActivity() {
     private var generationJob: Job? = null
     private var displayedImage: String? = null
     private val taskSession = TaskScreenSession(this, "studio_conversation") { rows ->
+        if (rows.isEmpty()) { imageView.setImageDrawable(null); imageView.visibility = android.view.View.GONE; statusTv.text = ""; displayedImage = null }
         rows.lastOrNull { !it.isUser }?.let { reply ->
             statusTv.text = reply.status
             reply.imagePath?.takeIf { it != displayedImage }?.let { path ->

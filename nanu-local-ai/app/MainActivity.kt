@@ -242,7 +242,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             voiceReplyId = null
             speakText(it.content)
         }
-        statsTv.text = saved.lastOrNull { !it.isUser }?.status.orEmpty()
+        statsTv.text = saved.lastOrNull { !it.isUser }?.let { it.generationStats ?: it.status }.orEmpty()
         lastUserPrompt = saved.lastOrNull { it.isUser }?.sourcePrompt
         showEmptyState(saved.isEmpty(), "Start a conversation. Messages are saved on this device.")
         scrollToBottom()
@@ -931,7 +931,6 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         if (!engineReady) return
         withContext(Dispatchers.Main) { setBusyUi("Loading ${displayName.take(28)}…") }
         try {
-            if (LocalTaskService.active.value) return
             require(file.isFile) { "Selected model is no longer available" }
             currentModelFile = file
             currentModelDisplayName = displayName
