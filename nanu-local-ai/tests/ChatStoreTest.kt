@@ -56,7 +56,7 @@ class ChatStoreTest {
         store.delete()
         assertTrue(store.list().isEmpty())
     }
-    @Test fun processDeathRestoresPartialAndAllowsRetry() = runBlocking {
+    @Test fun processDeathRestoresPartialAndAllowsRetry(): Unit = runBlocking {
         val id = store.create("general")
         val task = store.claim(queued(id))!!
         store.update(task, store.messages(id)[1].copy(content="Saved partial"))
@@ -65,7 +65,7 @@ class ChatStoreTest {
         assertTrue(store.messages(id)[1].status!!.startsWith("Interrupted"))
         store.delete()
     }
-    @Test fun oneTaskAtATimeAndFailedStartIsRecoverable() = runBlocking {
+    @Test fun oneTaskAtATimeAndFailedStartIsRecoverable(): Unit = runBlocking {
         val id = store.create("general")
         val task = queued(id)
         try { queued(id); fail("Must reject competing task") } catch (_: IllegalStateException) { }
@@ -76,5 +76,15 @@ class ChatStoreTest {
     @Test fun hidesCompleteAndPartialThinkingBlocks() {
         assertEquals("Answer", LocalTaskService.visibleText("<think>private</think>Answer"))
         assertEquals("", LocalTaskService.visibleText("<think>private"))
+    }
+    @Test fun importsLegacyFileHistoryOnce(): Unit = runBlocking {
+        context.getSharedPreferences("nanu_file_chat", 0).edit().putString("history", """[{"file":"old.pdf","question":"Old question","answer":"Old answer","time":1234}]""").commit()
+        store.recoverInterrupted()
+        val imported = store.list().single()
+        assertEquals("old.pdf", imported.title)
+        assertEquals("Old answer", store.messages(imported.id)[1].content)
+        store.delete(imported.id)
+        store.recoverInterrupted()
+        assertTrue(store.list().isEmpty())
     }
 }

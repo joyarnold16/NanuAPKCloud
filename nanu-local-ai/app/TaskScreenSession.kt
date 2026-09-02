@@ -15,8 +15,8 @@ import java.util.UUID
 
 /** Lifecycle-bound observer shared by Talk, Files and Create; work lives in the service. */
 class TaskScreenSession(private val screen: AppCompatActivity, private val key: String, private val render: (List<Message>) -> Unit) {
-    private val store = ChatStore.get(screen)
-    private val prefs = screen.getSharedPreferences("nanu_local_ai", 0)
+    private val store by lazy { ChatStore.get(screen) }
+    private val prefs by lazy { screen.getSharedPreferences("nanu_local_ai", 0) }
     private var conversation: String? = null
     private var pending: (() -> Unit)? = null
     private var asked = false
@@ -51,10 +51,9 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
                 val prior = store.messages(id).takeLast(10).joinToString("\n") { (if(it.isUser) "User: " else "Assistant: ") + it.content.take(1500) }.takeLast(10000)
                 val body = if (request.optBoolean("image")) prompt else "Previous conversation (context only):\n$prior\nUser request:\n$prompt\n" + (attachment?.contextForPrompt(18000) ?: "")
                 request.put("prompt", body).put("system", system).put("model", prefs.getString("last_model", ""))
-                val user = Message(UUID.randomUUID().toString(), prompt, true, attachmentName=attachment?.displayName, attachmentInfo=attachment?.contextForPrompt(18000), sourcePrompt=prompt)
+                val user = Message(UUID.randomUUID().toString(), prompt, true, attachmentName=attachment?.displayName, attachmentInfo=attachment?.let { "Saved locally" }, attachmentContext=attachment?.contextForPrompt(18000), sourcePrompt=prompt)
                 val assistant = Message(UUID.randomUUID().toString(), "Preparing local task…", false, status="Queued", sourcePrompt=prompt)
-                val task = store.enqueue(id, user, assistant, request.toString(), if(request.optBoolean("image")) "image" else "general")
-                try { LocalTaskService.start(screen, task, id) } catch (e: RuntimeException) { store.failQueued(task); throw e }
+                LocalTaskService.submit(screen.applicationContext, id, user, assistant, request.toString(), if(request.optBoolean("image")) "image" else "general")
                 render(store.messages(id))
             } catch (e: Exception) { android.widget.Toast.makeText(screen, e.message, android.widget.Toast.LENGTH_LONG).show() }
             finally { submitting = false }

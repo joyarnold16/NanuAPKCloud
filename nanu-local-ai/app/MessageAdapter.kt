@@ -20,7 +20,8 @@ data class Message(
     val imagePath: String? = null,
     val status: String? = null,
     val sourcePrompt: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val attachmentContext: String? = null
 )
 
 class MessageAdapter(

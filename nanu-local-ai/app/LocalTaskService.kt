@@ -111,9 +111,11 @@ class LocalTaskService : Service() {
                 if (task != null && reply != null) store.update(task!!, reply!!.copy(status="Failed: ${e.message ?: "Unknown error"}"), "failed")
             } finally {
                 if (wakeLock?.isHeld == true) wakeLock?.release()
-                active.value = false
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                withContext(NonCancellable + Dispatchers.Main.immediate) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf(startId)
+                    active.value = false
+                }
             }
         }
         return START_NOT_STICKY
@@ -131,6 +133,13 @@ class LocalTaskService : Service() {
             try {
                 ContextCompat.startForegroundService(context, Intent(context, LocalTaskService::class.java).putExtra("task", task).putExtra("conversation", conversation))
             } catch (e: RuntimeException) { active.value = false; throw e }
+        }
+        suspend fun submit(context: Context, conversation: String, user: Message, assistant: Message, request: String, mode: String): String = withContext(NonCancellable) {
+            val store = ChatStore.get(context)
+            val task = store.enqueue(conversation, user, assistant, request, mode)
+            try { start(context.applicationContext, task, conversation) }
+            catch (e: RuntimeException) { store.failQueued(task); throw e }
+            task
         }
         fun stop(context: Context) { context.startService(Intent(context, LocalTaskService::class.java).setAction(STOP)) }
         fun visibleText(raw: String): String {

@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONArray
 import java.util.UUID
 
 data class Conversation(val id: String, val title: String, val updated: Long, val mode: String)
@@ -15,6 +16,7 @@ data class ChatTask(val id: String, val conversation: String, val message: Strin
 
 /** All database access is serialized off the UI thread. No chat data leaves app storage. */
 class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context, "chat_history.db", null, 1) {
+    private val legacy = context.getSharedPreferences("nanu_file_chat", Context.MODE_PRIVATE)
     val changes = MutableStateFlow(0L)
     private var recovered = false
     override fun onConfigure(db: SQLiteDatabase) { db.setForeignKeyConstraintsEnabled(true) }
@@ -64,6 +66,7 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
             check(!it.moveToFirst()) { "Stop the active task before deleting its history." }
         }
         db.delete("conversations", if (id == null) null else "id=?", if (id == null) null else arrayOf(id))
+        if (id == null) legacy.edit().remove("history").apply()
     }
     suspend fun enqueue(conversation: String, user: Message, assistant: Message, request: String, mode: String): String = access(true) { db ->
         db.rawQuery("SELECT id FROM tasks WHERE state IN ('queued','running')", null).use { check(!it.moveToFirst()) { "Another local task is still running." } }
@@ -92,12 +95,22 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
     }
     suspend fun recoverInterrupted() = access(true) { db ->
         if (recovered) return@access
+        // Deterministic IDs make migration safe to repeat if the process dies before preferences clear.
+        val old = runCatching { JSONArray(legacy.getString("history", "[]")) }.getOrDefault(JSONArray())
+        for (index in 0 until old.length()) {
+            val row = old.optJSONObject(index) ?: continue
+            val id = "rc8-file-$index-${row.optLong("time") }"
+            val time = row.optLong("time", System.currentTimeMillis())
+            db.execSQL("INSERT OR IGNORE INTO conversations VALUES(?,?,?,?,?)", arrayOf(id, row.optString("file", "Imported file chat"), time, time, "general"))
+            put(db, id, Message("$id-user", row.optString("question"), true, attachmentName=row.optString("file"), createdAt=time))
+            put(db, id, Message("$id-answer", row.optString("answer"), false, status="Imported from RC8", sourcePrompt=row.optString("question"), createdAt=time + 1))
+        }
         db.rawQuery("SELECT m.id,m.payload FROM messages m JOIN tasks t ON t.message=m.id WHERE t.state IN ('queued','running')", null).use { c ->
             while(c.moveToNext()) db.execSQL("UPDATE messages SET payload=? WHERE id=?", arrayOf(encode(decode(c.getString(1)).copy(status="Interrupted — tap Regenerate to retry")), c.getString(0)))
         }
         db.execSQL("UPDATE tasks SET state='interrupted',request='' WHERE state IN ('queued','running')")
         recovered = true
-    }
+    }.also { legacy.edit().remove("history").apply() }
     private fun put(db: SQLiteDatabase, conversation: String, m: Message) {
         val values = ContentValues().apply {
             put("id", m.id); put("conversation", conversation); put("created", m.createdAt); put("payload", encode(m))
@@ -113,10 +126,11 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
             put("id", m.id); put("content", m.content); put("user", m.isUser); put("created", m.createdAt)
             put("attachment", m.attachmentName); put("info", m.attachmentInfo); put("image", m.imagePath)
             put("status", m.status); put("prompt", m.sourcePrompt)
+            put("attachmentContext", m.attachmentContext)
         }.toString()
         private fun decode(raw: String): Message = JSONObject(raw).let { j ->
             fun optional(key: String) = if (j.isNull(key)) null else j.optString(key).takeIf { it.isNotEmpty() }
-            Message(j.getString("id"), j.getString("content"), j.getBoolean("user"), optional("attachment"), optional("info"), optional("image"), optional("status"), optional("prompt"), j.getLong("created"))
+            Message(j.getString("id"), j.getString("content"), j.getBoolean("user"), optional("attachment"), optional("info"), optional("image"), optional("status"), optional("prompt"), j.getLong("created"), optional("attachmentContext"))
         }
     }
 }

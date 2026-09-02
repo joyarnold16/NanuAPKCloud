@@ -80,6 +80,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private val chatStore by lazy { ChatStore.get(applicationContext) }
     private var conversationId: String? = null
     private var submitting = false
+    private var voiceReplyId: String? = null
     private var pendingVoice = false
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         handleUserInput(pendingVoice)
@@ -237,6 +238,11 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         messages.clear()
         messages.addAll(saved)
         messageAdapter.notifyDataSetChanged()
+        saved.firstOrNull { it.id == voiceReplyId && it.status == "Complete" }?.let {
+            voiceReplyId = null
+            speakText(it.content)
+        }
+        statsTv.text = saved.lastOrNull { !it.isUser }?.status.orEmpty()
         lastUserPrompt = saved.lastOrNull { it.isUser }?.sourcePrompt
         showEmptyState(saved.isEmpty(), "Start a conversation. Messages are saved on this device.")
         scrollToBottom()
@@ -501,7 +507,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         val id = conversationId ?: return
         val attachment = currentAttachment
         val mode = currentMode
-        val user = Message(UUID.randomUUID().toString(), userMsg, true, attachmentName=attachment?.displayName, attachmentInfo=attachment?.contextForPrompt(), sourcePrompt=userMsg)
+        val user = Message(UUID.randomUUID().toString(), userMsg, true, attachmentName=attachment?.displayName, attachmentInfo=attachment?.let { formatBytes(it.sizeBytes) }, attachmentContext=attachment?.contextForPrompt(), sourcePrompt=userMsg)
         val reply = Message(UUID.randomUUID().toString(), "Preparing local task…", false, status="Queued", sourcePrompt=userMsg)
         submitting = true
         updateComposerAction()
@@ -509,7 +515,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             try {
                 val previous = chatStore.messages(id)
                 val context = previous.filter { it.imagePath == null }.takeLast(12).joinToString("\n") {
-                    (if (it.isUser) "User: " else "Assistant: ") + it.content.take(2000) + (it.attachmentInfo?.let { info -> "\n" + info.take(1500) } ?: "")
+                    (if (it.isUser) "User: " else "Assistant: ") + it.content.take(2000) + (it.attachmentContext?.let { info -> "\n" + info.take(1500) } ?: "")
                 }.takeLast(14000)
                 val prompt = if (mode == AssistantMode.IMAGE) {
                     userMsg + (attachment?.extractedText?.take(1200)?.let { "\nVisual context: $it" } ?: "")
@@ -521,9 +527,8 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 }
                 val request = JSONObject().put("prompt", prompt).put("image", mode == AssistantMode.IMAGE)
                     .put("model", currentModelFile?.absolutePath.orEmpty()).put("system", BASE_SYSTEM_PROMPT).toString()
-                val task = chatStore.enqueue(id, user, reply, request, mode.id)
-                try { LocalTaskService.start(applicationContext, task, id) }
-                catch (e: RuntimeException) { chatStore.failQueued(task); throw e }
+                LocalTaskService.submit(applicationContext, id, user, reply, request, mode.id)
+                if (fromVoice) voiceReplyId = reply.id
                 userInputEt.setText("")
                 currentAttachment = null
                 refreshAttachmentUi()
