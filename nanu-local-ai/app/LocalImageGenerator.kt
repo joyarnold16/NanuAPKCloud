@@ -121,6 +121,10 @@ class LocalImageGenerator(private val context: Context) {
             val gallerySaved = saveToGallery(output)
             ImageGenerationResult(output, elapsedSeconds, gallerySaved)
         } finally {
+            if (process.isAlive) {
+                process.destroy()
+                if (!process.waitFor(750, TimeUnit.MILLISECONDS)) process.destroyForcibly()
+            }
             activeProcess = null
         }
     }

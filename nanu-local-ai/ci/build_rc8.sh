@@ -211,6 +211,10 @@ for required in [
     if required not in base:
         raise SystemExit(f'Generated RC8 build script is missing: {required}')
 
+# Configure the generated project only after the existing RC8 validation and patches.
+base = replace_once(base, '(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'python3 nanu-local-ai/ci/patch_background.py\n\n(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'background project configuration')
+base = replace_once(base, './gradlew --no-daemon :app:assembleDebug :app:bundleDebug --stacktrace', './gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:bundleDebug --stacktrace', 'history regression tests')
+
 out = Path('/tmp/build_nanu_rc8.sh')
 out.write_text(base)
 print('RC8 build script generation/patch validation passed.')

@@ -19,7 +19,10 @@ data class Message(
     val attachmentInfo: String? = null,
     val imagePath: String? = null,
     val status: String? = null,
-    val sourcePrompt: String? = null
+    val sourcePrompt: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val attachmentContext: String? = null,
+    val generationStats: String? = null
 )
 
 class MessageAdapter(
@@ -61,6 +64,7 @@ class MessageAdapter(
         val message = messages[position]
         val item = holder.itemView
         val content = item.findViewById<TextView>(R.id.msg_content)
+        item.findViewById<TextView>(R.id.msg_timestamp)?.text = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(message.createdAt))
         content.text = message.content
         content.setOnLongClickListener {
             onCopy(message.content)

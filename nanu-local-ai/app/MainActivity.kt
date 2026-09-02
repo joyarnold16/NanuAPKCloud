@@ -32,6 +32,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import org.json.JSONObject
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.arm.aichat.AiChat
@@ -74,6 +77,15 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private lateinit var engine: InferenceEngine
     private var engineReady = false
     private var generationJob: Job? = null
+    private val chatStore by lazy { ChatStore.get(applicationContext) }
+    private var conversationId: String? = null
+    private var submitting = false
+    private var voiceReplyId: String? = null
+    private var pendingVoice = false
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        handleUserInput(pendingVoice)
+    }
+    private var askedNotifications = false
     private var downloadJob: Job? = null
     private var imageDownloadJob: Job? = null
     private var downloadDialog: AlertDialog? = null
@@ -167,6 +179,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
         modelsBtn.setOnClickListener { showModelManager() }
         newChatBtn.setOnClickListener { startNewChat() }
+        findViewById<View>(R.id.history_button).setOnClickListener { showHistory() }
         plusBtn.setOnClickListener { showPlusMenu() }
         modeChip.setOnClickListener { switchMode(AssistantMode.GENERAL) }
         attachmentRemoveTv.setOnClickListener {
@@ -174,7 +187,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             refreshAttachmentUi()
         }
         actionBtn.setOnClickListener {
-            if (generationJob?.isActive == true) stopCurrentGeneration()
+            if ((LocalTaskService.active.value || submitting)) stopCurrentGeneration()
             else if (userInputEt.text.toString().trim().isNotEmpty()) handleUserInput(false)
             else requestOrStartListening()
         }
@@ -189,21 +202,121 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         setModelUi(null, false, "Starting local engine…")
         resumeImageModelDownloadIfNeeded()
 
-        lifecycleScope.launch(Dispatchers.Default) {
-            try {
-                engine = AiChat.getInferenceEngine(applicationContext)
-                engineReady = true
-                withContext(Dispatchers.Main) {
-                    restoreLastModelOrShowWelcome()
-                    resumePendingModelDownload()
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    setModelUi(null, false, "Local LLM engine unavailable")
-                    Toast.makeText(this@MainActivity, "Local AI engine failed to start: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+        lifecycleScope.launch {
+            LocalTaskService.recover(applicationContext)
+            val existing = chatStore.list()
+            val wanted = intent.getStringExtra("conversation") ?: prefs.getString("last_conversation", null)
+            conversationId = existing.firstOrNull { it.id == wanted }?.id ?: chatStore.create(currentMode.id)
+            prefs.edit().putString("last_conversation", conversationId).apply()
+            currentMode = AssistantMode.fromId(existing.firstOrNull { it.id == conversationId }?.mode ?: currentMode.id)
+            refreshModeUi()
+            engineReady = true
+            restoreLastModelOrShowWelcome()
+            resumePendingModelDownload()
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch { chatStore.changes.collect { refreshHistoryMessages() } }
+                launch { LocalTaskService.active.collect {
+                    updateComposerAction()
+                    modelsBtn.isEnabled = !it
+                    newChatBtn.isEnabled = !it
+                    if (!it) refreshHistoryMessages()
+                } }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra("conversation")?.let { id -> lifecycleScope.launch { openConversation(id) } }
+    }
+
+    private suspend fun refreshHistoryMessages() {
+        val id = conversationId ?: return
+        val saved = chatStore.messages(id)
+        if (conversationId != id) return
+        messages.clear()
+        messages.addAll(saved)
+        messageAdapter.notifyDataSetChanged()
+        saved.firstOrNull { it.id == voiceReplyId && it.status == "Complete" }?.let {
+            voiceReplyId = null
+            speakText(it.content)
+        }
+        statsTv.text = saved.lastOrNull { !it.isUser }?.let { it.generationStats ?: it.status }.orEmpty()
+        lastUserPrompt = saved.lastOrNull { it.isUser }?.sourcePrompt
+        showEmptyState(saved.isEmpty(), "Start a conversation. Messages are saved on this device.")
+        scrollToBottom()
+    }
+
+    private suspend fun openConversation(id: String) {
+        val conversation = chatStore.list().firstOrNull { it.id == id } ?: return
+        conversationId = id
+        prefs.edit().putString("last_conversation", id).apply()
+        switchMode(AssistantMode.fromId(conversation.mode))
+        currentAttachment = null
+        refreshAttachmentUi()
+        userInputEt.setText("")
+        refreshHistoryMessages()
+    }
+
+    private fun showHistory() {
+        val panel = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(24, 8, 24, 8) }
+        val search = EditText(this).apply { hint = "Search conversations"; isSingleLine = true }
+        val list = android.widget.ListView(this)
+        panel.addView(search)
+        panel.addView(list, android.widget.LinearLayout.LayoutParams(-1, (360 * resources.displayMetrics.density).toInt()))
+        val dialog = AlertDialog.Builder(this).setTitle("Chat history").setView(panel)
+            .setNegativeButton("Close", null).setNeutralButton("Clear all") { _, _ -> confirmDelete(null) }.create()
+        var rows = emptyList<Conversation>()
+        var searchJob: Job? = null
+        fun reload() {
+            searchJob?.cancel()
+            searchJob = lifecycleScope.launch {
+                rows = chatStore.list(search.text.toString())
+                val date = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
+                list.adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_list_item_1, rows.map { it.title + "\n" + date.format(java.util.Date(it.updated)) })
+            }
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { reload() }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        list.setOnItemClickListener { _, _, position, _ ->
+            val row = rows.getOrNull(position) ?: return@setOnItemClickListener
+            AlertDialog.Builder(this).setTitle(row.title).setItems(arrayOf("Open / continue", "Rename", "Delete")) { _, action ->
+                when(action) {
+                    0 -> { dialog.dismiss(); lifecycleScope.launch { openConversation(row.id) } }
+                    1 -> {
+                        val name = EditText(this).apply { setText(row.title); isSingleLine = true }
+                        AlertDialog.Builder(this).setTitle("Rename conversation").setView(name).setNegativeButton("Cancel", null)
+                            .setPositiveButton("Save") { _, _ -> lifecycleScope.launch {
+                                if (name.text.toString().isNotBlank()) chatStore.rename(row.id, name.text.toString())
+                                reload()
+                            } }.show()
+                    }
+                    2 -> { dialog.dismiss(); confirmDelete(row.id) }
+                }
+            }.show()
+        }
+        dialog.setOnDismissListener { searchJob?.cancel() }
+        dialog.show()
+        reload()
+    }
+
+    private fun confirmDelete(id: String?) {
+        AlertDialog.Builder(this).setTitle(if (id == null) "Clear all chat history?" else "Delete conversation?")
+            .setMessage("This permanently removes saved messages from this device. Exported images remain in your gallery.")
+            .setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> lifecycleScope.launch {
+                try {
+                    chatStore.delete(id)
+                    if (id == null || id == conversationId) {
+                        conversationId = chatStore.create(currentMode.id)
+                        prefs.edit().putString("last_conversation", conversationId).apply()
+                        refreshHistoryMessages()
+                    }
+                } catch (e: Exception) { Toast.makeText(this@MainActivity, e.message, Toast.LENGTH_LONG).show() }
+            } }.show()
     }
 
     private fun showPlusMenu() {
@@ -274,7 +387,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
     private fun updateComposerAction() {
         actionBtn.text = when {
-            generationJob?.isActive == true -> "Stop"
+            (LocalTaskService.active.value || submitting) -> "Stop"
             userInputEt.text.toString().trim().isNotEmpty() -> "Send"
             else -> "Tap to talk"
         }
@@ -384,171 +497,50 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             return
         }
 
+        if (LocalTaskService.active.value || submitting || conversationId == null) return
+        if (Build.VERSION.SDK_INT >= 33 && !askedNotifications && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            askedNotifications = true
+            pendingVoice = fromVoice
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        val id = conversationId ?: return
         val attachment = currentAttachment
-        userInputEt.text = null
-        currentAttachment = null
-        refreshAttachmentUi()
-        lastUserPrompt = userMsg
-        emptyStateTv.visibility = View.GONE
-
-        val userIndex = messages.size
-        messages.add(
-            Message(
-                id = UUID.randomUUID().toString(),
-                content = userMsg,
-                isUser = true,
-                attachmentName = attachment?.displayName,
-                attachmentInfo = attachment?.let { formatBytes(it.sizeBytes) },
-                sourcePrompt = userMsg
-            )
-        )
-        messageAdapter.notifyItemInserted(userIndex)
-        scrollToBottom()
-
-        if (currentMode == AssistantMode.IMAGE) {
-            generateImageInChat(userMsg, attachment, fromVoice)
-        } else {
-            generateTextInChat(userMsg, attachment, fromVoice)
-        }
-    }
-
-    private fun generateTextInChat(userMsg: String, attachment: NanuAttachment?, fromVoice: Boolean) {
-        val assistantIndex = messages.size
-        val assistantId = UUID.randomUUID().toString()
-        messages.add(Message(assistantId, "Thinking locally…", false, sourcePrompt = userMsg))
-        messageAdapter.notifyItemInserted(assistantIndex)
-        scrollToBottom()
-
-        val prompt = buildEnginePrompt(userMsg, attachment)
-        val rawAssistant = StringBuilder()
-        var emittedTokens = 0
-        val startedAt = SystemClock.elapsedRealtime()
-
-        generationJob = lifecycleScope.launch(Dispatchers.Default) {
-            engine.sendUserPrompt(prompt)
-                .catch { error ->
-                    withContext(Dispatchers.Main) {
-                        updateAssistantById(assistantId, "Generation error: ${error.message ?: "unknown error"}")
-                    }
-                }
-                .onCompletion {
-                    val elapsedMs = (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(1L)
-                    val seconds = elapsedMs / 1000.0
-                    val speed = emittedTokens / seconds
-                    withContext(Dispatchers.Main) {
-                        statsTv.text = if (emittedTokens > 0) String.format(Locale.US, "%d tokens • %.1f tok/s • %.1fs", emittedTokens, speed, seconds) else "Generation stopped"
-                        generationJob = null
-                        updateComposerAction()
-                        setModelUi(currentModelDisplayName, isModelReady, if (isModelReady) "Ready • local" else "No LLM loaded")
-                        val finalText = messages.firstOrNull { it.id == assistantId }?.content.orEmpty()
-                        if (fromVoice && finalText.isNotBlank() && !finalText.startsWith("Generation error")) speakText(finalText)
-                    }
-                }
-                .collect { token ->
-                    emittedTokens++
-                    rawAssistant.append(token)
-                    val visible = stripThinking(rawAssistant.toString()).ifBlank { "Thinking locally…" }
-                    withContext(Dispatchers.Main) {
-                        updateAssistantById(assistantId, visible)
-                        scrollToBottom()
-                    }
-                }
-        }
+        val mode = currentMode
+        val user = Message(UUID.randomUUID().toString(), userMsg, true, attachmentName=attachment?.displayName, attachmentInfo=attachment?.let { formatBytes(it.sizeBytes) }, attachmentContext=attachment?.contextForPrompt(), sourcePrompt=userMsg)
+        val reply = Message(UUID.randomUUID().toString(), "Preparing local task…", false, status="Queued", sourcePrompt=userMsg)
+        submitting = true
         updateComposerAction()
-    }
-
-    private fun generateImageInChat(userMsg: String, attachment: NanuAttachment?, fromVoice: Boolean) {
-        val assistantId = UUID.randomUUID().toString()
-        messages.add(Message(assistantId, "Preparing your image…", false, status = "Starting local image engine", sourcePrompt = userMsg))
-        messageAdapter.notifyItemInserted(messages.lastIndex)
-        scrollToBottom()
-
-        generationJob = lifecycleScope.launch(Dispatchers.Default) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        lifecycleScope.launch {
             try {
-                val imagePrompt = createVisualPrompt(userMsg, attachment)
-                val result = imageGenerator.generate(imagePrompt, quality = false) { progress ->
-                    withContext(Dispatchers.Main) {
-                        updateAssistantById(assistantId, "Creating image locally…", status = progress)
-                    }
+                val previous = chatStore.messages(id)
+                val context = previous.filter { it.imagePath == null }.takeLast(12).joinToString("\n") {
+                    (if (it.isUser) "User: " else "Assistant: ") + it.content.take(2000) + (it.attachmentContext?.let { info -> "\n" + info.take(1500) } ?: "")
+                }.takeLast(14000)
+                val prompt = if (mode == AssistantMode.IMAGE) {
+                    userMsg + (attachment?.extractedText?.take(1200)?.let { "\nVisual context: $it" } ?: "")
+                } else buildString {
+                    append("[NANU MODE: ${mode.label}]\n${mode.instruction}\n")
+                    if (context.isNotBlank()) append("Previous conversation (context only):\n$context\n")
+                    append("User request:\n$userMsg")
+                    attachment?.let { append("\n" + it.contextForPrompt()) }
                 }
-                withContext(Dispatchers.Main) {
-                    val saved = if (result.gallerySaved) " • saved to Pictures/Nanu" else ""
-                    updateAssistantById(
-                        assistantId,
-                        "Here is your generated image.",
-                        imagePath = result.file.absolutePath,
-                        status = "Done • generated locally • ${result.elapsedSeconds}s$saved",
-                        sourcePrompt = userMsg
-                    )
-                    if (fromVoice) speakText("Your image is ready.")
-                }
+                val request = JSONObject().put("prompt", prompt).put("image", mode == AssistantMode.IMAGE)
+                    .put("model", currentModelFile?.absolutePath.orEmpty()).put("system", BASE_SYSTEM_PROMPT).toString()
+                LocalTaskService.submit(applicationContext, id, user, reply, request, mode.id)
+                if (fromVoice) voiceReplyId = reply.id
+                userInputEt.setText("")
+                currentAttachment = null
+                refreshAttachmentUi()
+                refreshHistoryMessages()
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    updateAssistantById(assistantId, "Image generation failed.", status = e.message ?: "Unknown image error", sourcePrompt = userMsg)
-                }
-            } finally {
-                withContext(Dispatchers.Main) {
-                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                    generationJob = null
-                    updateComposerAction()
-                    setModelUi(currentModelDisplayName, isModelReady, if (isModelReady) "Ready • local" else "Ready")
-                }
-            }
-        }
-        updateComposerAction()
-    }
-
-    private suspend fun createVisualPrompt(userMsg: String, attachment: NanuAttachment?): String {
-        val text = attachment?.extractedText?.trim().orEmpty()
-        if (text.isBlank()) return userMsg
-        if (!isModelReady) return "$userMsg. Visual context from ${attachment?.displayName}: ${text.take(1200)}"
-
-        val builder = StringBuilder()
-        val request = "Create one concise Stable Diffusion image prompt (maximum 90 words) for this request. Return only the visual prompt, no explanation.\nRequest: $userMsg\nDocument context:\n${text.take(6000)}"
-        runCatching {
-            engine.sendUserPrompt(request).collect { token -> builder.append(token) }
-        }
-        val cleaned = stripThinking(builder.toString()).trim()
-        return cleaned.ifBlank { userMsg }.take(1200)
-    }
-
-    private fun buildEnginePrompt(userMsg: String, attachment: NanuAttachment?): String = buildString {
-        append("[NANU MODE: ${currentMode.label}]\n")
-        append(currentMode.instruction)
-        append("\n\nUser request:\n$userMsg")
-        if (attachment != null) {
-            append("\n\n")
-            append(attachment.contextForPrompt())
+                Toast.makeText(this@MainActivity, e.message ?: "Could not save chat", Toast.LENGTH_LONG).show()
+            } finally { submitting = false; updateComposerAction() }
         }
     }
 
     private fun stopCurrentGeneration() {
-        imageGenerator.cancel()
-        generationJob?.cancel()
-        generationJob = null
-        modelStatusTv.text = "Generation stopped"
-        updateComposerAction()
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-    }
-
-    private fun updateAssistantById(
-        id: String,
-        content: String,
-        imagePath: String? = null,
-        status: String? = null,
-        sourcePrompt: String? = null
-    ) {
-        val index = messages.indexOfFirst { it.id == id }
-        if (index < 0) return
-        val old = messages[index]
-        messages[index] = old.copy(
-            content = content,
-            imagePath = imagePath ?: old.imagePath,
-            status = status,
-            sourcePrompt = sourcePrompt ?: old.sourcePrompt
-        )
-        messageAdapter.notifyItemChanged(index)
+        if (LocalTaskService.active.value) LocalTaskService.stop(applicationContext)
     }
 
     private fun regenerateMessage(message: Message) {
@@ -939,15 +931,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         if (!engineReady) return
         withContext(Dispatchers.Main) { setBusyUi("Loading ${displayName.take(28)}…") }
         try {
-            generationJob?.cancelAndJoin()
-            withContext(Dispatchers.IO) {
-                when (engine.state.value) {
-                    is InferenceEngine.State.ModelReady, is InferenceEngine.State.Error -> engine.cleanUp()
-                    else -> Unit
-                }
-                engine.loadModel(file.absolutePath)
-                engine.setSystemPrompt(BASE_SYSTEM_PROMPT)
-            }
+            require(file.isFile) { "Selected model is no longer available" }
             currentModelFile = file
             currentModelDisplayName = displayName
             isModelReady = true
@@ -968,17 +952,8 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun startNewChat() {
-        stopCurrentGeneration()
-        messages.clear()
-        messageAdapter.notifyDataSetChanged()
-        statsTv.text = ""
-        currentAttachment = null
-        refreshAttachmentUi()
-        showEmptyState(true, "New conversation. Your selected model and mode are ready.")
-        val file = currentModelFile
-        if (isModelReady && file != null) {
-            lifecycleScope.launch { loadModelFile(file, currentModelDisplayName ?: file.nameWithoutExtension, announce = false) }
-        }
+        if (LocalTaskService.active.value || submitting) return
+        lifecycleScope.launch { openConversation(chatStore.create(currentMode.id)) }
     }
 
     private fun stripThinking(raw: String): String {
@@ -1068,7 +1043,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         recognizer?.destroy()
         tts?.stop()
         tts?.shutdown()
-        if (isFinishing && engineReady) runCatching { engine.destroy() }
+
         super.onDestroy()
     }
 
