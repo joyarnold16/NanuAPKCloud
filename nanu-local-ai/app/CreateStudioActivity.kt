@@ -38,6 +38,18 @@ class CreateStudioActivity : AppCompatActivity() {
     private var quality = false
     private var aspectIndex = 0
     private var generationJob: Job? = null
+    private var displayedImage: String? = null
+    private val taskSession = TaskScreenSession(this, "studio_conversation") { rows ->
+        rows.lastOrNull { !it.isUser }?.let { reply ->
+            statusTv.text = reply.status
+            reply.imagePath?.takeIf { it != displayedImage }?.let { path ->
+                displayedImage = path
+                imageView.setImageBitmap(BitmapFactory.decodeFile(path))
+                imageView.visibility = android.view.View.VISIBLE
+            }
+        }
+        refreshModelUi()
+    }
     private var downloadJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,12 +72,13 @@ class CreateStudioActivity : AppCompatActivity() {
         qualityBtn.setOnClickListener { quality = !quality; refreshModeButtons() }
         aspectBtn.setOnClickListener { aspectIndex = (aspectIndex + 1) % ASPECTS.size; refreshModeButtons() }
         generateBtn.setOnClickListener { generate() }
-        findViewById<MaterialButton>(R.id.studio_cancel).setOnClickListener { generator.cancel(); generationJob?.cancel(); statusTv.text = "Generation cancelled"; refreshModelUi() }
+        findViewById<MaterialButton>(R.id.studio_cancel).setOnClickListener { if (LocalTaskService.active.value) LocalTaskService.stop(applicationContext); statusTv.text = "Generation cancelled"; refreshModelUi() }
         findViewById<MaterialButton>(R.id.studio_history).setOnClickListener { showHistory() }
         findViewById<MaterialButton>(R.id.studio_report).setOnClickListener {
             startActivity(android.content.Intent(this, SafetyPrivacyActivity::class.java).putExtra(SafetyPrivacyActivity.EXTRA_REPORTED_CONTENT, "Image prompt: ${promptEt.text.toString().take(2500)}"))
         }
 
+        taskSession.observe()
         negativeEt.setText("blurry, distorted, low quality, malformed")
         refreshModeButtons()
         refreshModelUi()
@@ -97,7 +110,7 @@ class CreateStudioActivity : AppCompatActivity() {
     private fun refreshModelUi() {
         val ready = modelReady()
         modelStatusTv.text = if (ready) "${ImageModelCatalog.starter.name} • ready locally" else "Image model not downloaded • ${ImageModelCatalog.starter.sizeLabel}"
-        generateBtn.isEnabled = ready && generationJob?.isActive != true
+        generateBtn.isEnabled = ready && !LocalTaskService.active.value
     }
 
     private fun downloadOrShowModel() {
@@ -167,29 +180,9 @@ class CreateStudioActivity : AppCompatActivity() {
         if (prompt.isBlank()) { Toast.makeText(this, "Describe the image you want.", Toast.LENGTH_SHORT).show(); return }
         if (!modelReady()) { downloadOrShowModel(); return }
         val (w, h) = dimensions()
-        generateBtn.isEnabled = false
-        statusTv.text = "Starting local image generation…"
-        generationJob?.cancel()
-        generationJob = lifecycleScope.launch(Dispatchers.Default) {
-            runCatching {
-                generator.generate(
-                    prompt = prompt,
-                    negativePrompt = negativeEt.text.toString().trim(),
-                    quality = quality,
-                    width = w,
-                    height = h,
-                    stepsOverride = if (quality) 14 else 8
-                ) { progress -> withContext(Dispatchers.Main) { statusTv.text = progress } }
-            }.onSuccess { result ->
-                withContext(Dispatchers.Main) {
-                    val bitmap = BitmapFactory.decodeFile(result.file.absolutePath)
-                    imageView.setImageBitmap(bitmap)
-                    imageView.visibility = android.view.View.VISIBLE
-                    statusTv.text = "Done • ${result.elapsedSeconds}s${if (result.gallerySaved) " • saved to Pictures/Nanu" else ""}"
-                }
-            }.onFailure { error -> withContext(Dispatchers.Main) { statusTv.text = "Generation failed: ${error.message}" } }
-            withContext(Dispatchers.Main) { generationJob = null; refreshModelUi() }
-        }
+        taskSession.submit(prompt, SafetyGuard.SYSTEM_RULES, org.json.JSONObject()
+            .put("image", true).put("negative", negativeEt.text.toString().trim())
+            .put("quality", quality).put("width", w).put("height", h).put("steps", if (quality) 14 else 8))
     }
 
     private fun showHistory() {
