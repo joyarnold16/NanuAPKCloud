@@ -8,8 +8,8 @@ android {
         applicationId 'com.joyarnold.rorvisualdeck'
         minSdk 23
         targetSdk 36
-        versionCode 43
-        versionName '4.3'
+        versionCode 44
+        versionName '4.4'
     }
 
     signingConfigs {
@@ -55,4 +55,18 @@ configurations.all {
 dependencies {
     implementation 'com.android.billingclient:billing:7.1.1'
     implementation 'androidx.core:core:1.13.1'
+
+    // Declared only to raise what Play Billing drags in. Billing 7.1.1 resolves
+    // androidx.fragment to 1.1.0 and androidx.activity to 1.2.3 - both from 2019
+    // to 2021 - and Play Console flags the fragment one as an outdated SDK.
+    // Nothing here uses fragments directly; the app is a single Activity hosting
+    // a WebView. These pins exist purely so the shipped bundle stops carrying
+    // six-year-old transitive code.
+    //
+    // Held at 1.6.2 / 1.8.2 rather than the newest available because
+    // kotlin-stdlib is forced to 1.8.22 above: fragment 1.8.x is built against
+    // Kotlin 1.9 and would fight that pin. Raising both together is a larger
+    // change than an SDK warning justifies.
+    implementation 'androidx.fragment:fragment:1.6.2'
+    implementation 'androidx.activity:activity:1.8.2'
 }

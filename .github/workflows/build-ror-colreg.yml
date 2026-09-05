@@ -49,15 +49,15 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.3.apk
-          sha256sum ROR-Visual-Deck-v4.3.apk
-          ls -lh ROR-Visual-Deck-v4.3.apk
+          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.4.apk
+          sha256sum ROR-Visual-Deck-v4.4.apk
+          ls -lh ROR-Visual-Deck-v4.4.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.3-APK
-          path: ROR-Visual-Deck-v4.3.apk
+          name: ROR-Visual-Deck-v4.4-APK
+          path: ROR-Visual-Deck-v4.4.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -66,10 +66,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-v4.3-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.3.apk \
-            --title "Nanu ROR Visual Deck v4.3" \
-            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.3 corrects a store-facing string and replaces the Play Store screenshots. The home screen described the app as a PWA, left over from its origin as a web app; it is a native Android app on Play, so the stat now reads No account needed, which is both true and worth saying. The four phone screenshots dated from before the rename and sold the app poorly: the Encounter Lab was represented by a page of sliders rather than the radar plot, and Lights and Shapes by a list rather than a rendered night aspect. All four are regenerated from the current build by test/screenshots.js, which is committed so they can be refreshed rather than recaptured by hand. The Encounter Lab shot now sets up a starboard crossing inside the plot scale, showing the relative-motion vector, the CPA point and live CPA/TCPA readouts, because the default head-on at 10.8 NM pins both vessels to the rim and leaves the plot looking empty. Lights and Shapes shows the rendered masthead and sidelights under its rule heading. Sound and Light shows the pinned sequence panel mid-playback. Capturing these needed two workarounds worth recording: headless Chromium renders the top bar backdrop filter over scrolled content as a white band instead of a blur, and the app scrolls smoothly, so a measurement taken straight after scrollTo still reports the pre-scroll position and every candidate frame looks clean. Both are neutralised for the capture only. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
+          TAG="ror-visual-deck-v4.4-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.4.apk \
+            --title "Nanu ROR Visual Deck v4.4" \
+            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.4 raises two transitive AndroidX dependencies that Play Console flagged as outdated. The app declares neither: Play Billing 7.1.1 resolves androidx.fragment to 1.1.0 and androidx.activity to 1.2.3, dating from 2019 and 2021, and Play reported the fragment one against version 43. Nothing in the app uses fragments - it is a single Activity hosting a WebView - so these are declared purely to stop the bundle shipping six-year-old transitive code. They are held at fragment 1.6.2 and activity 1.8.2 rather than the newest available because kotlin-stdlib is pinned to 1.8.22 in this build; fragment 1.8.x is built against Kotlin 1.9 and would fight that pin, and raising both together is a larger change than an SDK warning justifies. No behaviour changes. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
             --latest
 
   verify-release-build:
@@ -297,15 +297,15 @@ jobs:
 
       - name: Prepare AAB
         run: |
-          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.3.aab
-          sha256sum ROR-Visual-Deck-v4.3.aab
-          ls -lh ROR-Visual-Deck-v4.3.aab
+          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.4.aab
+          sha256sum ROR-Visual-Deck-v4.4.aab
+          ls -lh ROR-Visual-Deck-v4.4.aab
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.3-AAB
-          path: ROR-Visual-Deck-v4.3.aab
+          name: ROR-Visual-Deck-v4.4-AAB
+          path: ROR-Visual-Deck-v4.4.aab
           if-no-files-found: error
           retention-days: 90
 
@@ -313,8 +313,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-release-v4.3-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.3.aab \
-            --title "Nanu ROR Visual Deck v4.3 (Play Store bundle)" \
+          TAG="ror-visual-deck-release-v4.4-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.4.aab \
+            --title "Nanu ROR Visual Deck v4.4 (Play Store bundle)" \
             --notes "Signed Android App Bundle (.aab) for Google Play Console upload. Not for direct installation on a device — use the debug APK from the other workflow run for that." \
             --latest=false
