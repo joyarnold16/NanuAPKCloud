@@ -49,15 +49,15 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.4.apk
-          sha256sum ROR-Visual-Deck-v4.4.apk
-          ls -lh ROR-Visual-Deck-v4.4.apk
+          cp ror-colreg/app/build/outputs/apk/debug/app-debug.apk ROR-Visual-Deck-v4.5.apk
+          sha256sum ROR-Visual-Deck-v4.5.apk
+          ls -lh ROR-Visual-Deck-v4.5.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.4-APK
-          path: ROR-Visual-Deck-v4.4.apk
+          name: ROR-Visual-Deck-v4.5-APK
+          path: ROR-Visual-Deck-v4.5.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -66,10 +66,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-v4.4-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.4.apk \
-            --title "Nanu ROR Visual Deck v4.4" \
-            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.4 raises two transitive AndroidX dependencies that Play Console flagged as outdated. The app declares neither: Play Billing 7.1.1 resolves androidx.fragment to 1.1.0 and androidx.activity to 1.2.3, dating from 2019 and 2021, and Play reported the fragment one against version 43. Nothing in the app uses fragments - it is a single Activity hosting a WebView - so these are declared purely to stop the bundle shipping six-year-old transitive code. They are held at fragment 1.6.2 and activity 1.8.2 rather than the newest available because kotlin-stdlib is pinned to 1.8.22 in this build; fragment 1.8.x is built against Kotlin 1.9 and would fight that pin, and raising both together is a larger change than an SDK warning justifies. No behaviour changes. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
+          TAG="ror-visual-deck-v4.5-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.5.apk \
+            --title "Nanu ROR Visual Deck v4.5" \
+            --notes "Offline Android APK for COLREG/ROR training: 41 rules, lights and shapes, sound signals, IALA, a vessel-type/day-night bridge simulator with live give-way/stand-on verdicts, favourites, printable completion certificate, exam question bank, and a freemium in-app purchase unlocking the Encounter Lab, Oral Practice, and Exam Mode. v4.5 moves Play Billing from 7.1.1 to 8.3.0. Play Console now rejects a release built against 7.x outright - not a warning but a hard error that blocks saving the release - because from 2026 it requires Billing 8.0.0 or later. 8.3.0 is the newest in the 8 series; 9.x exists but brings further API churn for no benefit to this app. The upgrade needed exactly one source change. Billing 8 replaced the plain List in the queryProductDetailsAsync callback with QueryProductDetailsResult, which additionally reports the products Play could not fetch. Every other billing call the app makes - pending purchases, the purchase flow, purchase queries, acknowledgement, the response codes and the one-time offer getter - was verified against the 8.3.0 API and is unchanged. No behaviour changes. This is a debug-signed testing build (premium auto-unlocked for testing); a Play Store upload requires a release-signed AAB." \
             --latest
 
   verify-release-build:
@@ -297,15 +297,15 @@ jobs:
 
       - name: Prepare AAB
         run: |
-          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.4.aab
-          sha256sum ROR-Visual-Deck-v4.4.aab
-          ls -lh ROR-Visual-Deck-v4.4.aab
+          cp ror-colreg/app/build/outputs/bundle/release/app-release.aab ROR-Visual-Deck-v4.5.aab
+          sha256sum ROR-Visual-Deck-v4.5.aab
+          ls -lh ROR-Visual-Deck-v4.5.aab
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ROR-Visual-Deck-v4.4-AAB
-          path: ROR-Visual-Deck-v4.4.aab
+          name: ROR-Visual-Deck-v4.5-AAB
+          path: ROR-Visual-Deck-v4.5.aab
           if-no-files-found: error
           retention-days: 90
 
@@ -313,8 +313,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ror-visual-deck-release-v4.4-${{ github.run_number }}"
-          gh release create "$TAG" ROR-Visual-Deck-v4.4.aab \
-            --title "Nanu ROR Visual Deck v4.4 (Play Store bundle)" \
+          TAG="ror-visual-deck-release-v4.5-${{ github.run_number }}"
+          gh release create "$TAG" ROR-Visual-Deck-v4.5.aab \
+            --title "Nanu ROR Visual Deck v4.5 (Play Store bundle)" \
             --notes "Signed Android App Bundle (.aab) for Google Play Console upload. Not for direct installation on a device — use the debug APK from the other workflow run for that." \
             --latest=false

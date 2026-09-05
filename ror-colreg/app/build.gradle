@@ -8,8 +8,8 @@ android {
         applicationId 'com.joyarnold.rorvisualdeck'
         minSdk 23
         targetSdk 36
-        versionCode 44
-        versionName '4.4'
+        versionCode 45
+        versionName '4.5'
     }
 
     signingConfigs {
@@ -53,7 +53,10 @@ configurations.all {
 }
 
 dependencies {
-    implementation 'com.android.billingclient:billing:7.1.1'
+    // Play Console rejects a release built against Billing 7.x: from 2026 it
+    // requires 8.0.0 or later. 8.3.0 is the newest 8.x; 9.x exists but brings
+    // further API churn for no benefit here.
+    implementation 'com.android.billingclient:billing:8.3.0'
     implementation 'androidx.core:core:1.13.1'
 
     // Declared only to raise what Play Billing drags in. Billing 7.1.1 resolves
