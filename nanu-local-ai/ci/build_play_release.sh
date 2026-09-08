@@ -58,7 +58,9 @@ PY
 bash nanu-local-ai/ci/build_rc8.sh
 
 ANDROID_PROJECT="llama-upstream/examples/llama.android"
-KEYSTORE="$ANDROID_PROJECT/nanu-upload.jks"
+KEYSTORE="$(pwd)/$ANDROID_PROJECT/nanu-upload.jks"
+trap 'rm -f "$KEYSTORE"' EXIT
+umask 077
 
 printf '%s' "$NANU_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
 chmod 600 "$KEYSTORE"
