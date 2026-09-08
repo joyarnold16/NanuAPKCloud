@@ -544,6 +544,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun regenerateMessage(message: Message) {
+        if (openImageEditor(message)) return
         val prompt = message.sourcePrompt ?: lastUserPrompt ?: return
         if (!message.imagePath.isNullOrBlank()) switchMode(AssistantMode.IMAGE)
         userInputEt.setText(prompt)
@@ -552,11 +553,20 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun editMessagePrompt(message: Message) {
+        if (openImageEditor(message)) return
         val prompt = message.sourcePrompt ?: return
         switchMode(AssistantMode.IMAGE)
         userInputEt.setText(prompt)
         userInputEt.setSelection(prompt.length)
         userInputEt.requestFocus()
+    }
+
+    private fun openImageEditor(message: Message): Boolean {
+        val options = message.imageOptions ?: return false
+        startActivity(Intent(this, CreateStudioActivity::class.java)
+            .putExtra(CreateStudioActivity.EXTRA_IMAGE_OPTIONS, options)
+            .putExtra(CreateStudioActivity.EXTRA_IMAGE_PROMPT, message.sourcePrompt.orEmpty()))
+        return true
     }
 
     private fun shareMessage(message: Message) {

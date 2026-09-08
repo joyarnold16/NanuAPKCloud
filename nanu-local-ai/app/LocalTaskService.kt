@@ -73,11 +73,11 @@ class LocalTaskService : Service() {
                 val request = JSONObject(task!!.request)
                 withTimeout(60 * 60 * 1000L) {
                     if (request.optBoolean("image")) {
-                        val result = images.generate(request.getString("prompt"), negativePrompt=request.optString("negative", "blurry, low quality, distorted, malformed"), quality=request.optBoolean("quality"), width=request.optInt("width").takeIf { it > 0 }, height=request.optInt("height").takeIf { it > 0 }, stepsOverride=request.optInt("steps").takeIf { it > 0 }) { progress ->
+                        val result = images.generate(request.getString("prompt"), negativePrompt=request.optString("negative", "blurry, low quality, distorted, malformed"), quality=request.optBoolean("quality"), width=request.optInt("width").takeIf { it > 0 }, height=request.optInt("height").takeIf { it > 0 }, stepsOverride=request.optInt("steps").takeIf { it > 0 }, inputImagePath=request.optString("inputImage").takeIf { it.isNotBlank() }, changeStrength=request.optDouble("strength", 0.45)) { progress ->
                             reply = reply!!.copy(content = "Creating image locally…", status = progress)
                             store.update(task!!, reply!!)
                         }
-                        reply = reply!!.copy(content="Here is your generated image.", imagePath=result.file.absolutePath, status="Done • generated locally • ${result.elapsedSeconds}s")
+                        reply = reply!!.copy(content=if (request.optString("inputImage").isNotBlank()) "Here is your edited image." else "Here is your generated image.", imagePath=result.file.absolutePath, status="Done • generated locally • ${result.elapsedSeconds}s")
                     } else {
                         val engine = AiChat.getInferenceEngine(applicationContext)
                         try {

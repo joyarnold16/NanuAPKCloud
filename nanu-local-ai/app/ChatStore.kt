@@ -128,10 +128,11 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
             put("status", m.status); put("prompt", m.sourcePrompt)
             put("attachmentContext", m.attachmentContext)
             put("stats", m.generationStats)
+            put("imageOptions", m.imageOptions)
         }.toString()
         private fun decode(raw: String): Message = JSONObject(raw).let { j ->
             fun optional(key: String) = if (j.isNull(key)) null else j.optString(key).takeIf { it.isNotEmpty() }
-            Message(j.getString("id"), j.getString("content"), j.getBoolean("user"), optional("attachment"), optional("info"), optional("image"), optional("status"), optional("prompt"), j.getLong("created"), optional("attachmentContext"), optional("stats"))
+            Message(j.getString("id"), j.getString("content"), j.getBoolean("user"), optional("attachment"), optional("info"), optional("image"), optional("status"), optional("prompt"), j.getLong("created"), optional("attachmentContext"), optional("stats"), optional("imageOptions"))
         }
     }
 }

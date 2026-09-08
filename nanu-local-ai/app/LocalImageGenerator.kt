@@ -41,6 +41,8 @@ class LocalImageGenerator(private val context: Context) {
         width: Int? = null,
         height: Int? = null,
         stepsOverride: Int? = null,
+        inputImagePath: String? = null,
+        changeStrength: Double = 0.45,
         onProgress: suspend (String) -> Unit
     ): ImageGenerationResult = withContext(Dispatchers.IO) {
         SafetyGuard.blockedReason(prompt, image = true)?.let { reason -> error(reason) }
@@ -77,60 +79,67 @@ class LocalImageGenerator(private val context: Context) {
         )
         if (negativePrompt.isNotBlank()) command += listOf("-n", negativePrompt)
 
-        val processBuilder = ProcessBuilder(command).redirectErrorStream(true)
-        processBuilder.environment()["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir
-        processBuilder.environment()["TMPDIR"] = context.cacheDir.absolutePath
-
-        onProgress("Loading local image model • ${imageWidth}×${imageHeight} • $steps steps…")
-        val process = processBuilder.start()
-        activeProcess = process
-        val started = SystemClock.elapsedRealtime()
-        var lastLine = "Starting image engine…"
-        var lastUiUpdate = 0L
-
+        // Validate before importing/preparing any temporary task file.
+        ImageEditArguments.forInput(inputImagePath, changeStrength)
+        val prepared = inputImagePath?.let { ImageEditInput(context).prepare(it, imageWidth, imageHeight) }
         try {
-            process.inputStream.bufferedReader().use { reader ->
-                while (process.isAlive) {
+            command += ImageEditArguments.forInput(prepared?.absolutePath, changeStrength)
+
+            val processBuilder = ProcessBuilder(command).redirectErrorStream(true)
+            processBuilder.environment()["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir
+            processBuilder.environment()["TMPDIR"] = context.cacheDir.absolutePath
+
+            onProgress("Loading local image model • ${imageWidth}×${imageHeight} • $steps steps…")
+            val process = processBuilder.start()
+            activeProcess = process
+            val started = SystemClock.elapsedRealtime()
+            var lastLine = "Starting image engine…"
+            var lastUiUpdate = 0L
+
+            try {
+                process.inputStream.bufferedReader().use { reader ->
+                    while (process.isAlive) {
+                        while (reader.ready()) {
+                            val line = reader.readLine() ?: break
+                            if (line.isNotBlank()) lastLine = line.takeLast(160)
+                        }
+                        val elapsed = SystemClock.elapsedRealtime() - started
+                        if (elapsed - lastUiUpdate >= 1500L) {
+                            lastUiUpdate = elapsed
+                            val seconds = elapsed / 1000L
+                            onProgress("Generating locally • ${seconds}s\n$lastLine")
+                        }
+                        if (elapsed >= timeoutMs) {
+                            cancel()
+                            error("Image generation timed out after ${timeoutMs / 60000L} minutes")
+                        }
+                        delay(250L)
+                    }
                     while (reader.ready()) {
                         val line = reader.readLine() ?: break
                         if (line.isNotBlank()) lastLine = line.takeLast(160)
                     }
-                    val elapsed = SystemClock.elapsedRealtime() - started
-                    if (elapsed - lastUiUpdate >= 1500L) {
-                        lastUiUpdate = elapsed
-                        val seconds = elapsed / 1000L
-                        onProgress("Generating locally • ${seconds}s\n$lastLine")
-                    }
-                    if (elapsed >= timeoutMs) {
-                        cancel()
-                        error("Image generation timed out after ${timeoutMs / 60000L} minutes")
-                    }
-                    delay(250L)
                 }
-                while (reader.ready()) {
-                    val line = reader.readLine() ?: break
-                    if (line.isNotBlank()) lastLine = line.takeLast(160)
-                }
-            }
 
-            val exit = process.waitFor()
-            if (exit != 0 || !output.exists() || output.length() == 0L) {
-                error("Image engine exited with code $exit. $lastLine")
+                val exit = process.waitFor()
+                if (exit != 0 || !output.exists() || output.length() == 0L) {
+                    error("Image engine exited with code $exit. $lastLine")
+                }
+                val elapsedSeconds = ((SystemClock.elapsedRealtime() - started) / 1000L).coerceAtLeast(1L)
+                val gallerySaved = saveToGallery(output)
+                ImageGenerationResult(output, elapsedSeconds, gallerySaved)
+            } finally {
+                if (process.isAlive) {
+                    process.destroy()
+                    if (!process.waitFor(750, TimeUnit.MILLISECONDS)) process.destroyForcibly()
+                }
+                activeProcess = null
             }
-            val elapsedSeconds = ((SystemClock.elapsedRealtime() - started) / 1000L).coerceAtLeast(1L)
-            val gallerySaved = saveToGallery(output)
-            ImageGenerationResult(output, elapsedSeconds, gallerySaved)
-        } finally {
-            if (process.isAlive) {
-                process.destroy()
-                if (!process.waitFor(750, TimeUnit.MILLISECONDS)) process.destroyForcibly()
-            }
-            activeProcess = null
-        }
+        } finally { prepared?.delete() }
     }
 
     private fun normalizeDimension(value: Int): Int {
-        val clamped = value.coerceIn(256, 768)
+        val clamped = value.coerceIn(64, 768)
         return (clamped / 8) * 8
     }
 

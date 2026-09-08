@@ -87,4 +87,16 @@ class ChatStoreTest {
         store.recoverInterrupted()
         assertTrue(store.list().isEmpty())
     }
+    @Test fun editSettingsSurviveTaskCompletionAndRecovery(): Unit = runBlocking {
+        val id = store.create("image")
+        val request = org.json.JSONObject().put("inputImage", "/private/photo.png").put("strength", 0.45).put("width", 384).put("height", 192).put("system", "private prompt")
+        val options = ImageEditArguments.savedOptions(request)
+        assertFalse(options.contains("private prompt"))
+        val taskId = store.enqueue(id, Message("image-user", "Warm sunset", true), Message("image-reply", "Preparing", false, imageOptions=options), request.toString(), "image")
+        val task = store.claim(taskId)!!
+        store.update(task, store.messages(id)[1].copy(status="Done", imagePath="/private/result.png"), "complete")
+        store.recoverInterrupted()
+        assertEquals(options, store.messages(id)[1].imageOptions)
+        assertEquals("/private/result.png", store.messages(id)[1].imagePath)
+    }
 }

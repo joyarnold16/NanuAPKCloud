@@ -51,8 +51,10 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
                 val prior = store.messages(id).takeLast(10).joinToString("\n") { (if(it.isUser) "User: " else "Assistant: ") + it.content.take(1500) }.takeLast(10000)
                 val body = if (request.optBoolean("image")) prompt else "Previous conversation (context only):\n$prior\nUser request:\n$prompt\n" + (attachment?.contextForPrompt(18000) ?: "")
                 request.put("prompt", body).put("system", system).put("model", prefs.getString("last_model", ""))
-                val user = Message(UUID.randomUUID().toString(), prompt, true, attachmentName=attachment?.displayName, attachmentInfo=attachment?.let { "Saved locally" }, attachmentContext=attachment?.contextForPrompt(18000), sourcePrompt=prompt)
-                val assistant = Message(UUID.randomUUID().toString(), "Preparing local task…", false, status="Queued", sourcePrompt=prompt)
+                val imageOptions = if (request.optBoolean("image")) ImageEditArguments.savedOptions(request) else null
+                val photoAttached = !request.optString("inputImage").isBlank()
+                val user = Message(UUID.randomUUID().toString(), prompt, true, attachmentName=attachment?.displayName ?: if (photoAttached) "Selected photo" else null, attachmentInfo=attachment?.let { "Saved locally" }, attachmentContext=attachment?.contextForPrompt(18000), sourcePrompt=prompt, imageOptions=imageOptions)
+                val assistant = Message(UUID.randomUUID().toString(), "Preparing local task…", false, status="Queued", sourcePrompt=prompt, imageOptions=imageOptions)
                 LocalTaskService.submit(screen.applicationContext, id, user, assistant, request.toString(), if(request.optBoolean("image")) "image" else "general")
                 render(store.messages(id))
             } catch (e: Exception) { android.widget.Toast.makeText(screen, e.message, android.widget.Toast.LENGTH_LONG).show() }
