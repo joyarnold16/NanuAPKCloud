@@ -138,8 +138,13 @@ public final class BillingManager implements PurchasesUpdatedListener {
         QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
                 .setProductList(Collections.singletonList(product))
                 .build();
-        billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsList) -> {
+        billingClient.queryProductDetailsAsync(params, (billingResult, queryResult) -> {
             int code = billingResult.getResponseCode();
+            // Billing 8 replaced the plain List in this callback with
+            // QueryProductDetailsResult, which also carries the products Play
+            // could not fetch. This is the only source change the 7.x -> 8.x
+            // move required; every other call the app makes is unchanged.
+            List<ProductDetails> productDetailsList = queryResult.getProductDetailsList();
             if (code == BillingClient.BillingResponseCode.OK && !productDetailsList.isEmpty()) {
                 premiumProductDetails = productDetailsList.get(0);
                 priceFailureReason = null;
