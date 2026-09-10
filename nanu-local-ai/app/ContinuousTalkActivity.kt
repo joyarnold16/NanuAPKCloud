@@ -49,6 +49,21 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private lateinit var engine: InferenceEngine
     private var engineReady = false
     private var job: Job? = null
+    private var spokenReply: String? = null
+    private val taskSession = TaskScreenSession(this, "talk_conversation") { rows ->
+        if (rows.isEmpty()) { heardTv.text = ""; answerTv.text = "" }
+        rows.lastOrNull { it.isUser }?.let { heardTv.text = it.content }
+        rows.lastOrNull { !it.isUser }?.let { reply ->
+            answerTv.text = reply.content
+            statusTv.text = reply.status
+            if (reply.status == "Complete" && spokenReply != reply.id && sessionActive) {
+                spokenReply = reply.id
+                if (voiceReplies && ttsReady) tts?.speak(reply.content.take(4000), TextToSpeech.QUEUE_FLUSH, null, REPLY_UTTERANCE)
+                else if (loopArmed) scheduleListen(450L)
+                else finishSession("Reply ready • tap Speak when ready")
+            }
+        }
+    }
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
@@ -99,76 +114,9 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         refreshTalkButton()
         tts = TextToSpeech(this, this)
         createRecognizer()
-        lifecycleScope.launch(Dispatchers.Default) {
-            runCatching {
-                engine = AiChat.getInferenceEngine(applicationContext)
-                ensureModelReady()
-            }.onFailure { error ->
-                withContext(Dispatchers.Main) {
-                    statusTv.text = "Local AI unavailable: ${error.message}"
-                    sessionActive = false
-                    refreshTalkButton()
-                }
-            }
-        }
-    }
-
-    private suspend fun ensureModelReady() {
-        var state = waitForStableEngine()
-        if (state is InferenceEngine.State.ModelReady) {
-            engineReady = true
-            withContext(Dispatchers.Main) { markReady("Reusing loaded local AI") }
-            return
-        }
-        if (state is InferenceEngine.State.Error) {
-            runCatching { engine.cleanUp() }
-            state = waitForStableEngine(5_000L)
-        }
-        if (state !is InferenceEngine.State.Initialized) {
-            withContext(Dispatchers.Main) {
-                statusTv.text = "Local AI is busy in another screen."
-                refreshTalkButton()
-            }
-            return
-        }
-        val model = getSharedPreferences("nanu_local_ai", MODE_PRIVATE)
-            .getString("last_model", null)
-            ?.let(::File)
-            ?.takeIf { it.exists() }
-        if (model == null) {
-            withContext(Dispatchers.Main) {
-                statusTv.text = "Load an LLM from Chat + Models first."
-                refreshTalkButton()
-            }
-            return
-        }
-        withContext(Dispatchers.Main) { statusTv.text = "Loading ${model.nameWithoutExtension}…" }
-        engine.loadModel(model.absolutePath)
-        engine.setSystemPrompt("You are Nanu. Reply naturally and concisely for spoken conversation. Never reveal hidden chain-of-thought or <think> blocks.")
-        engineReady = true
-        withContext(Dispatchers.Main) { markReady("Local AI loaded") }
-    }
-
-    private suspend fun waitForStableEngine(timeoutMs: Long = 30_000L): InferenceEngine.State {
-        var waited = 0L
-        while (waited < timeoutMs) {
-            val state = engine.state.value
-            when (state) {
-                is InferenceEngine.State.Uninitialized,
-                is InferenceEngine.State.Initializing,
-                is InferenceEngine.State.LoadingModel,
-                is InferenceEngine.State.UnloadingModel,
-                is InferenceEngine.State.ProcessingSystemPrompt,
-                is InferenceEngine.State.ProcessingUserPrompt,
-                is InferenceEngine.State.Generating,
-                is InferenceEngine.State.Benchmarking -> {
-                    delay(150L)
-                    waited += 150L
-                }
-                else -> return state
-            }
-        }
-        return engine.state.value
+        engineReady = getSharedPreferences("nanu_local_ai", MODE_PRIVATE).getString("last_model", null)?.let { File(it).isFile } == true
+        markReady(if (engineReady) "Local AI ready" else "Choose a model in Chat first.")
+        taskSession.observe()
     }
 
     private fun markReady(prefix: String) {
@@ -205,7 +153,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun startConversation() {
-        if (!engineReady || engine.state.value !is InferenceEngine.State.ModelReady) {
+        if (!engineReady || LocalTaskService.active.value) {
             Toast.makeText(this, "Local AI is not ready yet.", Toast.LENGTH_SHORT).show()
             return
         }
@@ -290,7 +238,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun startListening(offline: Boolean) {
-        if (!sessionActive || !engineReady || engine.state.value !is InferenceEngine.State.ModelReady) return
+        if (!sessionActive || !engineReady || LocalTaskService.active.value) return
         preferOffline = offline
         tts?.stop()
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -310,48 +258,13 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         if (!sessionActive) return
         answerTv.text = "Thinking locally…"
         statusTv.text = "Nanu is thinking…"
-        val raw = StringBuilder()
-        job?.cancel()
-        job = lifecycleScope.launch(Dispatchers.Default) {
-            engine.sendUserPrompt(prompt)
-                .catch { error ->
-                    if (sessionActive) {
-                        withContext(Dispatchers.Main) {
-                            answerTv.text = "Generation error: ${error.message}"
-                            finishSession("Generation stopped • tap Speak to try again")
-                        }
-                    }
-                }
-                .collect { token ->
-                    raw.append(token)
-                    if (sessionActive) {
-                        withContext(Dispatchers.Main) {
-                            answerTv.text = stripThinking(raw.toString()).ifBlank { "Thinking locally…" }
-                        }
-                    }
-                }
-
-            if (!sessionActive) return@launch
-            val finalText = stripThinking(raw.toString()).trim()
-            withContext(Dispatchers.Main) {
-                if (!sessionActive) return@withContext
-                if (finalText.isNotBlank() && voiceReplies && ttsReady) {
-                    statusTv.text = "Speaking… • tap Speak to stop"
-                    tts?.speak(finalText.take(4000), TextToSpeech.QUEUE_FLUSH, null, REPLY_UTTERANCE)
-                } else if (loopArmed) {
-                    statusTv.text = "Reply ready • listening again…"
-                    scheduleListen(450L)
-                } else {
-                    finishSession("Reply ready • tap Speak when ready")
-                }
-            }
-        }
+        taskSession.submit(prompt, "You are Nanu. Reply naturally and concisely for spoken conversation. Never reveal hidden chain-of-thought or <think> blocks." + SafetyGuard.SYSTEM_RULES)
     }
 
     private fun scheduleListen(delayMs: Long) {
         lifecycleScope.launch {
             delay(delayMs)
-            if (sessionActive && loopArmed && continuousMode && engineReady && engine.state.value is InferenceEngine.State.ModelReady) {
+            if (sessionActive && loopArmed && continuousMode && engineReady && !LocalTaskService.active.value) {
                 startListening(true)
             }
         }
@@ -365,6 +278,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun stopEverything() {
+        if (LocalTaskService.active.value) LocalTaskService.stop(applicationContext)
         sessionActive = false
         loopArmed = false
         recognizer?.cancel()
@@ -432,6 +346,14 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             }
         })
         if (engineReady) markReady("Local AI ready")
+    }
+
+    override fun onStop() {
+        sessionActive = false
+        loopArmed = false
+        recognizer?.cancel()
+        tts?.stop()
+        super.onStop()
     }
 
     override fun onDestroy() {

@@ -45,7 +45,6 @@ function doPost(e) {
     if (cache.get(dedupeKey)) {
       return json_({ ok: true, report_id: reportId, duplicate: true });
     }
-    cache.put(dedupeKey, '1', 21600);
 
     const when = new Date(isFinite(createdAt) ? createdAt : Date.now());
     const subject = '[Nanu AI Report] ' + category + ' — ' + reportId.substring(0, 8);
@@ -69,6 +68,8 @@ function doPost(e) {
       body: body,
       name: APP_NAME + ' Safety Reports'
     });
+    // Failed email delivery must remain retryable.
+    cache.put(dedupeKey, '1', 21600);
 
     return json_({ ok: true, report_id: reportId });
   } catch (err) {

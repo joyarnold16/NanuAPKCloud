@@ -37,6 +37,13 @@ GitHub Actions secrets:
 - `NANU_UPLOAD_KEY_ALIAS`
 - `NANU_UPLOAD_KEY_PASSWORD`
 
+The workflow also accepts the repository's existing Nanu signing secret names as
+fallbacks: `NANU_RELEASE_KEYSTORE_B64`, `NANU_RELEASE_KEYSTORE_PASSWORD`,
+`NANU_RELEASE_KEY_ALIAS`, and `NANU_RELEASE_KEY_PASSWORD`, respectively. Keep a
+complete matching set; do not mix credentials from different keys. Secret presence
+alone does not prove that the key opens or matches an existing Play app's upload
+certificate; verify the exported certificate against Play Console before upload.
+
 The workflow builds version `1.0` / versionCode `100`, uses the Gradle `release` build type, signs the AAB with the permanent upload key, verifies the AAB signature, checks 16 KB native compatibility, and publishes:
 - `nanu-local-ai-v1.0-play-release.aab`
 - `PLAY_RELEASE_SHA256.txt`

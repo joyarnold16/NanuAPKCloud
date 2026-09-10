@@ -6,6 +6,13 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
+import android.content.Intent
+import android.net.Uri
+import android.view.View
+import android.widget.SeekBar
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.CancellationException
+import org.json.JSONObject
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
@@ -21,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class CreateStudioActivity : AppCompatActivity() {
     private lateinit var modelStatusTv: TextView
@@ -38,6 +46,30 @@ class CreateStudioActivity : AppCompatActivity() {
     private var quality = false
     private var aspectIndex = 0
     private var generationJob: Job? = null
+    private var displayedImage: String? = null
+    private val imageInputs by lazy { ImageEditInput(applicationContext) }
+    private var selectedImage: SelectedImage? = null
+    private var changeStrength = 0.45
+    private var importingImage = false
+    private var missingInput = false
+    private lateinit var inputPreview: ImageView
+    private lateinit var addImageBtn: MaterialButton
+    private lateinit var strengthLabel: TextView
+    private val imagePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) importImage(uri)
+    }
+    private val taskSession = TaskScreenSession(this, "studio_conversation") { rows ->
+        if (rows.isEmpty()) { imageView.setImageDrawable(null); imageView.visibility = android.view.View.GONE; statusTv.text = ""; displayedImage = null }
+        rows.lastOrNull { !it.isUser }?.let { reply ->
+            statusTv.text = reply.status
+            reply.imagePath?.takeIf { it != displayedImage }?.let { path ->
+                displayedImage = path
+                imageView.setImageBitmap(BitmapFactory.decodeFile(path))
+                imageView.visibility = android.view.View.VISIBLE
+            }
+        }
+        refreshModelUi()
+    }
     private var downloadJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,20 +86,46 @@ class CreateStudioActivity : AppCompatActivity() {
         generateBtn = findViewById(R.id.studio_generate)
         statusTv = findViewById(R.id.studio_status)
         imageView = findViewById(R.id.studio_image)
+        inputPreview = findViewById(R.id.studio_input_preview)
+        addImageBtn = findViewById(R.id.studio_add_image)
+        strengthLabel = findViewById(R.id.studio_strength_label)
+        addImageBtn.setOnClickListener { imagePicker.launch(arrayOf("image/*")) }
+        findViewById<MaterialButton>(R.id.studio_remove_image).setOnClickListener {
+            selectedImage = null
+            missingInput = false
+            prefs.edit().remove(KEY_SOURCE_IMAGE).apply()
+            if (aspectIndex == 3) aspectIndex = 0
+            refreshInputUi()
+        }
+        findViewById<SeekBar>(R.id.studio_strength).setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                changeStrength = (progress + 10) / 100.0
+                strengthLabel.text = "Change strength: ${progress + 10}%"
+                prefs.edit().putFloat(KEY_STRENGTH, changeStrength.toFloat()).apply()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
 
         findViewById<MaterialButton>(R.id.studio_back).setOnClickListener { finish() }
         findViewById<MaterialButton>(R.id.studio_model_button).setOnClickListener { downloadOrShowModel() }
         qualityBtn.setOnClickListener { quality = !quality; refreshModeButtons() }
-        aspectBtn.setOnClickListener { aspectIndex = (aspectIndex + 1) % ASPECTS.size; refreshModeButtons() }
+        aspectBtn.setOnClickListener { aspectIndex = (aspectIndex + 1) % (if (selectedImage == null) 3 else ASPECTS.size); refreshModeButtons() }
         generateBtn.setOnClickListener { generate() }
-        findViewById<MaterialButton>(R.id.studio_cancel).setOnClickListener { generator.cancel(); generationJob?.cancel(); statusTv.text = "Generation cancelled"; refreshModelUi() }
+        findViewById<MaterialButton>(R.id.studio_cancel).setOnClickListener { if (LocalTaskService.active.value) LocalTaskService.stop(applicationContext); statusTv.text = "Generation cancelled"; refreshModelUi() }
         findViewById<MaterialButton>(R.id.studio_history).setOnClickListener { showHistory() }
         findViewById<MaterialButton>(R.id.studio_report).setOnClickListener {
             startActivity(android.content.Intent(this, SafetyPrivacyActivity::class.java).putExtra(SafetyPrivacyActivity.EXTRA_REPORTED_CONTENT, "Image prompt: ${promptEt.text.toString().take(2500)}"))
         }
 
+        taskSession.observe()
         negativeEt.setText("blurry, distorted, low quality, malformed")
-        refreshModeButtons()
+        selectedImage = imageInputs.restore(prefs.getString(KEY_SOURCE_IMAGE, null))
+        missingInput = prefs.getString(KEY_SOURCE_IMAGE, null) != null && selectedImage == null
+        if (selectedImage != null) aspectIndex = 3
+        changeStrength = prefs.getFloat(KEY_STRENGTH, 0.45f).toDouble().coerceIn(0.1, 0.9)
+        restoreEditRequest(intent)
+        refreshInputUi()
         refreshModelUi()
         val active = prefs.getLong(KEY_DOWNLOAD_ID, -1L)
         if (active > 0L) monitorDownload(active)
@@ -78,10 +136,11 @@ class CreateStudioActivity : AppCompatActivity() {
         qualityBtn.text = if (quality) "Quality: High" else "Quality: Fast"
         aspectBtn.text = "Aspect: ${aspect.label}"
         val (w, h) = dimensions()
-        generateBtn.text = "Generate • ${w}×${h} • ${if (quality) 14 else 8} steps"
+        generateBtn.text = "${if (selectedImage == null) "Generate" else "Edit image"} • ${w}×${h} • ${if (quality) 14 else 8} steps"
     }
 
     private fun dimensions(): Pair<Int, Int> {
+        selectedImage?.takeIf { aspectIndex == 3 }?.let { return ImageEditInput.dimensions(it.width, it.height, quality) }
         return when (ASPECTS[aspectIndex].label) {
             "16:9" -> 512 to 288
             "9:16" -> 288 to 512
@@ -97,7 +156,68 @@ class CreateStudioActivity : AppCompatActivity() {
     private fun refreshModelUi() {
         val ready = modelReady()
         modelStatusTv.text = if (ready) "${ImageModelCatalog.starter.name} • ready locally" else "Image model not downloaded • ${ImageModelCatalog.starter.sizeLabel}"
-        generateBtn.isEnabled = ready && generationJob?.isActive != true
+        generateBtn.isEnabled = ready && !LocalTaskService.active.value && !importingImage
+        addImageBtn.isEnabled = !importingImage
+    }
+
+    private fun importImage(uri: Uri) {
+        if (importingImage) return
+        importingImage = true
+        refreshModelUi()
+        statusTv.text = "Preparing selected photo…"
+        lifecycleScope.launch {
+            var copy: SelectedImage? = null
+            var accepted = false
+            try {
+                withContext(Dispatchers.IO) { copy = imageInputs.import(uri) }
+                selectedImage = copy
+                missingInput = false
+                accepted = true
+                aspectIndex = 3
+                prefs.edit().putString(KEY_SOURCE_IMAGE, copy!!.path).apply()
+                refreshInputUi()
+                statusTv.text = "Photo ready. Describe how the edited image should look."
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                statusTv.text = "Could not open photo. Try a valid JPEG, PNG, WebP or HEIC image."
+                Toast.makeText(this@CreateStudioActivity, statusTv.text, Toast.LENGTH_LONG).show()
+            } finally {
+                if (!accepted) copy?.let { File(it.path).delete() }
+                importingImage = false
+                refreshModelUi()
+            }
+        }
+    }
+
+    private fun refreshInputUi() {
+        val selected = selectedImage
+        findViewById<View>(R.id.studio_edit_options).visibility = if (selected == null && !missingInput) View.GONE else View.VISIBLE
+        inputPreview.setImageBitmap(selected?.let { BitmapFactory.decodeFile(it.path) })
+        addImageBtn.text = if (selected == null) "Add image from device" else "Replace image"
+        findViewById<SeekBar>(R.id.studio_strength).progress = (changeStrength * 100).roundToInt() - 10
+        strengthLabel.text = "Change strength: ${(changeStrength * 100).roundToInt()}%"
+        promptEt.hint = if (selected == null) "A cinematic lighthouse in a storm at night…" else "Describe the finished picture, e.g. the same lighthouse at sunset, warm light, calm sea…"
+        refreshModeButtons()
+    }
+
+    private fun restoreEditRequest(intent: Intent) {
+        val raw = intent.getStringExtra(EXTRA_IMAGE_OPTIONS) ?: return
+        runCatching {
+            val options = JSONObject(raw)
+            val input = options.optString("inputImage").takeIf { it.isNotBlank() }
+            selectedImage = imageInputs.restore(input)
+            missingInput = input != null && selectedImage == null
+            if (input != null && selectedImage == null) Toast.makeText(this, "The original photo is missing. Please add it again.", Toast.LENGTH_LONG).show()
+            prefs.edit().putString(KEY_SOURCE_IMAGE, input).apply()
+            changeStrength = options.optDouble("strength", 0.45).takeIf { it.isFinite() }?.coerceIn(0.1, 0.9) ?: 0.45
+            quality = options.optBoolean("quality")
+            val w = options.optInt("width", 384)
+            val h = options.optInt("height", 384)
+            val fallbackAspect = if (selectedImage != null) 3 else if (w == h) 0 else if (w > h) 1 else 2
+            aspectIndex = options.optInt("aspect", fallbackAspect).coerceIn(0, if (selectedImage != null) 3 else 2)
+            negativeEt.setText(options.optString("negative", "blurry, distorted, low quality, malformed"))
+            promptEt.setText(intent.getStringExtra(EXTRA_IMAGE_PROMPT).orEmpty())
+        }.onFailure { Toast.makeText(this, "Could not restore image settings.", Toast.LENGTH_LONG).show() }
     }
 
     private fun downloadOrShowModel() {
@@ -165,31 +285,21 @@ class CreateStudioActivity : AppCompatActivity() {
     private fun generate() {
         val prompt = promptEt.text.toString().trim()
         if (prompt.isBlank()) { Toast.makeText(this, "Describe the image you want.", Toast.LENGTH_SHORT).show(); return }
-        if (!modelReady()) { downloadOrShowModel(); return }
-        val (w, h) = dimensions()
-        generateBtn.isEnabled = false
-        statusTv.text = "Starting local image generation…"
-        generationJob?.cancel()
-        generationJob = lifecycleScope.launch(Dispatchers.Default) {
-            runCatching {
-                generator.generate(
-                    prompt = prompt,
-                    negativePrompt = negativeEt.text.toString().trim(),
-                    quality = quality,
-                    width = w,
-                    height = h,
-                    stepsOverride = if (quality) 14 else 8
-                ) { progress -> withContext(Dispatchers.Main) { statusTv.text = progress } }
-            }.onSuccess { result ->
-                withContext(Dispatchers.Main) {
-                    val bitmap = BitmapFactory.decodeFile(result.file.absolutePath)
-                    imageView.setImageBitmap(bitmap)
-                    imageView.visibility = android.view.View.VISIBLE
-                    statusTv.text = "Done • ${result.elapsedSeconds}s${if (result.gallerySaved) " • saved to Pictures/Nanu" else ""}"
-                }
-            }.onFailure { error -> withContext(Dispatchers.Main) { statusTv.text = "Generation failed: ${error.message}" } }
-            withContext(Dispatchers.Main) { generationJob = null; refreshModelUi() }
+        if (importingImage) return
+        if (missingInput) {
+            Toast.makeText(this, "The original photo is missing. Add it again, or tap Remove image to start without it.", Toast.LENGTH_LONG).show()
+            return
         }
+        if (!modelReady()) { downloadOrShowModel(); return }
+        if (selectedImage != null && imageInputs.restore(selectedImage!!.path) == null) {
+            Toast.makeText(this, "Selected photo is unavailable. Add it again.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val (w, h) = dimensions()
+        taskSession.submit(prompt, SafetyGuard.SYSTEM_RULES, org.json.JSONObject()
+            .put("image", true).put("negative", negativeEt.text.toString().trim())
+            .put("quality", quality).put("width", w).put("height", h).put("steps", if (quality) 14 else 8)
+            .put("inputImage", selectedImage?.path).put("strength", changeStrength).put("aspect", aspectIndex))
     }
 
     private fun showHistory() {
@@ -219,6 +329,10 @@ class CreateStudioActivity : AppCompatActivity() {
     companion object {
         private const val PREFS = "nanu_create_rc8"
         private const val KEY_DOWNLOAD_ID = "image_download_id"
-        private val ASPECTS = listOf(Aspect("1:1"), Aspect("16:9"), Aspect("9:16"))
+        private const val KEY_SOURCE_IMAGE = "selected_source_image"
+        private const val KEY_STRENGTH = "change_strength"
+        const val EXTRA_IMAGE_OPTIONS = "image_options"
+        const val EXTRA_IMAGE_PROMPT = "image_prompt"
+        private val ASPECTS = listOf(Aspect("1:1"), Aspect("16:9"), Aspect("9:16"), Aspect("Original"))
     }
 }

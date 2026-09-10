@@ -32,10 +32,11 @@ jobs:
     env:
       NANU_REPORT_ENDPOINT: ${{ inputs.report_endpoint || vars.NANU_REPORT_ENDPOINT }}
       NANU_SUPPORT_EMAIL: ${{ inputs.support_email || vars.NANU_SUPPORT_EMAIL || 'nanuai.1991@gmail.com' }}
-      NANU_UPLOAD_KEYSTORE_BASE64: ${{ secrets.NANU_UPLOAD_KEYSTORE_BASE64 }}
-      NANU_UPLOAD_STORE_PASSWORD: ${{ secrets.NANU_UPLOAD_STORE_PASSWORD }}
-      NANU_UPLOAD_KEY_ALIAS: ${{ secrets.NANU_UPLOAD_KEY_ALIAS }}
-      NANU_UPLOAD_KEY_PASSWORD: ${{ secrets.NANU_UPLOAD_KEY_PASSWORD }}
+      NANU_PLAY_PUBLIC_KEY: ${{ vars.NANU_PLAY_PUBLIC_KEY }}
+      NANU_UPLOAD_KEYSTORE_BASE64: ${{ secrets.NANU_UPLOAD_KEYSTORE_BASE64 || secrets.NANU_RELEASE_KEYSTORE_B64 }}
+      NANU_UPLOAD_STORE_PASSWORD: ${{ secrets.NANU_UPLOAD_STORE_PASSWORD || secrets.NANU_RELEASE_KEYSTORE_PASSWORD }}
+      NANU_UPLOAD_KEY_ALIAS: ${{ secrets.NANU_UPLOAD_KEY_ALIAS || secrets.NANU_RELEASE_KEY_ALIAS }}
+      NANU_UPLOAD_KEY_PASSWORD: ${{ secrets.NANU_UPLOAD_KEY_PASSWORD || secrets.NANU_RELEASE_KEY_PASSWORD }}
 
     steps:
       - name: Checkout Nanu release source
@@ -70,12 +71,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$NANU_REPORT_ENDPOINT"
-          test -n "$NANU_SUPPORT_EMAIL"
-          test -n "$NANU_UPLOAD_KEYSTORE_BASE64"
-          test -n "$NANU_UPLOAD_STORE_PASSWORD"
-          test -n "$NANU_UPLOAD_KEY_ALIAS"
-          test -n "$NANU_UPLOAD_KEY_PASSWORD"
+          missing=0
+          for name in \
+            NANU_REPORT_ENDPOINT \
+            NANU_SUPPORT_EMAIL \
+            NANU_PLAY_PUBLIC_KEY \
+            NANU_UPLOAD_KEYSTORE_BASE64 \
+            NANU_UPLOAD_STORE_PASSWORD \
+            NANU_UPLOAD_KEY_ALIAS \
+            NANU_UPLOAD_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing required Play release configuration: $name"
+              missing=1
+            fi
+          done
+          (( missing == 0 ))
           [[ "$NANU_REPORT_ENDPOINT" == https://* ]]
           [[ "$NANU_SUPPORT_EMAIL" == *@*.* ]]
           bash -n nanu-local-ai/ci/build_play_release.sh

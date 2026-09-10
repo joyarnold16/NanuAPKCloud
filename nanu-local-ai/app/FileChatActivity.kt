@@ -37,6 +37,11 @@ class FileChatActivity : AppCompatActivity() {
     private lateinit var engine: InferenceEngine
     private var engineReady = false
     private var job: Job? = null
+    private val taskSession = TaskScreenSession(this, "files_conversation") { rows ->
+        if (rows.isEmpty()) answerTv.text = ""
+        rows.lastOrNull { !it.isUser }?.let { answerTv.text = it.content; statusTv.text = it.status }
+        askBtn.isEnabled = !LocalTaskService.active.value && engineReady
+    }
 
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@registerForActivityResult
@@ -93,75 +98,9 @@ class FileChatActivity : AppCompatActivity() {
             startActivity(Intent(this, SafetyPrivacyActivity::class.java).putExtra(SafetyPrivacyActivity.EXTRA_REPORTED_CONTENT, answerTv.text.toString().take(5000)))
         }
 
-        lifecycleScope.launch(Dispatchers.Default) {
-            runCatching {
-                engine = AiChat.getInferenceEngine(applicationContext)
-                ensureEngineReady()
-            }.onFailure { error ->
-                withContext(Dispatchers.Main) {
-                    statusTv.text = "Local AI unavailable: ${error.message}"
-                    askBtn.isEnabled = false
-                }
-            }
-        }
-    }
-
-    private suspend fun ensureEngineReady() {
-        var state = waitForStableEngine()
-        if (state is InferenceEngine.State.ModelReady) {
-            engineReady = true
-            withContext(Dispatchers.Main) {
-                statusTv.text = "Local AI ready • choose a document"
-                askBtn.isEnabled = attachment?.extractedText.isNullOrBlank().not()
-            }
-            return
-        }
-        if (state is InferenceEngine.State.Error) {
-            runCatching { engine.cleanUp() }
-            state = waitForStableEngine(5_000L)
-        }
-        if (state !is InferenceEngine.State.Initialized) {
-            withContext(Dispatchers.Main) { statusTv.text = "Local AI is busy in another screen." }
-            return
-        }
-        val model = prefs.getString("last_model", null)?.let(::File)?.takeIf { it.exists() }
-        if (model == null) {
-            withContext(Dispatchers.Main) { statusTv.text = "Open Chat + Models first and download/load an LLM." }
-            return
-        }
-        withContext(Dispatchers.Main) { statusTv.text = "Loading ${model.nameWithoutExtension}…" }
-        engine.loadModel(model.absolutePath)
-        engine.setSystemPrompt(
-            "You are Nanu's private Ask My Files assistant. Answer from the supplied document context. " +
-                "If the document does not contain the answer, say so. Never reveal hidden chain-of-thought."
-        )
-        engineReady = true
-        withContext(Dispatchers.Main) {
-            statusTv.text = "Local AI ready • choose a document"
-            askBtn.isEnabled = attachment?.extractedText.isNullOrBlank().not()
-        }
-    }
-
-    private suspend fun waitForStableEngine(timeoutMs: Long = 30_000L): InferenceEngine.State {
-        var waited = 0L
-        while (waited < timeoutMs) {
-            val state = engine.state.value
-            when (state) {
-                is InferenceEngine.State.Uninitialized,
-                is InferenceEngine.State.Initializing,
-                is InferenceEngine.State.LoadingModel,
-                is InferenceEngine.State.UnloadingModel,
-                is InferenceEngine.State.ProcessingSystemPrompt,
-                is InferenceEngine.State.ProcessingUserPrompt,
-                is InferenceEngine.State.Generating,
-                is InferenceEngine.State.Benchmarking -> {
-                    delay(150L)
-                    waited += 150L
-                }
-                else -> return state
-            }
-        }
-        return engine.state.value
+        engineReady = prefs.getString("last_model", null)?.let { File(it).isFile } == true
+        statusTv.text = if (engineReady) "Local AI ready • choose a document" else "Choose a model in Chat first."
+        taskSession.observe()
     }
 
     private fun askCurrentFile() {
@@ -171,34 +110,8 @@ class FileChatActivity : AppCompatActivity() {
             Toast.makeText(this, "Enter a question about the file.", Toast.LENGTH_SHORT).show()
             return
         }
-        if (!engineReady || engine.state.value !is InferenceEngine.State.ModelReady) {
-            Toast.makeText(this, "Local AI is not ready yet.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        askBtn.isEnabled = false
-        answerTv.text = "Thinking locally…"
-        statusTv.text = "Searching the selected file locally…"
-        val raw = StringBuilder()
-        val prompt = buildString {
-            append("Document question: ").append(question).append("\n\n")
-            append(doc.contextForPrompt(18000))
-            append("\n\nAnswer the question using the document above. Cite section/page wording when the extracted text makes it possible. Do not invent missing facts.")
-        }
-        job?.cancel()
-        job = lifecycleScope.launch(Dispatchers.Default) {
-            engine.sendUserPrompt(prompt)
-                .catch { error -> withContext(Dispatchers.Main) { answerTv.text = "Generation error: ${error.message}" } }
-                .collect { token ->
-                    raw.append(token)
-                    withContext(Dispatchers.Main) { answerTv.text = stripThinking(raw.toString()).ifBlank { "Thinking locally…" } }
-                }
-            val finalText = stripThinking(raw.toString()).trim()
-            if (finalText.isNotBlank()) saveHistory(doc.displayName, question, finalText)
-            withContext(Dispatchers.Main) {
-                statusTv.text = "Done • answer generated locally"
-                askBtn.isEnabled = true
-            }
-        }
+        if (!engineReady) return
+        taskSession.submit(question, "You are Nanu's private Ask My Files assistant. Answer using the supplied document. Cite section/page wording when available. If the document does not contain the answer, say so. Never reveal hidden chain-of-thought." + SafetyGuard.SYSTEM_RULES, attachment=doc)
     }
 
     private fun saveHistory(file: String, question: String, answer: String) {
@@ -211,6 +124,12 @@ class FileChatActivity : AppCompatActivity() {
     }
 
     private fun showHistory() {
+        android.app.AlertDialog.Builder(this).setTitle("File chat history").setItems(arrayOf("All saved conversations", "Older RC8 file answers")) { _, item ->
+            if (item == 0) startActivity(Intent(this, MainActivity::class.java)) else showLegacyHistory()
+        }.show()
+    }
+
+    private fun showLegacyHistory() {
         val rows = loadHistory()
         if (rows.length() == 0) {
             Toast.makeText(this, "No Ask My Files history yet.", Toast.LENGTH_SHORT).show()

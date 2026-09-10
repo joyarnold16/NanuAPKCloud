@@ -39,15 +39,18 @@ class AiReportClient(private val context: Context) {
             val code = connection.responseCode
             if (code !in 200..299) error("Reporting service returned HTTP $code")
 
-            val responseText = runCatching {
-                connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText().take(16_000) }
-            }.getOrDefault("").trim()
-            if (responseText.startsWith("{") && responseText.endsWith("}")) {
-                val response = runCatching { JSONObject(responseText) }.getOrNull()
-                if (response != null && response.has("ok") && !response.optBoolean("ok", false)) {
-                    error(response.optString("error", "Reporting service rejected the report"))
+            val responseText = connection.inputStream.bufferedReader(Charsets.UTF_8).use {
+                val buffer = CharArray(16_001)
+                var used = 0
+                while (used < buffer.size) {
+                    val count = it.read(buffer, used, buffer.size - used)
+                    if (count < 0) break
+                    used += count
                 }
+                require(used <= 16_000) { "Reporting service returned an oversized response" }
+                String(buffer, 0, used)
             }
+            validateAcknowledgement(responseText, reportId)
             reportId
         } finally {
             connection.disconnect()
@@ -55,4 +58,14 @@ class AiReportClient(private val context: Context) {
     }
 
     private fun endpoint(): String = context.getString(R.string.nanu_report_endpoint).trim()
+
+    companion object {
+        internal fun validateAcknowledgement(text: String, reportId: String) {
+            val response = runCatching { JSONObject(text) }.getOrNull()
+                ?: error("Reporting service did not confirm delivery. Please try again later.")
+            require(response.opt("ok") == true && response.optString("report_id") == reportId) {
+                "Reporting service did not confirm this report. Please try again later."
+            }
+        }
+    }
 }
