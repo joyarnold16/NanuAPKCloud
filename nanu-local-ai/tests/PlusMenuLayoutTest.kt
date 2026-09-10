@@ -23,7 +23,8 @@ class PlusMenuLayoutTest {
         )
         menu.layout(0, 0, 600, 280)
         assertTrue("Short menu must scroll", menu.canScrollVertically(1))
-        menu.scrollTo(0, Int.MAX_VALUE)
+        // Use the measured content extent; Int.MAX_VALUE overflows Android's clamp arithmetic.
+        menu.scrollTo(0, menu.getChildAt(0).height)
         val last = menu.findViewById<View>(R.id.plus_attach)
         val lastBottom = menu.getChildAt(0).top + last.bottom - menu.scrollY
         assertTrue("Attach File must clear the taskbar", lastBottom <= menu.height - menu.paddingBottom)
