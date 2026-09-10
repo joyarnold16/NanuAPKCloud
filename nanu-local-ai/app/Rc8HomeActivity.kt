@@ -26,10 +26,12 @@ class Rc8HomeActivity : AppCompatActivity() {
         bind(R.id.home_markets, TradingActivity::class.java)
         bind(R.id.home_paper, PaperTradingActivity::class.java)
         bind(R.id.home_safety, SafetyPrivacyActivity::class.java)
+        bind(R.id.home_pro, ProActivity::class.java)
     }
 
     override fun onResume() {
         super.onResume()
+        ProBilling.get(this).refresh()
         val modelPath = prefs.getString("last_model", null)
         val model = modelPath?.let(::File)?.takeIf { it.exists() }
         val free = StatFs(filesDir.absolutePath).availableBytes / (1024.0 * 1024.0 * 1024.0)

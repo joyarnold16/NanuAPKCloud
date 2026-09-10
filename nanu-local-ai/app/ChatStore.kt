@@ -57,6 +57,7 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
             buildList { while (c.moveToNext()) add(decode(c.getString(0))) }
         }
     }
+    suspend fun saveBatchResult(conversation: String, message: Message) = access(true) { db -> put(db, conversation, message) }
     suspend fun rename(id: String, title: String) = access(true) { db ->
         require(title.trim().isNotEmpty())
         db.execSQL("UPDATE conversations SET title=? WHERE id=?", arrayOf(title.trim().take(120), id))

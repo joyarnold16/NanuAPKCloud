@@ -4,6 +4,7 @@ set -euo pipefail
 required_env=(
   NANU_REPORT_ENDPOINT
   NANU_SUPPORT_EMAIL
+  NANU_PLAY_PUBLIC_KEY
   NANU_UPLOAD_KEYSTORE_BASE64
   NANU_UPLOAD_STORE_PASSWORD
   NANU_UPLOAD_KEY_ALIAS
@@ -38,6 +39,7 @@ root = tree.getroot()
 values = {
     'nanu_report_endpoint': os.environ['NANU_REPORT_ENDPOINT'].strip(),
     'nanu_support_email': os.environ['NANU_SUPPORT_EMAIL'].strip(),
+    'nanu_play_public_key': os.environ['NANU_PLAY_PUBLIC_KEY'].strip(),
 }
 for name, value in values.items():
     node = next((x for x in root.findall('string') if x.attrib.get('name') == name), None)

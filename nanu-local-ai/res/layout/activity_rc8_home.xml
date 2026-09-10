@@ -164,6 +164,14 @@
             android:textColor="@color/nanu_text"
             app:strokeColor="@color/nanu_success" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_pro"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="18dp"
+            android:text="Nanu Pro · Files, photos, assistants &amp; projects"
+            android:textAllCaps="false" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -21,6 +21,7 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
     private var pending: (() -> Unit)? = null
     private var asked = false
     private var submitting = false
+    fun newConversation() { if (!submitting) { conversation = null; prefs.edit().remove(key).apply() } }
     private val permission = screen.registerForActivityResult(ActivityResultContracts.RequestPermission()) { pending?.invoke(); pending = null }
     fun observe() {
         screen.lifecycleScope.launch {
@@ -46,7 +47,9 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
         screen.lifecycleScope.launch {
             try {
                 SafetyGuard.blockedReason(prompt, request.optBoolean("image"))?.let { error(it) }
+                if (request.optBoolean("proFeature")) check(ProEntitlement.enabled(screen)) { "Restore Nanu Pro before using this tool." }
                 val id = conversation?.takeIf { old -> store.list().any { it.id == old } } ?: store.create(if (request.optBoolean("image")) "image" else "general").also { conversation = it }
+                request.optString("projectId").takeIf { it.isNotBlank() }?.let { ProStore.get(screen).link(it, id) }
                 prefs.edit().putString(key, id).putString("last_conversation", id).apply()
                 val prior = store.messages(id).takeLast(10).joinToString("\n") { (if(it.isUser) "User: " else "Assistant: ") + it.content.take(1500) }.takeLast(10000)
                 val body = if (request.optBoolean("image")) prompt else "Previous conversation (context only):\n$prior\nUser request:\n$prompt\n" + (attachment?.contextForPrompt(18000) ?: "")

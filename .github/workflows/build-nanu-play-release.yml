@@ -32,6 +32,7 @@ jobs:
     env:
       NANU_REPORT_ENDPOINT: ${{ inputs.report_endpoint || vars.NANU_REPORT_ENDPOINT }}
       NANU_SUPPORT_EMAIL: ${{ inputs.support_email || vars.NANU_SUPPORT_EMAIL || 'nanuai.1991@gmail.com' }}
+      NANU_PLAY_PUBLIC_KEY: ${{ vars.NANU_PLAY_PUBLIC_KEY }}
       NANU_UPLOAD_KEYSTORE_BASE64: ${{ secrets.NANU_UPLOAD_KEYSTORE_BASE64 || secrets.NANU_RELEASE_KEYSTORE_B64 }}
       NANU_UPLOAD_STORE_PASSWORD: ${{ secrets.NANU_UPLOAD_STORE_PASSWORD || secrets.NANU_RELEASE_KEYSTORE_PASSWORD }}
       NANU_UPLOAD_KEY_ALIAS: ${{ secrets.NANU_UPLOAD_KEY_ALIAS || secrets.NANU_RELEASE_KEY_ALIAS }}
@@ -74,6 +75,7 @@ jobs:
           for name in \
             NANU_REPORT_ENDPOINT \
             NANU_SUPPORT_EMAIL \
+            NANU_PLAY_PUBLIC_KEY \
             NANU_UPLOAD_KEYSTORE_BASE64 \
             NANU_UPLOAD_STORE_PASSWORD \
             NANU_UPLOAD_KEY_ALIAS \

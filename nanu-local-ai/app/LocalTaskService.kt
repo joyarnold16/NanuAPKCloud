@@ -71,13 +71,29 @@ class LocalTaskService : Service() {
                 ensureActive()
                 wakeLock = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Nanu:LocalTask").apply { acquire(65 * 60 * 1000L) }
                 val request = JSONObject(task!!.request)
+                if (request.optBoolean("proFeature") || request.has("batchInputs")) check(ProEntitlement.enabled(this@LocalTaskService)) { "Restore Nanu Pro before using this tool." }
                 withTimeout(60 * 60 * 1000L) {
                     if (request.optBoolean("image")) {
-                        val result = images.generate(request.getString("prompt"), negativePrompt=request.optString("negative", "blurry, low quality, distorted, malformed"), quality=request.optBoolean("quality"), width=request.optInt("width").takeIf { it > 0 }, height=request.optInt("height").takeIf { it > 0 }, stepsOverride=request.optInt("steps").takeIf { it > 0 }, inputImagePath=request.optString("inputImage").takeIf { it.isNotBlank() }, changeStrength=request.optDouble("strength", 0.45)) { progress ->
+                        val batch = request.optJSONArray("batchInputs")
+                        val inputs = if (batch != null) (0 until batch.length()).map { batch.getString(it) } else listOf(request.optString("inputImage"))
+                        require(inputs.size in 1..4) { "Choose one to four images." }
+                        for ((index,input) in inputs.withIndex()) {
+                        ensureActive()
+                        val result = images.generate(request.getString("prompt"), negativePrompt=request.optString("negative", "blurry, low quality, distorted, malformed"), quality=request.optBoolean("quality"), width=request.optInt("width").takeIf { it > 0 }, height=request.optInt("height").takeIf { it > 0 }, stepsOverride=request.optInt("steps").takeIf { it > 0 }, inputImagePath=input.takeIf { it.isNotBlank() }, changeStrength=request.optDouble("strength", 0.45)) { progress ->
                             reply = reply!!.copy(content = "Creating image locally…", status = progress)
+                            if (inputs.size > 1) reply = reply!!.copy(status = "Image ${index+1}/${inputs.size} • $progress")
                             store.update(task!!, reply!!)
                         }
-                        reply = reply!!.copy(content=if (request.optString("inputImage").isNotBlank()) "Here is your edited image." else "Here is your generated image.", imagePath=result.file.absolutePath, status="Done • generated locally • ${result.elapsedSeconds}s")
+                        val options = JSONObject(ImageEditArguments.savedOptions(request) ?: "{}").put("inputImage",input)
+                        reply = reply!!.copy(content=if (input.isNotBlank()) "Here is your edited image." else "Here is your generated image.", imagePath=result.file.absolutePath, imageOptions=options.toString(), createdAt=System.currentTimeMillis(), status="Done • generated locally • ${result.elapsedSeconds}s")
+                        request.optString("projectId").takeIf { it.isNotBlank() }?.let { project ->
+                            ProStore.get(this@LocalTaskService).addAsset(project,result.file.name,result.file.absolutePath,"image/png")
+                        }
+                        if(index < inputs.lastIndex) {
+                            store.saveBatchResult(task!!.conversation, reply!!.copy(id=java.util.UUID.randomUUID().toString(),createdAt=System.currentTimeMillis()))
+                            reply=reply!!.copy(imagePath=null)
+                        }
+                        }
                     } else {
                         val engine = AiChat.getInferenceEngine(applicationContext)
                         try {

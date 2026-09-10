@@ -540,7 +540,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                     attachment?.let { append("\n" + it.contextForPrompt()) }
                 }
                 val request = JSONObject().put("prompt", prompt).put("image", mode == AssistantMode.IMAGE)
-                    .put("model", currentModelFile?.absolutePath.orEmpty()).put("system", BASE_SYSTEM_PROMPT).toString()
+                    .put("model", currentModelFile?.absolutePath.orEmpty()).put("system", BASE_SYSTEM_PROMPT + ProStore.assistantInstructions(this@MainActivity) + SafetyGuard.SYSTEM_RULES).toString()
                 LocalTaskService.submit(applicationContext, id, user, reply, request, mode.id)
                 if (fromVoice) voiceReplyId = reply.id
                 userInputEt.setText("")
