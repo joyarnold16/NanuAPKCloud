@@ -31,6 +31,8 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -42,6 +44,7 @@ import com.arm.aichat.InferenceEngine
 import com.arm.aichat.gguf.GgufMetadata
 import com.arm.aichat.gguf.GgufMetadataReader
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.Dispatchers
@@ -323,6 +326,17 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         val dialog = BottomSheetDialog(this)
         val view = layoutInflater.inflate(R.layout.sheet_plus_menu, null)
         dialog.setContentView(view)
+        // Keep every option reachable on short windows and above the tablet taskbar.
+        ViewCompat.setOnApplyWindowInsetsListener(view) { menu, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            menu.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+        dialog.setOnShowListener {
+            dialog.behavior.skipCollapsed = true
+            dialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED
+            ViewCompat.requestApplyInsets(view)
+        }
 
         fun choose(id: Int, mode: AssistantMode) {
             view.findViewById<View>(id).setOnClickListener {
