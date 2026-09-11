@@ -1,0 +1,22 @@
+plugins { id 'application' }
+repositories { mavenCentral() }
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+def shared = ['Ohlcv', 'PaperExecution', 'PaperLedger', 'DexCandidate', 'DexSafetyPolicy',
+              'TokenSecurity', 'TradeRecord', 'CandlePatterns', 'DexDataClient',
+              'AutoTradingPolicy', 'ScalpingStrategy']
+sourceSets {
+    main.java {
+        srcDirs 'src', '../app/src/main/java'
+        include((shared + ['FileLedgerStorage', 'NasPaperMain']).collect { "com/nanu/aitradingbot/${it}.java" })
+    }
+    test.java { srcDirs 'test', '../app/src/test/java' }
+}
+dependencies {
+    implementation 'org.json:json:20240303'
+    testImplementation 'junit:junit:4.13.2'
+}
+application { mainClass = 'com.nanu.aitradingbot.NasPaperMain' }
+test { testLogging { events 'failed', 'skipped' } }

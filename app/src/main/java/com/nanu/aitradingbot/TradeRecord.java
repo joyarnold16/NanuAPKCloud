@@ -3,7 +3,8 @@ package com.nanu.aitradingbot;
 import org.json.JSONObject;
 
 public final class TradeRecord {
-    public String symbol = "", chain = "", exitReason = "";
+    public String symbol = "", chain = "", exitReason = "", positionId = "", pairAddress = "", tokenAddress = "", executionModel = "legacy";
+    public double quantity, entryQuoteUsd, exitQuoteUsd;
     public double entryPrice, exitPrice, pnlUsd, pnlPct;
     public double liquidityUsd, volume24hUsd, change1h, change24h;
     public boolean win;
@@ -14,6 +15,8 @@ public final class TradeRecord {
         try {
             return new JSONObject()
                 .put("symbol", symbol).put("chain", chain)
+                .put("positionId", positionId).put("pairAddress", pairAddress).put("tokenAddress", tokenAddress)
+                .put("executionModel", executionModel).put("quantity", quantity).put("entryQuoteUsd", entryQuoteUsd).put("exitQuoteUsd", exitQuoteUsd)
                 .put("entryPrice", entryPrice).put("exitPrice", exitPrice)
                 .put("pnlUsd", pnlUsd).put("pnlPct", pnlPct)
                 .put("win", win).put("exitReason", exitReason)
@@ -29,6 +32,9 @@ public final class TradeRecord {
         TradeRecord r = new TradeRecord();
         try {
             JSONObject o = new JSONObject(json);
+            r.positionId = o.optString("positionId", ""); r.pairAddress = o.optString("pairAddress", ""); r.tokenAddress = o.optString("tokenAddress", "");
+            r.executionModel = o.optString("executionModel", "legacy"); r.quantity = o.optDouble("quantity", 0);
+            r.entryQuoteUsd = o.optDouble("entryQuoteUsd", 0); r.exitQuoteUsd = o.optDouble("exitQuoteUsd", 0);
             r.symbol = o.optString("symbol"); r.chain = o.optString("chain");
             r.entryPrice = o.optDouble("entryPrice"); r.exitPrice = o.optDouble("exitPrice");
             r.pnlUsd = o.optDouble("pnlUsd"); r.pnlPct = o.optDouble("pnlPct");

@@ -7,37 +7,27 @@ public final class CandlePatterns {
 
     public static List<String> detect(DexCandidate c) {
         List<String> p = new ArrayList<>();
-        double h1 = c.change1h, h24 = c.change24h;
-        double total = c.buys24h + c.sells24h;
-        double buyR = total > 0 ? (double) c.buys24h / total : 0.5;
-        double volR = c.liquidityUsd > 0 ? c.volume24hUsd / c.liquidityUsd : 0;
-        double ageH = c.pairCreatedAtMs > 0 ? (System.currentTimeMillis() - c.pairCreatedAtMs) / 3_600_000.0 : 0;
-
-        // Momentum
-        if (h1 > 0 && h24 > 0 && h1 > h24 / 12.0 * 2.5)         p.add("MOMENTUM_ACCEL");
-        if (Math.abs(h1) > 3.0 && Math.abs(h24) < 8.0)            p.add(h1 > 0 ? "BREAKOUT_UP" : "BREAKOUT_DN");
-        if (h1 > 1.0 && h1 < 15.0 && buyR > 0.65 && volR > 2.0)  p.add("PUMP_SETUP");
-
-        // Reversals
-        if (h24 < -15.0 && h1 > 2.0 && buyR > 0.55)              p.add("HAMMER");
-        if (h24 > 20.0  && h1 < -2.0 && buyR < 0.45)             p.add("SHOOTING_STAR");
-        if (h24 < -10.0 && h1 > 0.5  && h1 < 8.0 && buyR > 0.5) p.add("MORNING_STAR");
-        if (h24 > 10.0  && h1 < -0.5 && h1 > -8.0 && buyR < 0.5)p.add("EVENING_STAR");
-        if (h1 > 0 && buyR > 0.60 && volR > 5.0)                  p.add("ENGULFING_BULL");
-        if (h1 < 0 && buyR < 0.40 && volR > 5.0)                  p.add("ENGULFING_BEAR");
-
-        // Volume
-        if (volR > 8.0)                                            p.add("VOL_SURGE");
-        if (volR < 0.3 && total < 50)                              p.add("VOL_DRY");
-        if (volR > 3.0 && buyR > 0.45 && buyR < 0.55 && total > 500) p.add("WASH_VOL");
-        if (Math.abs(h24) > 100.0 && volR > 10.0)                 p.add("CLIMAX");
-
-        // Trend
-        if (Math.abs(h24) < 5.0 && buyR > 0.55 && ageH > 12)    p.add("ACCUMULATION");
-        if (h24 > 30.0 && Math.abs(h1) < 2.0 && buyR < 0.48)    p.add("DISTRIBUTION");
-        if (h24 < -40.0 && h1 > 1.0 && h1 < 8.0)                p.add("DEAD_CAT");
-        if (h24 > 15.0 && h1 > -5.0 && h1 < 0 && buyR > 0.45)  p.add("BULL_FLAG");
-        if (h24 < -15.0 && h1 > 0 && h1 < 5.0 && buyR < 0.55)  p.add("BEAR_FLAG");
+        if (c == null || !Ohlcv.valid(c.candles, c.candleIntervalMs, System.currentTimeMillis(), 3)) return p;
+        List<Ohlcv> bars = c.candles;
+        Ohlcv a = bars.get(bars.size() - 3), b = bars.get(bars.size() - 2), d = bars.get(bars.size() - 1);
+        double body = Math.abs(d.close - d.open), range = d.high - d.low;
+        double upper = d.high - Math.max(d.close, d.open), lower = Math.min(d.close, d.open) - d.low;
+        boolean down = a.close > b.close, up = a.close < b.close;
+        if (range > 0 && body >= range * 0.05 && body <= range * 0.35) {
+            if (down && lower >= 2 * body && upper <= body * 0.5) p.add("HAMMER");
+            if (up && upper >= 2 * body && lower <= body * 0.5) p.add("SHOOTING_STAR");
+        }
+        if (b.close < b.open && d.close > d.open && d.open <= b.close && d.close >= b.open) p.add("ENGULFING_BULL");
+        if (b.close > b.open && d.close < d.open && d.open >= b.close && d.close <= b.open) p.add("ENGULFING_BEAR");
+        double firstBody = Math.abs(a.close - a.open), middleBody = Math.abs(b.close - b.open);
+        if (firstBody > 0 && middleBody < firstBody * 0.3) {
+            if (a.close < a.open && d.close > d.open && d.close > (a.open + a.close) / 2
+                    && Math.max(b.open, b.close) < a.close) p.add("MORNING_STAR");
+            if (a.close > a.open && d.close < d.open && d.close < (a.open + a.close) / 2
+                    && Math.min(b.open, b.close) > a.close) p.add("EVENING_STAR");
+        }
+        if (Ohlcv.valid(bars, c.candleIntervalMs, System.currentTimeMillis(), 60)
+                && Ohlcv.analyze(bars, c.candleIntervalMs, System.currentTimeMillis()).volumeRatio >= 2) p.add("VOL_SURGE");
 
         return p;
     }

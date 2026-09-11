@@ -27,7 +27,7 @@ public final class DexBotService extends Service {
         startForeground(808, notification());
         handler.removeCallbacks(loop);
         handler.post(loop);
-        return START_NOT_STICKY;
+        return START_STICKY;
     }
     @Override public void onDestroy() {
         handler.removeCallbacks(loop);
@@ -39,6 +39,12 @@ public final class DexBotService extends Service {
             store.save();
         }
         super.onDestroy();
+    }
+    @Override public void onTimeout(int startId, int fgsType) {
+        DexAppStore store = DexAppStore.get(this);
+        store.engine.stop("Android background time limit reached. Reopen Nanu to resume position monitoring.");
+        store.lastCritical = store.lastStatus; store.save();
+        stopSelf(startId);
     }
     @Override public IBinder onBind(Intent intent) { return null; }
 
