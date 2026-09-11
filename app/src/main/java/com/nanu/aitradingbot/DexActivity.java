@@ -59,6 +59,7 @@ public final class DexActivity extends Activity {
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         store = DexAppStore.get(this);
+        if (store.engine.hasPosition()) ensureMonitorService();
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 71);
@@ -177,7 +178,7 @@ public final class DexActivity extends Activity {
         if (store.hasWallet())
             hero.addView(text(shortAddr(store.solanaAddress) + "  (SOL)", 13, MUTED, false));
         hero.addView(text(store.hasWallet() ?
-            "Paper scanner active. Mainnet swaps are security-blocked." :
+            "Paper scanner active. Mainnet swaps are blocked." :
             "Go to Wallet tab to create a separate bot wallet.", 12, MUTED, false));
         gap(hero, 10);
         LinearLayout metrics = row();
@@ -247,7 +248,7 @@ public final class DexActivity extends Activity {
         }
         for (DexCandidate c : items) {
             List<String> patterns = CandlePatterns.detect(c);
-            int adjScore = c.riskScore + CandlePatterns.scoreAdj(patterns);
+            int adjScore = c.riskScore;
             LinearLayout box = card();
             LinearLayout titleRow = row();
             // Chain badge
@@ -351,7 +352,7 @@ public final class DexActivity extends Activity {
         DexEngine.Position p = store.engine.position();
         if (p == null) {
             box.addView(text("No position open. Paper automation is the only execution available "
-                + "until swap signing passes device tests.", 13, MUTED, false));
+                + "in this build. Mainnet execution remains blocked.", 13, MUTED, false));
         } else {
             positionSummary(box, p, false);
             gap(box, 10);
@@ -497,7 +498,10 @@ public final class DexActivity extends Activity {
 
     private void control() {
         LinearLayout box = card();
+        if (store.panic) box.addView(command("Clear Panic after position recovery", AMBER,
+            v -> { store.engine.clearPanic(); render(false); }));
         box.addView(text("RISK CONTROLS", 17, WHITE, true));
+        box.addView(text(store.engine.riskSummary(), 12, AMBER, false));
         box.addView(text("These limits control paper decisions and will remain hard limits "
             + "if live execution is ever enabled.", 12, MUTED, false));
         gap(box, 8);
@@ -505,6 +509,9 @@ public final class DexActivity extends Activity {
             v -> editNum("Max paper trade", store.maxTradeUsd, 1, 10_000, x -> store.maxTradeUsd = x));
         setting(box, "Daily loss limit", money(store.maxDailyLossUsd) + " USD",
             v -> editNum("Max daily loss", store.maxDailyLossUsd, 1, 10_000, x -> store.maxDailyLossUsd = x));
+        setting(box, "Slippage / execution friction cap", store.maxSlippagePercent + "%",
+            v -> editNum("Max execution friction percent", store.maxSlippagePercent, 0.01, 5, x -> store.maxSlippagePercent = x));
+        box.addView(text("Paper capital starts at $1,000. Hard caps: one position, $100 exposure, $1 modeled stop risk, three consecutive losses. Loss cooldown: 5 minutes.", 12, MUTED, false));
         setting(box, "Daily trade limit", String.valueOf(store.maxTradesPerDay),
             v -> editNum("Max daily trades", store.maxTradesPerDay, 1, 20, x -> store.maxTradesPerDay = (int)x));
         setting(box, "Minimum liquidity", money(store.minLiquidityUsd),
@@ -546,6 +553,9 @@ public final class DexActivity extends Activity {
             13, WHITE, false));
         box.addView(text("P/L " + money(p.pnlUsd) + "  |  Target " + dollar(p.targetPrice)
             + "  |  Stop " + dollar(p.stopPrice), 13, p.pnlUsd >= 0 ? GREEN : RED, true));
+        long quoteAge = Math.max(0, (System.currentTimeMillis() - p.markAtMs) / 1000);
+        box.addView(text("Quote received " + quoteAge + "s ago" + (quoteAge > 90 ? " - STALE" : "")
+            + (p.exitReason.isEmpty() ? "" : " | EXIT PENDING: " + p.exitReason), 12, quoteAge > 90 ? RED : AMBER, false));
         if (!compact)
             box.addView(text("Paper-only. No token purchased; no blockchain transaction exists.",
                 12, AMBER, false));
@@ -564,6 +574,11 @@ public final class DexActivity extends Activity {
         } catch (Exception e) { return null; }
     }
 
+    private void ensureMonitorService() {
+        Intent svc = new Intent(this, DexBotService.class);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(svc); else startService(svc);
+    }
+
     private void startScanner() {
         if (store.panic) { toast("Clear Panic in Control first."); return; }
         store.engine.start();
@@ -573,11 +588,11 @@ public final class DexActivity extends Activity {
     }
 
     private void pauseScanner() {
-        store.engine.stop("Scanner paused."); stopService(new Intent(this, DexBotService.class)); render(false);
+        store.engine.stop("Entries paused; positions remain monitored."); render(false);
     }
 
     private void panic() {
-        store.engine.panic(); stopService(new Intent(this, DexBotService.class)); render(false);
+        store.engine.panic(); ensureMonitorService(); render(false);
     }
 
     private void createWallet() {

@@ -30,19 +30,5 @@ public class DexSafetyPolicyTest {
         assertEquals(false, DexSafetyPolicy.canOpenPaperPosition(c, 1));
     }
 
-    private DexCandidate good() {
-        DexCandidate c = new DexCandidate();
-        c.chain = "bsc";
-        c.tokenAddress = "0x123";
-        c.pairAddress = "0x456";
-        c.priceUsd = 1;
-        c.liquidityUsd = 80_000;
-        c.volume24hUsd = 60_000;
-        c.pairCreatedAtMs = System.currentTimeMillis() - 48L * 60L * 60L * 1000L;
-        c.buys24h = 120;
-        c.sells24h = 90;
-        c.change1h = 2.5;
-        c.change24h = 9;
-        return c;
-    }
+    private DexCandidate good() { return PaperFixtures.good(System.currentTimeMillis()); }
 }

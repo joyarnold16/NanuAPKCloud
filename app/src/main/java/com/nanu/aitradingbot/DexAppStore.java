@@ -47,7 +47,7 @@ public final class DexAppStore {
     public String dailyKey = "";
     public int evolutionGeneration = 0;
     public String evolutionSummary = "";
-    public List<TradeRecord> tradeHistory = new ArrayList<>();
+    public List<TradeRecord> tradeHistory = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     public final DexEngine engine;
 
@@ -134,6 +134,16 @@ public final class DexAppStore {
             .putInt("evolutionGeneration", evolutionGeneration)
             .putString("evolutionSummary", evolutionSummary)
             .apply();
+    }
+
+    PaperLedger.Storage paperStorage() {
+        return new PaperLedger.Storage() {
+            public String read() { return prefs.contains("paperLedgerV1") ? prefs.getString("paperLedgerV1", "") : null; }
+            public void write(String snapshot) {
+                if (!prefs.edit().putString("paperLedgerV1", snapshot).commit())
+                    throw new IllegalStateException("Paper ledger could not be saved");
+            }
+        };
     }
 
     public void addTradeRecord(TradeRecord record) {

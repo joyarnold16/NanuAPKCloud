@@ -20,6 +20,10 @@ public final class DexCandidate {
     public long pairCreatedAtMs;
     public String sourceUrl = "";
 
+    public long observedAtMs;
+    public TokenSecurity security = new TokenSecurity();
+    public java.util.List<Ohlcv> candles = new java.util.ArrayList<>();
+    public long candleIntervalMs = 300_000;
     public int riskScore;
     public String decision = "WATCHING";
     public String reason = "Waiting for a market scan.";
