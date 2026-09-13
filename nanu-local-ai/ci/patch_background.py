@@ -5,7 +5,7 @@ import shutil
 
 project = Path('llama-upstream/examples/llama.android')
 app = project / 'app/src/main'
-for name in ['ChatStore.kt', 'LocalTaskService.kt', 'TaskScreenSession.kt', 'ImageEditInput.kt', 'ProEntitlement.kt', 'ProBilling.kt', 'ProStore.kt', 'ProActivity.kt']:
+for name in ['ChatStore.kt', 'LocalTaskService.kt', 'TaskScreenSession.kt', 'ImageEditInput.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt', 'ProEntitlement.kt', 'ProBilling.kt', 'ProStore.kt', 'ProActivity.kt']:
     shutil.copyfile(Path('nanu-local-ai/app') / name, app / 'java/com/example/llama' / name)
 android = '{http://schemas.android.com/apk/res/android}'
 ET.register_namespace('android', android[1:-1])

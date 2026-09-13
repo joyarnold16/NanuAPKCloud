@@ -10,11 +10,13 @@ Nanu locally stores or processes:
 - user prompts and local model responses
 - downloaded language/image models
 - imported documents and extracted document text
+- explicit project memory notes and local-agent instructions
 - generated images
 - app settings
 - Ask My Files history
 - optional local copies of AI safety reports
 - trade journal data and virtual-money paper-trading data
+- bounded local tool calls and results
 
 These flows stay on the device unless the user deliberately shares/exports content or explicitly submits an AI safety report.
 

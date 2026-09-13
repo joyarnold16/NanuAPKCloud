@@ -71,7 +71,7 @@ class LocalTaskService : Service() {
                 ensureActive()
                 wakeLock = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Nanu:LocalTask").apply { acquire(65 * 60 * 1000L) }
                 val request = JSONObject(task!!.request)
-                if (request.optBoolean("proFeature") || request.has("batchInputs")) check(ProEntitlement.enabled(this@LocalTaskService)) { "Restore Nanu Pro before using this tool." }
+                if (request.optBoolean("proFeature") || request.has("batchInputs") || request.optBoolean("agentTools")) check(ProEntitlement.enabled(this@LocalTaskService)) { "Restore Nanu Pro before using this tool." }
                 withTimeout(60 * 60 * 1000L) {
                     if (request.optBoolean("image")) {
                         val batch = request.optJSONArray("batchInputs")
@@ -105,21 +105,42 @@ class LocalTaskService : Service() {
                                 else -> Unit
                             }
                             engine.loadModel(model.absolutePath)
-                            engine.setSystemPrompt(request.getString("system"))
-                            val raw = StringBuilder()
-                            var saved = 0L
-                            var tokens = 0
+                            val toolsEnabled = request.optBoolean("agentTools")
+                            val projectAvailable = request.optString("projectId").isNotBlank()
+                            engine.setSystemPrompt(request.getString("system") + if(toolsEnabled) NanuToolRegistry.systemPrompt(projectAvailable) else "")
+                            var nextPrompt = request.getString("prompt")
+                            var totalTokens = 0
+                            var toolSteps = 0
+                            var finalAnswer = false
                             val started = android.os.SystemClock.elapsedRealtime()
-                            engine.sendUserPrompt(request.getString("prompt")).collect { token ->
-                                tokens++
-                                raw.append(token)
-                                reply = reply!!.copy(content=visibleText(raw.toString()).ifBlank { "Thinking locally…" }, status="Generating")
-                                val now = android.os.SystemClock.elapsedRealtime()
-                                if (now - saved >= 300) { store.update(task!!, reply!!); saved = now }
+                            while(!finalAnswer) {
+                                val raw = StringBuilder()
+                                var saved = 0L
+                                engine.sendUserPrompt(nextPrompt).collect { token ->
+                                    totalTokens++
+                                    raw.append(token)
+                                    val visible = visibleText(raw.toString())
+                                    val choosingTool = toolsEnabled && visible.trimStart().startsWith("<tool_call>")
+                                    reply = reply!!.copy(content=if(choosingTool) "Choosing a safe local tool…" else visible.ifBlank { "Thinking locally…" }, status=if(choosingTool) "Agent planning" else "Generating")
+                                    val now = android.os.SystemClock.elapsedRealtime()
+                                    if (now - saved >= 300) { store.update(task!!, reply!!); saved = now }
+                                }
+                                check(raw.isNotEmpty()) { "The model returned no answer. Try a shorter prompt or conversation." }
+                                val call = if(toolsEnabled) NanuToolRegistry.parseCall(raw.toString()) else null
+                                if(call == null) {
+                                    reply = reply!!.copy(content=visibleText(raw.toString()).ifBlank { "The model returned no visible answer." })
+                                    finalAnswer = true
+                                } else {
+                                    check(toolSteps < NanuToolRegistry.MAX_TOOL_STEPS) { "The local agent reached its tool-step limit." }
+                                    val result = NanuToolRegistry.execute(this@LocalTaskService,request,call)
+                                    toolSteps++
+                                    reply = reply!!.copy(content="Used ${result.name.replace('_',' ')} locally. Preparing answer…",status="Agent step $toolSteps/${NanuToolRegistry.MAX_TOOL_STEPS}")
+                                    store.update(task!!,reply!!)
+                                    nextPrompt = NanuToolRegistry.followUpPrompt(result)
+                                }
                             }
-                            check(raw.isNotEmpty()) { "The model returned no answer. Try a shorter prompt or conversation." }
                             val seconds = (android.os.SystemClock.elapsedRealtime() - started).coerceAtLeast(1) / 1000.0
-                            reply = reply!!.copy(status="Complete", generationStats=String.format(java.util.Locale.US, "%d tokens • %.1f tok/s • %.1fs", tokens, tokens / seconds, seconds))
+                            reply = reply!!.copy(status=if(toolSteps>0) "Complete • $toolSteps local tool${if(toolSteps==1) "" else "s"}" else "Complete", generationStats=String.format(java.util.Locale.US, "%d tokens • %.1f tok/s • %.1fs", totalTokens, totalTokens / seconds, seconds))
                         } finally {
                             withContext(NonCancellable) { runCatching { engine.cleanUp() } }
                         }

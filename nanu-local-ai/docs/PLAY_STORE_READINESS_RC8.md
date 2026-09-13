@@ -9,6 +9,7 @@ Date reviewed: 26 August 2026
 - 16 KB page-size validation for every packaged native `.so` using ELF LOAD alignment checks.
 - No ads or analytics SDKs in the current source.
 - Local-first LLM/image inference and document processing.
+- Local project RAG, user-controlled memory notes and bounded allow-listed agent tools.
 - Android system document picker instead of broad storage permissions.
 - Microphone permission requested contextually for voice features.
 - No location, contacts, SMS, call-log, broad package-query or all-files permissions.

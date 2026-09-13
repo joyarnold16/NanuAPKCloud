@@ -7,3 +7,7 @@ local.properties
 *.keystore
 server/.env
 server/data/
+/llama-upstream/
+/stable-diffusion-upstream/
+/sd-build/
+/out/

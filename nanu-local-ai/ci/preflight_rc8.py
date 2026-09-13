@@ -15,7 +15,7 @@ required = [
     'app/ImageModelManager.kt', 'app/Rc8HomeActivity.kt', 'app/FileChatActivity.kt',
     'app/ContinuousTalkActivity.kt', 'app/CreateStudioActivity.kt',
     'app/PaperTradingActivity.kt', 'app/SafetyPrivacyActivity.kt', 'app/AiReportClient.kt',
-    'app/SafetyGuard.kt',
+    'app/SafetyGuard.kt', 'app/LocalRagEngine.kt', 'app/NanuToolRegistry.kt', 'app/ProStore.kt',
     'res/layout/activity_main.xml', 'res/layout/activity_talk.xml',
     'res/layout/activity_create.xml', 'res/layout/activity_trading.xml',
     'res/layout/activity_rc8_home.xml', 'res/layout/activity_file_chat.xml',
@@ -55,7 +55,7 @@ for marker in [
     'versionCode = 22', 'versionName = "1.0-rc8"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
-    'AiReportClient.kt', 'SafetyGuard.kt', 'patch_safety_rc8.py',
+    'AiReportClient.kt', 'SafetyGuard.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt', 'ProStore.kt', 'patch_safety_rc8.py',
     'android:allowBackup=\\"false\\"', '-dontwarn com.gemalto.jp2.**',
     'out/nanu-local-ai-v1.0-rc8.apk'
 ]:

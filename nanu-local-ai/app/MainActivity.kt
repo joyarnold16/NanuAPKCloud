@@ -101,6 +101,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private var currentMode = AssistantMode.GENERAL
     private var currentAttachment: NanuAttachment? = null
     private var lastUserPrompt: String? = null
+    private var speakingMessageId: String? = null
 
     private val prefs by lazy { getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
     private val modelDownloader by lazy { ModelDownloadManager(applicationContext) }
@@ -171,11 +172,12 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         messageAdapter = MessageAdapter(
             messages = messages,
             onCopy = ::copyText,
-            onSpeak = ::speakText,
+            onSpeak = ::toggleSpeakMessage,
             onRegenerate = ::regenerateMessage,
             onShare = ::shareMessage,
             onEditPrompt = ::editMessagePrompt,
-            onSaveImage = ::saveImageMessage
+            onSaveImage = ::saveImageMessage,
+            onReport = ::reportMessage
         )
         messagesRv.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
         messagesRv.adapter = messageAdapter
@@ -501,6 +503,12 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         val userMsg = userInputEt.text.toString().trim()
         if (userMsg.isEmpty()) return
 
+        SafetyGuard.blockedReason(userMsg, image = currentMode == AssistantMode.IMAGE)?.let { reason ->
+            modelStatusTv.text = reason
+            Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+            return
+        }
+
         if (currentMode == AssistantMode.IMAGE) {
             if (!imageModelReady()) {
                 offerImageModelDownload()
@@ -540,8 +548,12 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                     attachment?.let { append("\n" + it.contextForPrompt()) }
                 }
                 val request = JSONObject().put("prompt", prompt).put("image", mode == AssistantMode.IMAGE)
-                    .put("model", currentModelFile?.absolutePath.orEmpty()).put("system", BASE_SYSTEM_PROMPT + ProStore.assistantInstructions(this@MainActivity) + SafetyGuard.SYSTEM_RULES).toString()
-                LocalTaskService.submit(applicationContext, id, user, reply, request, mode.id)
+                    .put("model", currentModelFile?.absolutePath.orEmpty()).put("system", BASE_SYSTEM_PROMPT + ProStore.assistantInstructions(this@MainActivity))
+                if(mode != AssistantMode.IMAGE && ProStore.agentToolsEnabled(this@MainActivity)) {
+                    request.put("agentTools",true)
+                    ProStore.activeProject(this@MainActivity)?.let { request.put("projectId",it) }
+                }
+                LocalTaskService.submit(applicationContext, id, user, reply, request.toString(), mode.id)
                 if (fromVoice) voiceReplyId = reply.id
                 userInputEt.setText("")
                 currentAttachment = null
@@ -581,6 +593,20 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             .putExtra(CreateStudioActivity.EXTRA_IMAGE_OPTIONS, options)
             .putExtra(CreateStudioActivity.EXTRA_IMAGE_PROMPT, message.sourcePrompt.orEmpty()))
         return true
+    }
+
+    private fun reportMessage(message: Message) {
+        val reportText = buildString {
+            append(message.content.take(8000))
+            message.sourcePrompt?.takeIf { it.isNotBlank() }?.let {
+                append("\n\nUser prompt:\n")
+                append(it.take(2000))
+            }
+            if (!message.imagePath.isNullOrBlank()) append("\n\nThis response included a locally generated image.")
+        }
+        startActivity(Intent(this, SafetyPrivacyActivity::class.java).apply {
+            putExtra(SafetyPrivacyActivity.EXTRA_REPORTED_CONTENT, reportText)
+        })
     }
 
     private fun shareMessage(message: Message) {
@@ -710,31 +736,57 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             Toast.makeText(this, "The local LLM engine is still starting.", Toast.LENGTH_SHORT).show()
             return
         }
-        val files = storedModelFiles()
+
         val ramGb = totalDeviceRamGb()
         val best = ModelCatalog.bestForRam(ramGb, if (currentMode == AssistantMode.CODING) "coding" else null)
         val activeModel = activeDownloadModel()
-        val labels = mutableListOf(
-            "★ Recommended • ${best.name}",
-            "Import your own GGUF"
-        )
-        if (activeModel != null) labels += "↓ Download in progress • ${activeModel.name}"
-        val fileStart = labels.size
-        labels += files.map { "${it.nameWithoutExtension} • ${formatBytes(it.length())}" }
-        if (files.isNotEmpty()) labels += "Delete a stored model…"
+        val ordered = listOf(best) + ModelCatalog.models.filter { it.id != best.id }
+        val catalogPaths = ModelCatalog.models.map { modelDownloader.destinationFile(it).absolutePath }.toSet()
+        val allFiles = storedModelFiles()
+        val customFiles = allFiles.filterNot { it.absolutePath in catalogPaths }
+
+        val labels = ordered.map { model ->
+            val downloaded = modelDownloader.destinationFile(model).let { it.exists() && modelDownloader.looksLikeGguf(it) }
+            val role = when (model.id) {
+                "qwen3-1.7b-q4km" -> "Everyday • fast balance"
+                "qwen2.5-coder-1.5b-q4km" -> "Coding • fast"
+                "qwen3-4b-q4km" -> "Better quality • slower"
+                "gemma3-1b-q4km" -> "Lightweight • very fast"
+                "qwen3-8b-q4km" -> "Advanced • heavy / slow"
+                else -> model.useCase
+            }
+            val badge = when {
+                activeModel?.id == model.id -> "↓ DOWNLOADING"
+                downloaded -> "✓ DOWNLOADED"
+                model.id == best.id -> "★ RECOMMENDED"
+                ramGb + 0.25 >= model.minimumRamGb -> "○ AVAILABLE"
+                else -> "⚠ HEAVY FOR THIS DEVICE"
+            }
+            "$badge • $role\n${model.name} • ${model.sizeLabel} • ${model.minimumRamGb} GB+ RAM"
+        }.toMutableList()
+
+        val importIndex = labels.size
+        labels += "Import your own GGUF"
+        val customStart = labels.size
+        labels += customFiles.map { "Custom • ${it.nameWithoutExtension} • ${formatBytes(it.length())}" }
+        val deleteIndex = if (allFiles.isNotEmpty()) labels.size else -1
+        if (deleteIndex >= 0) labels += "Delete a stored model…"
 
         AlertDialog.Builder(this)
             .setTitle("Local models • ${String.format(Locale.US, "%.1f", ramGb)} GB RAM")
             .setItems(labels.toTypedArray()) { _, which ->
                 when {
-                    which == 0 -> showRecommendedModelCatalog(ramGb)
-                    which == 1 -> openModelDocument.launch(arrayOf("*/*"))
-                    activeModel != null && which == 2 -> showActiveDownload(activeModel)
-                    which in fileStart until fileStart + files.size -> {
-                        val file = files[which - fileStart]
+                    which < ordered.size -> {
+                        val model = ordered[which]
+                        if (activeModel?.id == model.id) showActiveDownload(model)
+                        else showModelSuggestionDetail(model, ramGb, best.id)
+                    }
+                    which == importIndex -> openModelDocument.launch(arrayOf("*/*"))
+                    which in customStart until customStart + customFiles.size -> {
+                        val file = customFiles[which - customStart]
                         lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension) }
                     }
-                    else -> showDeleteModelDialog(files)
+                    deleteIndex >= 0 && which == deleteIndex -> showDeleteModelDialog(allFiles)
                 }
             }
             .setNegativeButton("Close", null)
@@ -1034,8 +1086,38 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         else -> "$bytes B"
     }
 
+    private fun toggleSpeakMessage(message: Message) {
+        if (!ttsReady || message.content.isBlank()) {
+            Toast.makeText(this, "Voice is not ready yet.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (speakingMessageId == message.id && tts?.isSpeaking == true) {
+            tts?.stop()
+            clearSpeakingMessageUi()
+            return
+        }
+
+        tts?.stop()
+        speakingMessageId = message.id
+        messageAdapter.setSpeakingMessage(message.id)
+        val result = tts?.speak(
+            message.content.take(3500),
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            MESSAGE_SPEAK_PREFIX + message.id
+        ) ?: TextToSpeech.ERROR
+        if (result == TextToSpeech.ERROR) clearSpeakingMessageUi()
+    }
+
+    private fun clearSpeakingMessageUi() {
+        speakingMessageId = null
+        if (::messageAdapter.isInitialized) messageAdapter.setSpeakingMessage(null)
+    }
+
     private fun speakText(text: String) {
         if (!ttsReady || text.isBlank()) return
+        clearSpeakingMessageUi()
         tts?.speak(text.take(3500), TextToSpeech.QUEUE_FLUSH, null, "nanu_reply_${System.currentTimeMillis()}")
     }
 
@@ -1053,8 +1135,17 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         ttsReady = selected != null && (tts?.setLanguage(selected) ?: TextToSpeech.LANG_NOT_SUPPORTED) >= TextToSpeech.LANG_AVAILABLE
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) = Unit
-            override fun onDone(utteranceId: String?) = Unit
-            @Deprecated("Deprecated in Java") override fun onError(utteranceId: String?) = Unit
+            override fun onDone(utteranceId: String?) {
+                if (utteranceId?.startsWith(MESSAGE_SPEAK_PREFIX) == true) {
+                    runOnUiThread { clearSpeakingMessageUi() }
+                }
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                if (utteranceId?.startsWith(MESSAGE_SPEAK_PREFIX) == true) {
+                    runOnUiThread { clearSpeakingMessageUi() }
+                }
+            }
         })
     }
 
@@ -1092,7 +1183,8 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         private const val KEY_IMAGE_DOWNLOAD_ID = "active_image_model_download"
         private const val DIRECTORY_MODELS = "models"
         private const val FILE_EXTENSION_GGUF = ".gguf"
-        private const val BASE_SYSTEM_PROMPT = "You are Nanu, a private on-device assistant. Follow the NANU MODE instruction included with each user request. Never reveal hidden chain-of-thought, private reasoning, or <think> blocks. Return only useful final answers."
+        private const val MESSAGE_SPEAK_PREFIX = "nanu_message_"
+        private val BASE_SYSTEM_PROMPT = "You are Nanu, a private on-device assistant. Follow the NANU MODE instruction included with each user request. Never reveal hidden chain-of-thought, private reasoning, or <think> blocks. Return only useful final answers." + SafetyGuard.SYSTEM_RULES
     }
 }
 

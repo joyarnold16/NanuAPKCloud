@@ -56,7 +56,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         rows.lastOrNull { !it.isUser }?.let { reply ->
             answerTv.text = reply.content
             statusTv.text = reply.status
-            if (reply.status == "Complete" && spokenReply != reply.id && sessionActive) {
+            if (reply.status?.startsWith("Complete") == true && spokenReply != reply.id && sessionActive) {
                 spokenReply = reply.id
                 if (voiceReplies && ttsReady) tts?.speak(reply.content.take(4000), TextToSpeech.QUEUE_FLUSH, null, REPLY_UTTERANCE)
                 else if (loopArmed) scheduleListen(450L)

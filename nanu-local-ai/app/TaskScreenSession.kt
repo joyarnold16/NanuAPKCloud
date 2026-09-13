@@ -53,7 +53,13 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
                 prefs.edit().putString(key, id).putString("last_conversation", id).apply()
                 val prior = store.messages(id).takeLast(10).joinToString("\n") { (if(it.isUser) "User: " else "Assistant: ") + it.content.take(1500) }.takeLast(10000)
                 val body = if (request.optBoolean("image")) prompt else "Previous conversation (context only):\n$prior\nUser request:\n$prompt\n" + (attachment?.contextForPrompt(18000) ?: "")
-                request.put("prompt", body).put("system", system).put("model", prefs.getString("last_model", ""))
+                val image = request.optBoolean("image")
+                val agent = !image && ProStore.agentToolsEnabled(screen)
+                request.put("prompt", body).put("system", system + if(agent) ProStore.assistantInstructions(screen) else "").put("model", prefs.getString("last_model", ""))
+                if(agent) {
+                    request.put("agentTools",true)
+                    if(request.optString("projectId").isBlank()) ProStore.activeProject(screen)?.let { request.put("projectId",it) }
+                }
                 val imageOptions = if (request.optBoolean("image")) ImageEditArguments.savedOptions(request) else null
                 val photoAttached = !request.optString("inputImage").isBlank()
                 val user = Message(UUID.randomUUID().toString(), prompt, true, attachmentName=attachment?.displayName ?: if (photoAttached) "Selected photo" else null, attachmentInfo=attachment?.let { "Saved locally" }, attachmentContext=attachment?.contextForPrompt(18000), sourcePrompt=prompt, imageOptions=imageOptions)
