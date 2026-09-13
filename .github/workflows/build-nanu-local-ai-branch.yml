@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/nanu-local-ai-v1
+      - feature/nanu-intelligence-v2
     paths:
       - 'nanu-local-ai/**'
       - '.github/workflows/build-nanu-local-ai-branch.yml'
