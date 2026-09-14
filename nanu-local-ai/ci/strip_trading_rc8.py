@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 APP = Path("llama-upstream/examples/llama.android/app/src/main")
 JAVA = APP / "java/com/example/llama"
 ANDROID = "{http://schemas.android.com/apk/res/android}"
+ET.register_namespace("android", ANDROID[1:-1])
 
 obsolete = [
     JAVA / "TradingActivity.kt",
@@ -35,6 +36,14 @@ for activity in list(application.findall("activity")):
     if activity.get(ANDROID + "name") in blocked_activities:
         application.remove(activity)
 tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
+
+# Android accepts any correctly bound prefix, but retaining the conventional
+# android prefix also protects downstream manifest tooling from malformed raw
+# namespace output.
+rewritten_manifest = manifest_path.read_text()
+if 'xmlns:android="http://schemas.android.com/apk/res/android"' not in rewritten_manifest:
+    raise SystemExit("Generated Android manifest lost its android namespace binding")
+ET.parse(manifest_path)
 
 checks = {
     JAVA / "MainActivity.kt": ["AssistantMode.TRADING", "plus_trading"],
