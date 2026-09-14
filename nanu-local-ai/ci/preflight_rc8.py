@@ -56,7 +56,7 @@ for xml in [p for p in (ROOT / 'res/layout').glob('*.xml')] + [ROOT / 'res/xml/n
 
 build = (ROOT / 'ci/build_rc8.sh').read_text() if (ROOT / 'ci/build_rc8.sh').exists() else ''
 for marker in [
-    'versionCode = 22', 'versionName = "1.0-rc8"',
+    'versionCode = 23', 'versionName = "1.0-rc8.1"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'SafetyPrivacyActivity.kt',
     'AiReportClient.kt', 'SafetyGuard.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt',
@@ -151,9 +151,22 @@ for marker in ['includeEmpty: Boolean', "state='stopped'", "state='interrupted'"
         errors.append(f'chat recovery/deletion missing marker: {marker}')
 
 task_service = (ROOT / 'app/LocalTaskService.kt').read_text() if (ROOT / 'app/LocalTaskService.kt').exists() else ''
-for marker in ['active.value = false', 'failureMessage(error:', 'Nanu could not start or finish']:
+for marker in [
+    'active.value = false', 'failureMessage(error:', 'Nanu could not start or finish',
+    'Starting the local AI engine', 'Loading local model', 'Preparing local model',
+    'catch (e: LinkageError)', 'engineStateName(engine.state.value)'
+]:
     if marker not in task_service:
         errors.append(f'task recovery/error UI missing marker: {marker}')
+
+task_session = (ROOT / 'app/TaskScreenSession.kt').read_text() if (ROOT / 'app/TaskScreenSession.kt').exists() else ''
+if 'POST_NOTIFICATIONS' in task_session or 'RequestPermission()' in task_session:
+    errors.append('background task submission must not be blocked on notification permission')
+
+main_chat = (ROOT / 'app/MainActivity.kt').read_text() if (ROOT / 'app/MainActivity.kt').exists() else ''
+for marker in ['withTimeout(45_000L)', 'RC8.1 • selected', 'Chat is still starting']:
+    if marker not in main_chat:
+        errors.append(f'main chat runtime diagnostic missing marker: {marker}')
 
 safety_patch = (ROOT / 'ci/patch_safety_rc8.py').read_text() if (ROOT / 'ci/patch_safety_rc8.py').exists() else ''
 for marker in ['SafetyGuard.blockedReason(userMsg', 'ContinuousTalkActivity.kt', 'FileChatActivity.kt', 'SafetyGuard.SYSTEM_RULES']:
