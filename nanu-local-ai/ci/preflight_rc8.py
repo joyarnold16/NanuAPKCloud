@@ -17,6 +17,7 @@ required = [
     'app/SafetyPrivacyActivity.kt', 'app/AiReportClient.kt',
     'app/SafetyGuard.kt', 'app/LocalRagEngine.kt', 'app/NanuToolRegistry.kt',
     'app/OnlineToolClient.kt', 'app/TarotDeck.kt', 'app/TarotActivity.kt', 'app/ProStore.kt',
+    'app/ChatStore.kt', 'app/LocalTaskService.kt', 'app/TaskScreenSession.kt',
     'res/layout/activity_main.xml', 'res/layout/activity_talk.xml',
     'res/layout/activity_create.xml',
     'res/layout/activity_rc8_home.xml', 'res/layout/activity_file_chat.xml',
@@ -143,6 +144,16 @@ for marker in ['SYSTEM_RULES', 'blockedReason', 'sexual or nude', 'self-harm', '
 image_generator = (ROOT / 'app/LocalImageGenerator.kt').read_text() if (ROOT / 'app/LocalImageGenerator.kt').exists() else ''
 if 'SafetyGuard.blockedReason(prompt, image = true)' not in image_generator:
     errors.append('LocalImageGenerator missing pre-generation safety check')
+
+chat_store = (ROOT / 'app/ChatStore.kt').read_text() if (ROOT / 'app/ChatStore.kt').exists() else ''
+for marker in ['includeEmpty: Boolean', "state='stopped'", "state='interrupted'", 'recoverInterrupted()']:
+    if marker not in chat_store:
+        errors.append(f'chat recovery/deletion missing marker: {marker}')
+
+task_service = (ROOT / 'app/LocalTaskService.kt').read_text() if (ROOT / 'app/LocalTaskService.kt').exists() else ''
+for marker in ['active.value = false', 'failureMessage(error:', 'Nanu could not start or finish']:
+    if marker not in task_service:
+        errors.append(f'task recovery/error UI missing marker: {marker}')
 
 safety_patch = (ROOT / 'ci/patch_safety_rc8.py').read_text() if (ROOT / 'ci/patch_safety_rc8.py').exists() else ''
 for marker in ['SafetyGuard.blockedReason(userMsg', 'ContinuousTalkActivity.kt', 'FileChatActivity.kt', 'SafetyGuard.SYSTEM_RULES']:

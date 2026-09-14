@@ -170,10 +170,19 @@ class LocalTaskService : Service() {
             } catch (e: CancellationException) {
                 withContext(NonCancellable) {
                     images.cancel()
-                    if (task != null && reply != null) store.update(task!!, reply!!.copy(status=if (e is TimeoutCancellationException) "Time limit reached — tap Regenerate to retry" else "Stopped"), "stopped")
+                    if (task != null && reply != null) {
+                        val timedOut = e is TimeoutCancellationException
+                        store.update(task!!, reply!!.copy(
+                            content = if (timedOut) "Nanu could not start or finish the local model in time. Try a shorter message or a smaller model." else reply!!.content,
+                            status = if (timedOut) "Time limit reached — tap Regenerate to retry" else "Stopped"
+                        ), "stopped")
+                    }
                 }
             } catch (e: Exception) {
-                if (task != null && reply != null) store.update(task!!, reply!!.copy(status="Failed: ${e.message ?: "Unknown error"}"), "failed")
+                if (task != null && reply != null) {
+                    val reason = failureMessage(e)
+                    runCatching { store.update(task!!, reply!!.copy(content=reason, status="Failed"), "failed") }
+                }
             } finally {
                 if (wakeLock?.isHeld == true) wakeLock?.release()
                 withContext(NonCancellable + Dispatchers.Main.immediate) {
@@ -185,7 +194,11 @@ class LocalTaskService : Service() {
         }
         return START_NOT_STICKY
     }
-    override fun onDestroy() { scope.cancel(); super.onDestroy() }
+    override fun onDestroy() {
+        active.value = false
+        scope.cancel()
+        super.onDestroy()
+    }
     companion object {
         private const val CHANNEL = "local_ai_tasks"
         private const val STOP = "com.nanu.localai.STOP_TASK"
@@ -210,6 +223,12 @@ class LocalTaskService : Service() {
         fun visibleText(raw: String): String {
             val cleaned = raw.replace(Regex("(?s)<think>.*?</think>"), "")
             return cleaned.substringBefore("<think>").replace("</think>", "").trimStart()
+        }
+        fun failureMessage(error: Throwable): String = when {
+            error is TimeoutCancellationException -> "Nanu took too long to answer. Try a shorter message or a smaller model."
+            error.message?.contains("Selected model is no longer available", ignoreCase = true) == true -> "The selected AI model is missing. Tap Model and download or select it again."
+            error.message?.contains("no answer", ignoreCase = true) == true -> "The model produced no answer. Try a shorter message or another model."
+            else -> "Nanu could not answer: ${error.message?.take(180) ?: "local AI error"}"
         }
     }
 }

@@ -51,8 +51,7 @@ class ChatStoreTest {
         val task = store.claim(taskId)!!
         repeat(3) { store.update(task, store.messages(id)[1].copy(content="partial $it")) }
         assertNull(store.claim(taskId))
-        try { store.delete(); fail("Running history must not be deleted") } catch (_: IllegalStateException) { }
-        store.update(task, store.messages(id)[1].copy(status="Stopped"), "stopped")
+        // A stale running task must never make confirmed history deletion impossible.
         store.delete()
         assertTrue(store.list().isEmpty())
     }
@@ -65,6 +64,18 @@ class ChatStoreTest {
         assertTrue(store.messages(id)[1].status!!.startsWith("Interrupted"))
         store.delete()
     }
+    @Test fun recoveryCanRunAgainAfterAnotherInterruptedTask() = runBlocking {
+        val first = store.create("general")
+        store.claim(queued(first))!!
+        store.recoverInterrupted()
+        assertTrue(store.messages(first)[1].status!!.startsWith("Interrupted"))
+
+        val second = store.create("general")
+        store.claim(store.enqueue(second,
+            Message("u2", "Second", true), Message("a2", "Preparing", false), "{}", "general"))!!
+        store.recoverInterrupted()
+        assertTrue(store.messages(second)[1].status!!.startsWith("Interrupted"))
+    }
     @Test fun oneTaskAtATimeAndFailedStartIsRecoverable(): Unit = runBlocking {
         val id = store.create("general")
         val task = queued(id)
@@ -76,6 +87,15 @@ class ChatStoreTest {
     @Test fun hidesCompleteAndPartialThinkingBlocks() {
         assertEquals("Answer", LocalTaskService.visibleText("<think>private</think>Answer"))
         assertEquals("", LocalTaskService.visibleText("<think>private"))
+    }
+    @Test fun emptyWorkingConversationIsHiddenFromHistoryButStillRecoverable() = runBlocking {
+        val id = store.create("general")
+        assertTrue(store.list(includeEmpty = false).isEmpty())
+        assertEquals(id, store.list(includeEmpty = true).single().id)
+    }
+    @Test fun failuresAreVisibleAsUsefulChatReplies() {
+        assertTrue(LocalTaskService.failureMessage(IllegalStateException("Selected model is no longer available")).contains("Tap Model"))
+        assertTrue(LocalTaskService.failureMessage(IllegalStateException("The model returned no answer")).contains("no answer"))
     }
     @Test fun importsLegacyFileHistoryOnce(): Unit = runBlocking {
         context.getSharedPreferences("nanu_file_chat", 0).edit().putString("history", """[{"file":"old.pdf","question":"Old question","answer":"Old answer","time":1234}]""").commit()

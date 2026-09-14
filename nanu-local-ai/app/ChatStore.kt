@@ -18,7 +18,6 @@ data class ChatTask(val id: String, val conversation: String, val message: Strin
 class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context, "chat_history.db", null, 1) {
     private val legacy = context.getSharedPreferences("nanu_file_chat", Context.MODE_PRIVATE)
     val changes = MutableStateFlow(0L)
-    private var recovered = false
     override fun onConfigure(db: SQLiteDatabase) { db.setForeignKeyConstraintsEnabled(true) }
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE conversations(id TEXT PRIMARY KEY, title TEXT NOT NULL, created INTEGER NOT NULL, updated INTEGER NOT NULL, mode TEXT NOT NULL)")
@@ -46,9 +45,10 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
         db.execSQL("INSERT INTO conversations VALUES(?, ?, ?, ?, ?)", arrayOf<Any>(id, "New conversation", now, now, mode))
         id
     }
-    suspend fun list(query: String = ""): List<Conversation> = access { db ->
+    suspend fun list(query: String = "", includeEmpty: Boolean = true): List<Conversation> = access { db ->
         val pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-        db.rawQuery("SELECT DISTINCT c.id,c.title,c.updated,c.mode FROM conversations c LEFT JOIN messages m ON m.conversation=c.id WHERE c.title LIKE ? ESCAPE '\\' OR m.payload LIKE ? ESCAPE '\\' ORDER BY c.updated DESC", arrayOf(pattern, pattern)).use { c ->
+        val nonEmpty = if (includeEmpty) "" else " AND EXISTS (SELECT 1 FROM messages saved WHERE saved.conversation=c.id)"
+        db.rawQuery("SELECT DISTINCT c.id,c.title,c.updated,c.mode FROM conversations c LEFT JOIN messages m ON m.conversation=c.id WHERE (c.title LIKE ? ESCAPE '\\' OR m.payload LIKE ? ESCAPE '\\')$nonEmpty ORDER BY c.updated DESC", arrayOf(pattern, pattern)).use { c ->
             buildList { while (c.moveToNext()) add(Conversation(c.getString(0), c.getString(1), c.getLong(2), c.getString(3))) }
         }
     }
@@ -63,8 +63,12 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
         db.execSQL("UPDATE conversations SET title=? WHERE id=?", arrayOf(title.trim().take(120), id))
     }
     suspend fun delete(id: String? = null) = access(true) { db ->
-        db.rawQuery("SELECT id FROM tasks WHERE state IN ('queued','running')" + if (id == null) "" else " AND conversation=?", if (id == null) null else arrayOf(id)).use {
-            check(!it.moveToFirst()) { "Stop the active task before deleting its history." }
+        // The user has already confirmed a permanent delete. Do not let a stale or
+        // system-killed foreground-service row make history impossible to clear.
+        if (id == null) {
+            db.execSQL("UPDATE tasks SET state='stopped',request='' WHERE state IN ('queued','running')")
+        } else {
+            db.execSQL("UPDATE tasks SET state='stopped',request='' WHERE state IN ('queued','running') AND conversation=?", arrayOf(id))
         }
         db.delete("conversations", if (id == null) null else "id=?", if (id == null) null else arrayOf(id))
         if (id == null) legacy.edit().remove("history").apply()
@@ -95,7 +99,6 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
         }
     }
     suspend fun recoverInterrupted() = access(true) { db ->
-        if (recovered) return@access
         // Deterministic IDs make migration safe to repeat if the process dies before preferences clear.
         val old = runCatching { JSONArray(legacy.getString("history", "[]")) }.getOrDefault(JSONArray())
         for (index in 0 until old.length()) {
@@ -110,7 +113,6 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
             while(c.moveToNext()) db.execSQL("UPDATE messages SET payload=? WHERE id=?", arrayOf(encode(decode(c.getString(1)).copy(status="Interrupted — tap Regenerate to retry")), c.getString(0)))
         }
         db.execSQL("UPDATE tasks SET state='interrupted',request='' WHERE state IN ('queued','running')")
-        recovered = true
     }.also { legacy.edit().remove("history").apply() }
     private fun put(db: SQLiteDatabase, conversation: String, m: Message) {
         val values = ContentValues().apply {

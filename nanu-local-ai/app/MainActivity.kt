@@ -209,15 +209,21 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
         lifecycleScope.launch {
             LocalTaskService.recover(applicationContext)
-            val existing = chatStore.list()
+            val existing = chatStore.list(includeEmpty = true)
             val wanted = intent.getStringExtra("conversation") ?: prefs.getString("last_conversation", null)
             conversationId = existing.firstOrNull { it.id == wanted }?.id ?: chatStore.create(currentMode.id)
             prefs.edit().putString("last_conversation", conversationId).apply()
             currentMode = AssistantMode.fromId(existing.firstOrNull { it.id == conversationId }?.mode ?: currentMode.id)
             refreshModeUi()
-            engineReady = true
-            restoreLastModelOrShowWelcome()
-            resumePendingModelDownload()
+            try {
+                withContext(Dispatchers.Default) { engine = AiChat.getInferenceEngine(applicationContext) }
+                engineReady = true
+                restoreLastModelOrShowWelcome()
+                resumePendingModelDownload()
+            } catch (e: Exception) {
+                setModelUi(null, false, "Local AI engine unavailable")
+                Toast.makeText(this@MainActivity, "Local AI engine failed to start: ${e.message}", Toast.LENGTH_LONG).show()
+            }
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { chatStore.changes.collect { refreshHistoryMessages() } }
                 launch { LocalTaskService.active.collect {
@@ -234,6 +240,14 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.getStringExtra("conversation")?.let { id -> lifecycleScope.launch { openConversation(id) } }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch {
+            LocalTaskService.recover(applicationContext)
+            refreshHistoryMessages()
+        }
     }
 
     private suspend fun refreshHistoryMessages() {
@@ -254,7 +268,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     }
 
     private suspend fun openConversation(id: String) {
-        val conversation = chatStore.list().firstOrNull { it.id == id } ?: return
+        val conversation = chatStore.list(includeEmpty = true).firstOrNull { it.id == id } ?: return
         conversationId = id
         prefs.edit().putString("last_conversation", id).apply()
         switchMode(AssistantMode.fromId(conversation.mode))
@@ -277,7 +291,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         fun reload() {
             searchJob?.cancel()
             searchJob = lifecycleScope.launch {
-                rows = chatStore.list(search.text.toString())
+                rows = chatStore.list(search.text.toString(), includeEmpty = false)
                 val date = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
                 list.adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_list_item_1, rows.map { it.title + "\n" + date.format(java.util.Date(it.updated)) })
             }
@@ -314,6 +328,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             .setMessage("This permanently removes saved messages from this device. Exported images remain in your gallery.")
             .setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> lifecycleScope.launch {
                 try {
+                    if (LocalTaskService.active.value) LocalTaskService.stop(applicationContext)
                     chatStore.delete(id)
                     if (id == null || id == conversationId) {
                         conversationId = chatStore.create(currentMode.id)
@@ -513,6 +528,9 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 return
             }
         } else if (!isModelReady) {
+            val message = "Download or select an AI model first. Tap Model at the top right."
+            modelStatusTv.text = "AI model required"
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             showModelManager()
             return
         }

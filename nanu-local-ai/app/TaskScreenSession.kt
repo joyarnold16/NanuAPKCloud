@@ -26,7 +26,7 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
     fun observe() {
         screen.lifecycleScope.launch {
             LocalTaskService.recover(screen)
-            conversation = store.list().firstOrNull { it.id == prefs.getString(key, null) }?.id
+            conversation = store.list(includeEmpty = true).firstOrNull { it.id == prefs.getString(key, null) }?.id
             screen.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 combine(store.changes, LocalTaskService.active) { _, _ -> Unit }.collect { conversation?.let { render(store.messages(it)) } }
             }
@@ -48,7 +48,7 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
             try {
                 SafetyGuard.blockedReason(prompt, request.optBoolean("image"))?.let { error(it) }
                 if (request.optBoolean("proFeature")) check(ProEntitlement.enabled(screen)) { "Restore Nanu Pro before using this tool." }
-                val id = conversation?.takeIf { old -> store.list().any { it.id == old } } ?: store.create(if (request.optBoolean("image")) "image" else "general").also { conversation = it }
+                val id = conversation?.takeIf { old -> store.list(includeEmpty = true).any { it.id == old } } ?: store.create(if (request.optBoolean("image")) "image" else "general").also { conversation = it }
                 request.optString("projectId").takeIf { it.isNotBlank() }?.let { ProStore.get(screen).link(it, id) }
                 prefs.edit().putString(key, id).putString("last_conversation", id).apply()
                 val prior = store.messages(id).takeLast(10).joinToString("\n") { (if(it.isUser) "User: " else "Assistant: ") + it.content.take(1500) }.takeLast(10000)
