@@ -12,7 +12,7 @@ import org.robolectric.annotation.Config
 @Config(sdk=[33])
 class ProStoreTest {
     @Test fun upgradesVersionOneWithoutLosingProjects() {
-        val context=RuntimeEnvironment.getApplication<android.app.Application>()
+        val context: android.app.Application=RuntimeEnvironment.getApplication()
         context.deleteDatabase("nanu_projects.db")
         context.openOrCreateDatabase("nanu_projects.db",Context.MODE_PRIVATE,null).use { db ->
             db.execSQL("CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT NOT NULL)")
@@ -31,7 +31,7 @@ class ProStoreTest {
     }
 
     @Test fun projectsAssistantsAndFileLinksSurviveReopen() {
-        val context=RuntimeEnvironment.getApplication<android.app.Application>()
+        val context: android.app.Application=RuntimeEnvironment.getApplication()
         context.deleteDatabase("nanu_projects.db")
         val constructor=ProStore::class.java.getDeclaredConstructor(Context::class.java).apply { isAccessible=true }
         var store=constructor.newInstance(context)
