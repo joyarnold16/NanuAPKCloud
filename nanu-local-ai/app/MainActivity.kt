@@ -52,7 +52,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -216,10 +218,23 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             currentMode = AssistantMode.fromId(existing.firstOrNull { it.id == conversationId }?.mode ?: currentMode.id)
             refreshModeUi()
             try {
-                withContext(Dispatchers.Default) { engine = AiChat.getInferenceEngine(applicationContext) }
+                withContext(Dispatchers.Default) {
+                    engine = AiChat.getInferenceEngine(applicationContext)
+                    val stable = withTimeout(45_000L) {
+                        engine.state.first {
+                            it is InferenceEngine.State.Initialized ||
+                                it is InferenceEngine.State.ModelReady ||
+                                it is InferenceEngine.State.Error
+                        }
+                    }
+                    if (stable is InferenceEngine.State.Error) throw stable.exception
+                }
                 engineReady = true
                 restoreLastModelOrShowWelcome()
                 resumePendingModelDownload()
+            } catch (e: LinkageError) {
+                setModelUi(null, false, "RC8.1 • native AI unavailable")
+                Toast.makeText(this@MainActivity, "Native AI engine could not start: ${e.message ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 setModelUi(null, false, "Local AI engine unavailable")
                 Toast.makeText(this@MainActivity, "Local AI engine failed to start: ${e.message}", Toast.LENGTH_LONG).show()
@@ -535,14 +550,19 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        if (LocalTaskService.active.value || submitting || conversationId == null) return
-        if (Build.VERSION.SDK_INT >= 33 && !askedNotifications && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            askedNotifications = true
-            pendingVoice = fromVoice
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        if (LocalTaskService.active.value) {
+            Toast.makeText(this, "Nanu is already working. Tap Stop, then try again.", Toast.LENGTH_LONG).show()
             return
         }
-        val id = conversationId ?: return
+        if (submitting) {
+            Toast.makeText(this, "Saving your message…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val id = conversationId
+        if (id == null) {
+            Toast.makeText(this, "Chat is still starting. Wait a moment and tap Send again.", Toast.LENGTH_LONG).show()
+            return
+        }
         val attachment = currentAttachment
         val mode = currentMode
         val user = Message(UUID.randomUUID().toString(), userMsg, true, attachmentName=attachment?.displayName, attachmentInfo=attachment?.let { formatBytes(it.sizeBytes) }, attachmentContext=attachment?.contextForPrompt(), sourcePrompt=userMsg)
@@ -1030,7 +1050,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             isModelReady = true
             prefs.edit().putString(KEY_LAST_MODEL, file.absolutePath).apply()
             withContext(Dispatchers.Main) {
-                setModelUi(displayName, true, "Ready • local • ${formatBytes(file.length())}")
+                setModelUi(displayName, true, "RC8.1 • selected • ${formatBytes(file.length())} • loads on Send")
                 if (announce) statsTv.text = ""
                 showEmptyState(messages.isEmpty(), "Nanu is ready. Use + to switch mode, attach files, or create images.")
                 updateComposerAction()
