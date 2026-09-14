@@ -2,7 +2,12 @@ package com.example.llama
 
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class NanuToolRegistryTest {
     @Test fun calculatorUsesBoundedDeterministicMath() {
         assertEquals(14.0,NanuToolRegistry.calculate("2 + 3 * 4"),0.000001)
