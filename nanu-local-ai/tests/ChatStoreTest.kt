@@ -96,6 +96,8 @@ class ChatStoreTest {
     @Test fun failuresAreVisibleAsUsefulChatReplies() {
         assertTrue(LocalTaskService.failureMessage(IllegalStateException("Selected model is no longer available")).contains("Tap Model"))
         assertTrue(LocalTaskService.failureMessage(IllegalStateException("The model returned no answer")).contains("no answer"))
+        assertTrue(LocalTaskService.failureMessage(UnsatisfiedLinkError("missing ai-chat")).contains("native AI engine"))
+        assertTrue(LocalTaskService.formatBytes(1024L * 1024L).contains("MB"))
     }
     @Test fun importsLegacyFileHistoryOnce(): Unit = runBlocking {
         context.getSharedPreferences("nanu_file_chat", 0).edit().putString("history", """[{"file":"old.pdf","question":"Old question","answer":"Old answer","time":1234}]""").commit()
