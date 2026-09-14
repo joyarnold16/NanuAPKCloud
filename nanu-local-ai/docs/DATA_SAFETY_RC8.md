@@ -15,7 +15,6 @@ Nanu locally stores or processes:
 - app settings
 - Ask My Files history
 - optional local copies of AI safety reports
-- trade journal data and virtual-money paper-trading data
 - bounded local tool calls and results, including offline tarot readings and their optional local history
 
 These flows stay on the device unless the user deliberately shares/exports content or explicitly submits an AI safety report.
@@ -23,8 +22,7 @@ These flows stay on the device unless the user deliberately shares/exports conte
 ## Intentional network flows
 
 - User-initiated language/image model downloads contact the configured model host (currently Hugging Face URLs).
-- Live market snapshot requests contact the public market-data services used by `MarketSnapshotClient`.
-- When the user asks for current information and Online Tools are enabled, the bounded agent may send only the short place, market symbol or search term required to Open-Meteo (weather/time), CoinGecko (crypto), Frankfurter (foreign exchange), Google News RSS (news), Jina Search (web search), or Wikimedia Commons (reusable image search). Full chats, documents and local RAG memory are not included in these requests. Online Tools can be disabled from Home.
+- When the user asks for current information and Online Tools are enabled, the bounded agent may send only the short place, symbol, currency pair or search term required to Open-Meteo (weather/time), CoinGecko (current crypto reference prices), Frankfurter (currency reference rates), Google News RSS (news), Jina Search (web search), or Wikimedia Commons (reusable image search). Full chats, documents and local RAG memory are not included in these requests. Online Tools can be disabled from Home.
 - User-opened model source/license, privacy-policy and terms links open external destinations.
 - Speech recognition prefers an on-device recognizer but Android may use the user's installed speech service when offline recognition is unavailable.
 - When the user explicitly taps **Submit to developer**, Nanu transmits the selected AI-report category, reported output/details, a generated report reference, app identifier, timestamp and ordinary network metadata to the configured HTTPS developer reporting endpoint. Nanu does not silently submit reports.
@@ -43,7 +41,7 @@ For the Google Apps Script / support-mailbox backend prepared with this repo, re
 - **Deletion request:** Supported through the public Nanu support contact. Users should include the report reference shown after submission when available so the report can be located.
 - **Sharing/service-provider treatment:** Determine this from the final Play definition for the selected Google backend. Do not guess; verify whether Google Apps Script/Gmail is treated as a service provider for this specific flow.
 
-Do not mark ordinary local prompts, local document contents, local generated images, paper-trading state or local model inference as uploaded to Nanu servers when they are not transmitted by the production build.
+Do not mark ordinary local prompts, local document contents, local generated images or local model inference as uploaded to Nanu servers when they are not transmitted by the production build.
 
 ## Permissions expected
 
@@ -52,9 +50,9 @@ Do not mark ordinary local prompts, local document contents, local generated ima
 
 Nanu CI rejects broad storage, location, contacts, SMS, call-log, all-packages and overlay permission markers.
 
-## Financial declaration reminder
+## Product boundary reminder
 
-Nanu contains Forex/Crypto informational analysis, risk calculations and virtual-money paper trading. Complete the Financial features declaration accurately; do not represent the app as having no financial functionality merely because it does not place real-money trades.
+Nanu Local AI does not contain Trading Lab, Paper Trading, trade journals, risk calculators, wallet connections or order execution. Current crypto-price and currency-rate answers are general read-only information lookups. Recheck the final Play Console declaration against the exact production AAB and current policy wording.
 
 ## Privacy-policy consistency
 

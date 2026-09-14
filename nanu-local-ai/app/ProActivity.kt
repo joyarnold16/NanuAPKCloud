@@ -100,7 +100,7 @@ class ProActivity : AppCompatActivity() {
             text("Your Pro workspace",26f)
             text("Local tools • paid once")
             button("Agents and safe local tools") { assistants() }
-            text("An active agent can use project search, deterministic calculation and capped position-size math. It cannot access a shell, wallet, private key or place trades.")
+            text("An active agent can use project search, deterministic calculation and approved read-only information tools. It cannot access a shell, private data, accounts or device controls.")
             val projects=store.projects()
             text("Project: ${projects.firstOrNull { it.id==project }?.name ?: "Choose or create a project"}",18f)
             button("Choose project") {

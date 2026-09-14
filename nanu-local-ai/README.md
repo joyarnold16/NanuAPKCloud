@@ -1,26 +1,25 @@
-# Nanu Local AI 1.0 RC5
+# Nanu Local AI 1.0 RC8
 
-Nanu Local AI is a local-first Android AI app built around llama.cpp, GGUF language models, deterministic trading tools, Android speech services, and a bundled stable-diffusion.cpp image engine.
+Nanu Local AI is a local-first Android AI workspace built around llama.cpp, GGUF language models, bounded read-only information tools, local document retrieval, Android speech services, offline tarot, and a bundled stable-diffusion.cpp image engine.
 
-## RC5 test goals
+## RC8 test goals
 
-RC5 is the integrated device-test candidate. It is not yet the production Play Store release.
+RC8 is the integrated device-test candidate. It is not yet the production Play Store release.
 
 ### Local chat and in-app LLM downloads
 
 - GGUF inference runs on-device with llama.cpp.
 - Models can be switched, deleted, restored, or manually imported.
-- The Models flow first asks what the user wants the model for: Everyday chat, Coding, Study, Maritime, or Trading analysis.
-- The best compatible model for the selected task and detected device RAM is placed first.
+- The Models flow lists every supported model in one place and puts the best compatible everyday or coding option first for the detected device RAM.
 - Tapping a recommended model opens its details and a **Download in Nanu** action.
 - Android DownloadManager downloads recommended GGUF files directly into app-owned storage, shows progress, resumes after relaunch, validates GGUF format, and automatically loads a completed model.
 - Initial LLM choices remain Gemma 3 1B, Qwen3 1.7B, Qwen2.5 Coder 1.5B, Qwen3 4B, and Qwen3 8B.
 
-Internet access is used for optional model downloads and online market snapshots. LLM inference itself remains on-device after a model is installed.
+Internet access is used for optional model downloads and user-requested read-only information tools. LLM inference itself remains on-device after a model is installed.
 
 ### Talk to Nanu
 
-RC5 adds a dedicated Talk screen:
+RC8 includes a dedicated Continuous Talk screen:
 
 - Tap-to-talk microphone flow.
 - Uses Android on-device speech recognition when the device exposes it; otherwise Nanu requests offline-preferred recognition from the installed Android speech service.
@@ -32,43 +31,34 @@ Speech recognition availability and whether the speech service is fully offline 
 
 ### Nanu Create — local image generation
 
-RC5 bundles a CPU build of stable-diffusion.cpp for ARM64 Android and adds a Create screen.
+RC8 bundles a CPU build of stable-diffusion.cpp for ARM64 Android and adds Create Studio.
 
 - Recommended starter model: Stable Diffusion 1.5 Q4_0 GGUF.
 - The image model can be downloaded inside Nanu from Hugging Face into app-owned storage.
 - Download progress is shown and the completed model is checked for GGUF format and SHA-256 integrity.
 - Text prompt and optional negative prompt.
-- 512 × 512 generation, 12 steps, VAE tiling.
+- Fast and High quality modes, square/landscape/portrait ratios, image-to-image editing, change strength and VAE tiling.
 - Generated PNG is previewed in-app and stored in Nanu's app-specific Pictures directory.
 - After the image model is downloaded, generation is local; no cloud image API is used.
 
-CPU image generation is much heavier than chat and can take several minutes, consume multiple gigabytes of RAM, and warm the device. RC5 intentionally starts with a conservative 512 × 512 path before GPU/Vulkan optimization.
+CPU image generation is much heavier than chat and can take several minutes, consume multiple gigabytes of RAM, and warm the device.
 
 The image engine is pinned to stable-diffusion.cpp commit `97d2990807fe6d558e395f8764198d7c7e7b411c`.
 
-### Nanu Trading Lab
+### Product boundary: trading is separate
 
-The existing Forex + Crypto Trading Lab remains included:
+RC8 intentionally excludes Trading Lab, Paper Trading, trade journals, technical-analysis screens, trading modes and position-size tools. Those features belong in a separate trading application.
 
-- Pasted OHLCV analysis that can work offline.
-- SMA/EMA, RSI, MACD, ATR, ADX, stochastic, Bollinger Bands, VWAP.
-- Support/resistance, HH/HL/LH/LL structure, Fibonacci, RSI divergence heuristics.
-- Candlestick and chart-pattern heuristics.
-- Confluence scoring and volatility/risk classification.
-- Forex and Crypto position-size calculators.
-- Local trade journal and offline pattern library.
-- Optional online price snapshots.
-
-Indicator calculations remain deterministic Kotlin code rather than values guessed by the LLM. RC5 does not place real trades or promise outcomes.
+General current-information questions remain available through the bounded assistant. For example, a user can ask for a current BTC reference price or a currency exchange rate. These are factual, read-only lookups and are not trading analysis or execution.
 
 ### Product UI
 
 - Nanu launcher icon.
 - Header says `LOCAL AI` rather than implying the whole app never uses network access.
-- Home navigation: Talk, Create, Trading, Mode, Models.
-- General, Coding, Study, and Maritime chat modes.
+- Home navigation: Chat, Online Tools, Continuous Talk, Ask My Files, Create Studio, Tarot, Privacy/Safety and Nanu Pro.
+- General, Coding, Academics and Create Image modes.
 - New Chat, Stop generation, hidden `<think>` blocks, Copy/Report, and local generation statistics.
 
 ## Build
 
-GitHub Actions builds ARM64 debug APK/AAB artifacts for device testing. The workflow packages the pinned llama.cpp Android engine and cross-compiles stable-diffusion.cpp for Android ARM64. Production signing, broader ABI support, privacy-policy finalization, and Play submission remain separate until RC5 is validated on real devices.
+GitHub Actions builds ARM64 debug APK/AAB artifacts for device testing. The workflow packages the pinned llama.cpp Android engine, cross-compiles stable-diffusion.cpp for Android ARM64, and verifies that legacy trading components are excluded before Gradle compiles the app. Production signing, broader ABI support and Play submission remain separate until RC8 is validated on real devices.

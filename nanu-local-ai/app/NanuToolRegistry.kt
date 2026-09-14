@@ -21,7 +21,7 @@ object NanuToolRegistry {
     private val callPattern = Regex("(?s)<tool_call>\\s*(\\{.*?})\\s*</tool_call>")
     private val thinkingPattern = Regex("(?s)<think>.*?</think>")
     private val names = setOf(
-        "calculator", "position_size", "project_search", "current_time", "tarot_draw",
+        "calculator", "project_search", "current_time", "tarot_draw",
         "current_weather", "crypto_price", "forex_rate", "news_search", "web_search", "image_search"
     )
     private val knownCrypto = linkedMapOf(
@@ -38,8 +38,7 @@ object NanuToolRegistry {
         append("Never answer a current price, weather or news question from model memory. ")
         append("To call a tool, output exactly one line and no prose: ")
         append("<tool_call>{\"name\":\"tool_name\",\"arguments\":{...}}</tool_call>. ")
-        append("Local tools: calculator {expression}; position_size {account_usd,risk_percent,entry,stop}; ")
-        append("current_time {location}; tarot_draw {question,count}")
+        append("Local tools: calculator {expression}; current_time {location}; tarot_draw {question,count}")
         if (projectSearchAvailable) append("; project_search {query}")
         if (onlineAvailable) {
             append(". Read-only online tools: current_weather {location}; crypto_price {symbol}; ")
@@ -123,12 +122,6 @@ object NanuToolRegistry {
                 val expression = call.arguments.optString("expression")
                 "${expression.take(200)} = ${format(calculate(expression))}"
             }
-            "position_size" -> positionSize(
-                call.arguments.requiredNumber("account_usd"),
-                call.arguments.requiredNumber("risk_percent"),
-                call.arguments.requiredNumber("entry"),
-                call.arguments.requiredNumber("stop")
-            )
             "project_search" -> {
                 val project = request.optString("projectId").takeIf { it.isNotBlank() }
                     ?: error("Choose a Nanu Pro project before using project search.")
@@ -205,23 +198,6 @@ object NanuToolRegistry {
     internal fun calculate(expression: String): Double {
         require(expression.isNotBlank() && expression.length <= 300) { "Calculator expression must be 1–300 characters." }
         return ExpressionParser(expression).parse().also { require(it.isFinite()) { "Calculator result is not finite." } }
-    }
-
-    internal fun positionSize(accountUsd: Double, riskPercent: Double, entry: Double, stop: Double): String {
-        require(accountUsd > 0.0 && accountUsd <= 1_000_000_000.0) { "Account value must be positive and bounded." }
-        require(riskPercent > 0.0 && riskPercent <= 5.0) { "Risk must be above 0% and no more than 5%." }
-        require(entry > 0.0 && stop > 0.0) { "Entry and stop must be positive." }
-        val distance = kotlin.math.abs(entry - stop)
-        require(distance > 0.0) { "Entry and stop cannot be equal." }
-        val riskUsd = accountUsd * riskPercent / 100.0
-        val quantity = riskUsd / distance
-        val notional = quantity * entry
-        return "Risk amount: ${format(riskUsd)} USD\nEntry-stop distance: ${format(distance)}\nMaximum quantity before fees/slippage: ${format(quantity)}\nApproximate notional at entry: ${format(notional)} USD\nThis is deterministic position-size math, not a trade recommendation."
-    }
-
-    private fun JSONObject.requiredNumber(name: String): Double {
-        require(has(name)) { "Missing tool argument: $name." }
-        return optDouble(name, Double.NaN).also { require(it.isFinite()) { "Invalid numeric tool argument: $name." } }
     }
 
     private fun call(name: String, vararg arguments: Pair<String, Any>): NanuToolCall =

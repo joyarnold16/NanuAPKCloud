@@ -349,7 +349,6 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         choose(R.id.plus_general, AssistantMode.GENERAL)
         choose(R.id.plus_code, AssistantMode.CODING)
         choose(R.id.plus_academics, AssistantMode.ACADEMICS)
-        choose(R.id.plus_trading, AssistantMode.TRADING)
         choose(R.id.plus_image, AssistantMode.IMAGE)
         view.findViewById<View>(R.id.plus_attach).setOnClickListener {
             dialog.dismiss()
@@ -374,7 +373,6 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 userInputEt.hint = "Describe the image you want…"
                 if (!imageModelReady()) modelStatusTv.text = "Create Image selected • image model needs download"
             }
-            AssistantMode.TRADING -> userInputEt.hint = "Ask about a market, setup, chart, or risk…"
             AssistantMode.CODING -> userInputEt.hint = "Ask Nanu to write, debug, or explain code…"
             AssistantMode.ACADEMICS -> userInputEt.hint = "Ask a study or research question…"
             AssistantMode.GENERAL -> userInputEt.hint = "Message Nanu…"
@@ -721,7 +719,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension, announce = false) }
         } else {
             setModelUi(null, false, "No LLM loaded • tap Model to download one")
-            showEmptyState(true, "Private local AI.\n\nTap Model at the top right to download a recommended LLM. Use + for General, Code, Academics, Trading, Create Image, or Attach File.")
+            showEmptyState(true, "Private local AI.\n\nTap Model at the top right to download a recommended LLM. Use + for General, Code, Academics, Create Image, or Attach File.")
         }
     }
 
@@ -1167,7 +1165,6 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         GENERAL("general", "General", "Answer clearly and naturally. Be useful, accurate, and concise unless more detail is needed."),
         CODING("coding", "Code", "Act as a practical coding assistant. Write, debug, review, and explain code. Prefer correct runnable examples and clear steps."),
         ACADEMICS("study", "Academics", "Teach and research carefully. Explain concepts step by step, use examples, and distinguish established facts from uncertainty."),
-        TRADING("trading", "Trading", "Act as a disciplined market-analysis assistant for forex and crypto. Discuss price action, indicators, chart patterns, risk, position sizing, and scenarios. Never guarantee profit and clearly separate analysis from financial advice."),
         IMAGE("image", "Create Image", "Create or refine a concise visual description for local image generation.");
 
         companion object {

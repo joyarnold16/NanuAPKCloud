@@ -14,8 +14,11 @@ on:
   push:
     branches:
       - main
+      - feature/nanu-intelligence-v2
     paths:
       - 'nanu-local-ai/PLAY_RELEASE_TRIGGER.txt'
+      - 'nanu-local-ai/**'
+      - '.github/workflows/build-nanu-play-release.yml'
 
 permissions:
   contents: read
@@ -96,13 +99,17 @@ jobs:
         shell: bash
         run: bash nanu-local-ai/ci/build_play_release.sh
 
-      - name: Upload Play release AAB and certificate
+      - name: Upload signed APK, Play AAB and certificate
         uses: actions/upload-artifact@v4
         with:
           name: nanu-local-ai-v1.0-play-release
           path: |
+            out/nanu-local-ai-v1.0-release.apk
             out/nanu-local-ai-v1.0-play-release.aab
             out/PLAY_RELEASE_SHA256.txt
+            out/PLAY_APK_SIGNATURE.txt
+            out/PLAY_APK_ALIGNMENT.txt
+            out/PLAY_LINT_REPORT.html
             out/nanu-upload-certificate.pem
             out/UPLOAD_CERTIFICATE_INFO.txt
           if-no-files-found: error

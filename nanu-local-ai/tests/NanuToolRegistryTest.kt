@@ -32,12 +32,13 @@ class NanuToolRegistryTest {
         } catch(_:IllegalArgumentException) { }
     }
 
-    @Test fun positionSizingEnforcesRiskCap() {
-        val result=NanuToolRegistry.positionSize(1000.0,1.0,10.0,9.5)
-        assertTrue(result.contains("Risk amount: 10 USD"))
-        assertTrue(result.contains("Maximum quantity before fees/slippage: 20"))
-        try { NanuToolRegistry.positionSize(1000.0,6.0,10.0,9.5); fail("Risk above cap must fail") }
-        catch(_:IllegalArgumentException) { }
+    @Test fun tradingExecutionAndRiskToolsAreNotAvailable() {
+        for (name in listOf("position_size", "place_order", "paper_trade")) {
+            try {
+                NanuToolRegistry.parseCall("<tool_call>{\"name\":\"$name\",\"arguments\":{}}</tool_call>")
+                fail("$name must not be available in Nanu Local AI")
+            } catch(_:IllegalArgumentException) { }
+        }
     }
 
     @Test fun obviousCurrentQuestionsRouteToReadOnlyTools() {

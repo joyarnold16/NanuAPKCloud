@@ -16,6 +16,7 @@ class Rc8HomeActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        removeLegacyTradingData()
         window.statusBarColor = Color.parseColor("#060B12")
         window.navigationBarColor = Color.parseColor("#060B12")
         setContentView(R.layout.activity_rc8_home)
@@ -25,8 +26,6 @@ class Rc8HomeActivity : AppCompatActivity() {
         bind(R.id.home_files, FileChatActivity::class.java)
         bind(R.id.home_create, CreateStudioActivity::class.java)
         bind(R.id.home_tarot, TarotActivity::class.java)
-        bind(R.id.home_markets, TradingActivity::class.java)
-        bind(R.id.home_paper, PaperTradingActivity::class.java)
         bind(R.id.home_safety, SafetyPrivacyActivity::class.java)
         bind(R.id.home_pro, ProActivity::class.java)
         onlineTools = findViewById(R.id.home_online_tools)
@@ -64,9 +63,24 @@ class Rc8HomeActivity : AppCompatActivity() {
         findViewById<MaterialButton>(id).setOnClickListener { startActivity(Intent(this, target)) }
     }
 
+    /**
+     * RC8 no longer contains trading features. Remove data left by older test
+     * builds once, so an upgrade does not silently retain obsolete journals.
+     */
+    private fun removeLegacyTradingData() {
+        if (prefs.getBoolean(KEY_LEGACY_TRADING_DATA_REMOVED, false)) return
+        deleteSharedPreferences("nanu_paper_trading")
+        deleteSharedPreferences("nanu_trading_lab")
+        prefs.edit().putBoolean(KEY_LEGACY_TRADING_DATA_REMOVED, true).apply()
+    }
+
     private fun compact(value: String): String = value
         .replace(Regex("(?i)q4_k_m|instruct|gguf"), "")
         .replace(Regex("[-_]+"), " ")
         .trim()
         .take(24)
+
+    companion object {
+        private const val KEY_LEGACY_TRADING_DATA_REMOVED = "legacy_trading_data_removed_v1"
+    }
 }

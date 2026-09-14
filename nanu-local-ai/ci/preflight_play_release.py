@@ -11,6 +11,7 @@ required_files = [
     ROOT / 'app/SafetyGuard.kt',
     ROOT / 'app/SafetyPrivacyActivity.kt',
     ROOT / 'ci/build_play_release.sh',
+    ROOT / 'ci/verify_no_trading_artifact.py',
     ROOT / 'ci/verify_16k_native.py',
     ROOT / 'deployment/nanu_ai_report_backend.gs',
     ROOT / 'deployment/README_AI_REPORT_BACKEND.md',
@@ -31,6 +32,7 @@ for marker in [
     'platforms;android-36',
     'preflight_play_release.py',
     'nanu-local-ai-v1.0-play-release.aab',
+    'nanu-local-ai-v1.0-release.apk',
     'nanu-upload-certificate.pem',
 ]:
     if marker not in workflow:
@@ -43,11 +45,15 @@ for marker in [
     'NANU_UPLOAD_KEYSTORE_BASE64',
     'versionCode = 100',
     'versionName = "1.0"',
-    ':app:bundleRelease',
+    ':app:lintRelease :app:assembleRelease :app:bundleRelease',
     'jarsigner -verify "$PLAY_AAB"',
+    'apksigner" verify --verbose --print-certs "$PLAY_APK"',
+    'zipalign" -c -P 16 -v 4 "$PLAY_APK"',
+    'verify_no_trading_artifact.py "$PLAY_APK" "$PLAY_AAB"',
     'verify_16k_native.py',
     'nanu-upload-certificate.pem',
     'PLAY_RELEASE_SHA256.txt',
+    'PLAY_LINT_REPORT.html',
     'rm -f "$KEYSTORE"',
 ]:
     if marker not in build:

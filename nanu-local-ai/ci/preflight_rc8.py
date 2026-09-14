@@ -11,22 +11,23 @@ required = [
     'app/MainActivity.kt', 'app/MessageAdapter.kt', 'app/AttachmentManager.kt',
     'app/LocalImageGenerator.kt', 'app/ModelCatalog.kt', 'app/ModelDownloadManager.kt',
     'app/NanuBaseActivity.kt', 'app/TalkActivity.kt', 'app/CreateActivity.kt',
-    'app/TradingActivity.kt', 'app/TradingEngine.kt', 'app/MarketSnapshotClient.kt',
+    'app/MarketSnapshotClient.kt',
     'app/ImageModelManager.kt', 'app/Rc8HomeActivity.kt', 'app/FileChatActivity.kt',
     'app/ContinuousTalkActivity.kt', 'app/CreateStudioActivity.kt',
-    'app/PaperTradingActivity.kt', 'app/SafetyPrivacyActivity.kt', 'app/AiReportClient.kt',
+    'app/SafetyPrivacyActivity.kt', 'app/AiReportClient.kt',
     'app/SafetyGuard.kt', 'app/LocalRagEngine.kt', 'app/NanuToolRegistry.kt',
     'app/OnlineToolClient.kt', 'app/TarotDeck.kt', 'app/TarotActivity.kt', 'app/ProStore.kt',
     'res/layout/activity_main.xml', 'res/layout/activity_talk.xml',
-    'res/layout/activity_create.xml', 'res/layout/activity_trading.xml',
+    'res/layout/activity_create.xml',
     'res/layout/activity_rc8_home.xml', 'res/layout/activity_file_chat.xml',
     'res/layout/activity_talk_rc8.xml', 'res/layout/activity_create_studio.xml',
-    'res/layout/activity_paper_trading.xml', 'res/layout/activity_safety_privacy.xml',
+    'res/layout/activity_safety_privacy.xml',
     'res/layout/activity_tarot.xml',
     'res/layout/sheet_plus_menu.xml', 'res/layout/item_message_assistant.xml',
     'res/layout/item_message_user.xml', 'res/xml/nanu_file_paths.xml',
     'res/drawable/ic_nanu_launcher.xml', 'strings.xml', 'ci/build_rc8.sh',
     'ci/build_play_release.sh', 'ci/patch_main_rc8.py', 'ci/patch_safety_rc8.py',
+    'ci/strip_trading_rc8.py', 'ci/verify_no_trading_artifact.py', 'RC8_READY.txt',
     'docs/PLAY_STORE_READINESS_RC8.md', 'docs/DATA_SAFETY_RC8.md'
 ]
 
@@ -56,9 +57,12 @@ build = (ROOT / 'ci/build_rc8.sh').read_text() if (ROOT / 'ci/build_rc8.sh').exi
 for marker in [
     'versionCode = 22', 'versionName = "1.0-rc8"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
-    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
+    'CreateStudioActivity.kt', 'SafetyPrivacyActivity.kt',
     'AiReportClient.kt', 'SafetyGuard.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt',
     'OnlineToolClient.kt', 'TarotDeck.kt', 'TarotActivity.kt', 'ProStore.kt', 'patch_safety_rc8.py',
+    'strip_trading_rc8.py',
+    'verify_no_trading_artifact.py',
+    'applicationId = "com.nanu.localai"', 'compileSdk = 36', 'targetSdk = 36',
     'android:allowBackup=\\"false\\"', '-dontwarn com.gemalto.jp2.**',
     'out/nanu-local-ai-v1.0-rc8.apk'
 ]:
@@ -74,14 +78,47 @@ for marker in [
         errors.append(f'RC8 branch workflow missing marker: {marker}')
 
 home = (ROOT / 'app/Rc8HomeActivity.kt').read_text() if (ROOT / 'app/Rc8HomeActivity.kt').exists() else ''
-for marker in ['MainActivity::class.java', 'ContinuousTalkActivity::class.java', 'FileChatActivity::class.java', 'CreateStudioActivity::class.java', 'TarotActivity::class.java', 'TradingActivity::class.java', 'PaperTradingActivity::class.java', 'SafetyPrivacyActivity::class.java']:
+for marker in ['MainActivity::class.java', 'ContinuousTalkActivity::class.java', 'FileChatActivity::class.java', 'CreateStudioActivity::class.java', 'TarotActivity::class.java', 'SafetyPrivacyActivity::class.java']:
     if marker not in home:
         errors.append(f'RC8 home missing destination: {marker}')
+for marker in ['removeLegacyTradingData()', 'nanu_paper_trading', 'nanu_trading_lab', 'legacy_trading_data_removed_v1']:
+    if marker not in home:
+        errors.append(f'RC8 legacy-data cleanup missing marker: {marker}')
+
+for path in [
+    ROOT / 'app/PaperTradingActivity.kt',
+    ROOT / 'app/TradingActivity.kt',
+    ROOT / 'app/TradingEngine.kt',
+    ROOT / 'res/layout/activity_paper_trading.xml',
+    ROOT / 'res/layout/activity_trading.xml',
+]:
+    if path.exists():
+        errors.append(f'legacy trading implementation must live outside Nanu Local AI: {path}')
+
+colors = (ROOT / 'res/values/colors.xml').read_text(errors='ignore')
+if 'nanu_trading' in colors:
+    errors.append('unused nanu_trading color remains in Nanu Local AI')
+
+product_boundary_files = [
+    ROOT / 'app/MainActivity.kt',
+    ROOT / 'app/NanuBaseActivity.kt',
+    ROOT / 'app/Rc8HomeActivity.kt',
+    ROOT / 'res/layout/activity_rc8_home.xml',
+    ROOT / 'res/layout/sheet_plus_menu.xml',
+    ROOT / 'res/layout/activity_safety_privacy.xml',
+]
+for path in product_boundary_files:
+    text = path.read_text(errors='ignore')
+    for marker in ['PaperTradingActivity', 'TradingActivity', 'AssistantMode.TRADING', 'plus_trading', 'home_markets', 'home_paper']:
+        if marker in text:
+            errors.append(f'trading product boundary marker {marker!r} found in {path}')
 
 registry = (ROOT / 'app/NanuToolRegistry.kt').read_text() if (ROOT / 'app/NanuToolRegistry.kt').exists() else ''
 for marker in ['current_weather', 'crypto_price', 'forex_rate', 'news_search', 'web_search', 'image_search', 'tarot_draw', 'onlineTools']:
     if marker not in registry:
         errors.append(f'agent registry missing tool marker: {marker}')
+if 'position_size' in registry:
+    errors.append('Nanu Local AI must not expose the trading position-size tool')
 
 tarot = (ROOT / 'app/TarotDeck.kt').read_text() if (ROOT / 'app/TarotDeck.kt').exists() else ''
 for marker in ['cards.size == 78', 'Past', 'Present', 'Future', 'not as factual prediction']:
@@ -120,14 +157,9 @@ if 'msg_report' not in message_layout:
     errors.append('Assistant message layout missing Report action')
 
 play_build = (ROOT / 'ci/build_play_release.sh').read_text() if (ROOT / 'ci/build_play_release.sh').exists() else ''
-for marker in ['NANU_REPORT_ENDPOINT', 'NANU_UPLOAD_KEYSTORE_BASE64', 'versionName = "1.0"', ':app:bundleRelease', 'jarsigner -verify']:
+for marker in ['NANU_REPORT_ENDPOINT', 'NANU_UPLOAD_KEYSTORE_BASE64', 'versionName = "1.0"', ':app:assembleRelease', ':app:bundleRelease', 'jarsigner -verify', 'verify_no_trading_artifact.py']:
     if marker not in play_build:
         errors.append(f'Play release script missing marker: {marker}')
-
-paper = (ROOT / 'app/PaperTradingActivity.kt').read_text() if (ROOT / 'app/PaperTradingActivity.kt').exists() else ''
-for marker in ['No real trade was placed', 'Virtual balance', 'KEY_POSITIONS', 'KEY_HISTORY']:
-    if marker not in paper:
-        errors.append(f'paper trading missing safety marker: {marker}')
 
 scan_files = [
     p for p in ROOT.rglob('*')
@@ -164,5 +196,6 @@ print(' - feature files present and XML parses')
 print(' - Play-sensitive permission guardrails passed')
 print(' - direct AI reporting + Play release markers passed')
 print(' - shared generative-AI safety guardrails passed')
-print(' - privacy/safety/paper-trading markers passed')
+print(' - privacy/safety and separate-trading-app boundary passed')
+print(' - legacy trading data cleanup and artifact exclusion checks passed')
 print(' - Android API 36 workflow + RC8 artifact markers passed')

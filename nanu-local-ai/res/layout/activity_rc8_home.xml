@@ -138,39 +138,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:text="MARKETS"
-            android:textColor="@color/nanu_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/home_markets"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginTop="8dp"
-            android:gravity="start|center_vertical"
-            android:text="↗   Nanu Markets\n       Forex + crypto technical analysis"
-            android:textAllCaps="false"
-            android:textColor="@color/nanu_text"
-            app:strokeColor="@color/nanu_trading" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/home_paper"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginTop="8dp"
-            android:gravity="start|center_vertical"
-            android:text="◎   Paper Trading\n       Practice locally with virtual money only"
-            android:textAllCaps="false"
-            android:textColor="@color/nanu_text"
-            app:strokeColor="@color/nanu_trading" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
             android:text="TRUST &amp; PRIVACY"
             android:textColor="@color/nanu_muted"
             android:textSize="12sp"
@@ -202,7 +169,7 @@
             android:layout_marginTop="18dp"
             android:layout_marginBottom="18dp"
             android:gravity="center"
-            android:text="Online tools are used only when you ask for live information and may be turned off. RC8 keeps real-money execution out of the app."
+            android:text="Online tools are used only when you ask for current information and may be turned off. Documents, project memory and local AI responses stay on your device unless you share them."
             android:textColor="@color/nanu_muted"
             android:textSize="11sp" />
     </LinearLayout>

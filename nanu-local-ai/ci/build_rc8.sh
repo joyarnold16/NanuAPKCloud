@@ -15,15 +15,12 @@ required_files = [
     'nanu-local-ai/app/NanuBaseActivity.kt',
     'nanu-local-ai/app/TalkActivity.kt',
     'nanu-local-ai/app/CreateActivity.kt',
-    'nanu-local-ai/app/TradingActivity.kt',
-    'nanu-local-ai/app/TradingEngine.kt',
     'nanu-local-ai/app/MarketSnapshotClient.kt',
     'nanu-local-ai/app/ImageModelManager.kt',
     'nanu-local-ai/app/Rc8HomeActivity.kt',
     'nanu-local-ai/app/FileChatActivity.kt',
     'nanu-local-ai/app/ContinuousTalkActivity.kt',
     'nanu-local-ai/app/CreateStudioActivity.kt',
-    'nanu-local-ai/app/PaperTradingActivity.kt',
     'nanu-local-ai/app/SafetyPrivacyActivity.kt',
     'nanu-local-ai/app/AiReportClient.kt',
     'nanu-local-ai/app/SafetyGuard.kt',
@@ -35,15 +32,15 @@ required_files = [
     'nanu-local-ai/app/ProStore.kt',
     'nanu-local-ai/ci/patch_main_rc8.py',
     'nanu-local-ai/ci/patch_safety_rc8.py',
+    'nanu-local-ai/ci/strip_trading_rc8.py',
+    'nanu-local-ai/ci/verify_no_trading_artifact.py',
     'nanu-local-ai/res/layout/activity_main.xml',
     'nanu-local-ai/res/layout/activity_talk.xml',
     'nanu-local-ai/res/layout/activity_create.xml',
-    'nanu-local-ai/res/layout/activity_trading.xml',
     'nanu-local-ai/res/layout/activity_rc8_home.xml',
     'nanu-local-ai/res/layout/activity_file_chat.xml',
     'nanu-local-ai/res/layout/activity_talk_rc8.xml',
     'nanu-local-ai/res/layout/activity_create_studio.xml',
-    'nanu-local-ai/res/layout/activity_paper_trading.xml',
     'nanu-local-ai/res/layout/activity_safety_privacy.xml',
     'nanu-local-ai/res/layout/activity_tarot.xml',
     'nanu-local-ai/res/layout/sheet_plus_menu.xml',
@@ -73,6 +70,54 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
         raise SystemExit(f'RC8 patch anchor {label!r} expected exactly once, found {count}')
     return text.replace(old, new, 1)
 
+# RC8 is not a trading application. Remove the three legacy Trading Lab hooks
+# inherited from the RC5 recipe before that generated recipe is executed.
+base = replace_once(
+    base,
+    'cp nanu-local-ai/res/layout/activity_trading.xml "$APP/res/layout/activity_trading.xml"\n',
+    '',
+    'legacy trading layout copy',
+)
+base = replace_once(
+    base,
+    '  TradingActivity.kt \\\n  TradingEngine.kt \\\n',
+    '',
+    'legacy trading Kotlin source copies',
+)
+base = replace_once(
+    base,
+    '''    '        <activity\\n'
+    '            android:name=".TradingActivity"\\n'
+    '            android:exported="false" />\\n\\n'
+''',
+    '',
+    'legacy trading manifest activity',
+)
+base = replace_once(
+    base,
+    "if 'android:name=\".TradingActivity\"' not in text:",
+    "if 'android:name=\".TalkActivity\"' not in text:",
+    'legacy trading manifest insertion guard',
+)
+base = replace_once(
+    base,
+    "    'android:name=\".TradingActivity\"',\n",
+    '',
+    'legacy trading manifest assertion',
+)
+base = replace_once(
+    base,
+    "trading_layout = Path('llama-upstream/examples/llama.android/app/src/main/res/layout/activity_trading.xml').read_text()\n",
+    '',
+    'legacy trading layout validation source',
+)
+base = replace_once(
+    base,
+    "assert 'Nanu Markets' in trading_layout\nassert 'Advanced chart analysis' in trading_layout\n",
+    '',
+    'legacy trading layout assertions',
+)
+
 base = replace_once(base, 'versionCode = 17', 'versionCode = 22', 'versionCode')
 base = replace_once(base, 'versionName = "1.0-rc5.2"', 'versionName = "1.0-rc8"', 'versionName')
 base = base.replace('RC5.2', 'RC8').replace('rc5.2', 'rc8')
@@ -93,7 +138,6 @@ cp nanu-local-ai/res/layout/activity_rc8_home.xml "$APP/res/layout/activity_rc8_
 cp nanu-local-ai/res/layout/activity_file_chat.xml "$APP/res/layout/activity_file_chat.xml"
 cp nanu-local-ai/res/layout/activity_talk_rc8.xml "$APP/res/layout/activity_talk_rc8.xml"
 cp nanu-local-ai/res/layout/activity_create_studio.xml "$APP/res/layout/activity_create_studio.xml"
-cp nanu-local-ai/res/layout/activity_paper_trading.xml "$APP/res/layout/activity_paper_trading.xml"
 cp nanu-local-ai/res/layout/activity_safety_privacy.xml "$APP/res/layout/activity_safety_privacy.xml"
 cp nanu-local-ai/res/layout/activity_tarot.xml "$APP/res/layout/activity_tarot.xml"''',
     'RC8 layout copies'
@@ -116,7 +160,6 @@ base = replace_once(
   FileChatActivity.kt \\
   ContinuousTalkActivity.kt \\
   CreateStudioActivity.kt \\
-  PaperTradingActivity.kt \\
   SafetyPrivacyActivity.kt \\
   AiReportClient.kt \\
   SafetyGuard.kt; do''',
@@ -126,6 +169,14 @@ base = replace_once(
 old_gradle = "app_gradle.write_text(text)"
 new_gradle = '''if 'pdfbox-android' not in text:
     text = text.replace('dependencies {', 'dependencies {\\n    implementation("com.tom-roush:pdfbox-android:2.0.27.0")', 1)
+for required in [
+    'applicationId = "com.nanu.localai"',
+    'compileSdk = 36',
+    'minSdk = 33',
+    'targetSdk = 36',
+]:
+    if required not in text:
+        raise SystemExit(f'Generated Android configuration missing: {required}')
 app_gradle.write_text(text)
 
 proguard = Path('llama-upstream/examples/llama.android/app/proguard-rules.pro')
@@ -171,7 +222,6 @@ text = text[:match.start()] + main_replacement + text[match.end():]
 rc8_activities = '''
         <activity android:name=\".TarotActivity\" android:exported=\"false\" />
         <activity android:name=\".SafetyPrivacyActivity\" android:exported=\"false\" />
-        <activity android:name=\".PaperTradingActivity\" android:exported=\"false\" />
         <activity android:name=\".CreateStudioActivity\" android:exported=\"false\" />
         <activity android:name=\".ContinuousTalkActivity\" android:exported=\"false\" />
         <activity android:name=\".FileChatActivity\" android:exported=\"false\" />
@@ -206,23 +256,25 @@ base = replace_once(base, "assert 'showRecommendedModelsForTask' in main", "asse
 base = base.replace("print('RC5.2 source validation passed.')", "print('RC8 unified source validation passed.')")
 base = base.replace("print('RC5.2 packaged native runtime validation passed.')", "print('RC8 packaged native runtime validation passed.')")
 
+# Configure the generated project only after the existing RC8 source patches.
+base = replace_once(base, '(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'python3 nanu-local-ai/ci/patch_background.py\npython3 nanu-local-ai/ci/strip_trading_rc8.py\n\n(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'background project configuration and trading boundary')
+base = replace_once(base, './gradlew --no-daemon :app:assembleDebug :app:bundleDebug --stacktrace', './gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:bundleDebug --stacktrace', 'history regression tests')
+
 for required in [
     'versionCode = 22', 'versionName = "1.0-rc8"', 'pdfbox-android:2.0.27.0',
+    'applicationId = "com.nanu.localai"', 'compileSdk = 36', 'targetSdk = 36',
     '-dontwarn com.gemalto.jp2.**', 'AttachmentManager.kt', 'LocalImageGenerator.kt',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
-    'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
+    'CreateStudioActivity.kt', 'SafetyPrivacyActivity.kt',
     'AiReportClient.kt', 'SafetyGuard.kt',
+    'strip_trading_rc8.py',
     'activity_rc8_home.xml', 'activity_file_chat.xml', 'activity_talk_rc8.xml',
-    'activity_create_studio.xml', 'activity_paper_trading.xml', 'activity_safety_privacy.xml', 'activity_tarot.xml',
+    'activity_create_studio.xml', 'activity_safety_privacy.xml', 'activity_tarot.xml',
     'android:allowBackup="false"', 'androidx.core.content.FileProvider',
     'out/nanu-local-ai-v1.0-rc8.apk'
 ]:
     if required not in base:
         raise SystemExit(f'Generated RC8 build script is missing: {required}')
-
-# Configure the generated project only after the existing RC8 validation and patches.
-base = replace_once(base, '(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'python3 nanu-local-ai/ci/patch_background.py\n\n(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'background project configuration')
-base = replace_once(base, './gradlew --no-daemon :app:assembleDebug :app:bundleDebug --stacktrace', './gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:bundleDebug --stacktrace', 'history regression tests')
 
 out = Path('/tmp/build_nanu_rc8.sh')
 out.write_text(base)
@@ -253,3 +305,7 @@ for required in ['lib/arm64-v8a/libsd.so', 'lib/arm64-v8a/libc++_shared.so']:
         raise SystemExit(f'RC8 APK missing native runtime: {required}')
 print('RC8 APK/native artifact validation passed.')
 PY
+
+python3 nanu-local-ai/ci/verify_no_trading_artifact.py \
+  out/nanu-local-ai-v1.0-rc8.apk \
+  out/nanu-local-ai-v1.0-rc8-debug.aab

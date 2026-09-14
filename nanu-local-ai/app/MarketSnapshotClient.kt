@@ -5,10 +5,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 
-/**
- * Lightweight optional online market snapshots for the Trading Lab.
- * Technical calculations remain local. These endpoints are for informational snapshots only.
- */
+/** Lightweight read-only reference prices for general current-information questions. */
 data class MarketSnapshot(
     val symbol: String,
     val price: Double,
