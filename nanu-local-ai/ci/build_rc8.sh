@@ -29,6 +29,9 @@ required_files = [
     'nanu-local-ai/app/SafetyGuard.kt',
     'nanu-local-ai/app/LocalRagEngine.kt',
     'nanu-local-ai/app/NanuToolRegistry.kt',
+    'nanu-local-ai/app/OnlineToolClient.kt',
+    'nanu-local-ai/app/TarotDeck.kt',
+    'nanu-local-ai/app/TarotActivity.kt',
     'nanu-local-ai/app/ProStore.kt',
     'nanu-local-ai/ci/patch_main_rc8.py',
     'nanu-local-ai/ci/patch_safety_rc8.py',
@@ -42,6 +45,7 @@ required_files = [
     'nanu-local-ai/res/layout/activity_create_studio.xml',
     'nanu-local-ai/res/layout/activity_paper_trading.xml',
     'nanu-local-ai/res/layout/activity_safety_privacy.xml',
+    'nanu-local-ai/res/layout/activity_tarot.xml',
     'nanu-local-ai/res/layout/sheet_plus_menu.xml',
     'nanu-local-ai/res/layout/item_message_assistant.xml',
     'nanu-local-ai/res/layout/item_message_user.xml',
@@ -90,7 +94,8 @@ cp nanu-local-ai/res/layout/activity_file_chat.xml "$APP/res/layout/activity_fil
 cp nanu-local-ai/res/layout/activity_talk_rc8.xml "$APP/res/layout/activity_talk_rc8.xml"
 cp nanu-local-ai/res/layout/activity_create_studio.xml "$APP/res/layout/activity_create_studio.xml"
 cp nanu-local-ai/res/layout/activity_paper_trading.xml "$APP/res/layout/activity_paper_trading.xml"
-cp nanu-local-ai/res/layout/activity_safety_privacy.xml "$APP/res/layout/activity_safety_privacy.xml"''',
+cp nanu-local-ai/res/layout/activity_safety_privacy.xml "$APP/res/layout/activity_safety_privacy.xml"
+cp nanu-local-ai/res/layout/activity_tarot.xml "$APP/res/layout/activity_tarot.xml"''',
     'RC8 layout copies'
 )
 
@@ -164,6 +169,7 @@ main_replacement = main_open + main_body + match.group(3)
 text = text[:match.start()] + main_replacement + text[match.end():]
 
 rc8_activities = '''
+        <activity android:name=\".TarotActivity\" android:exported=\"false\" />
         <activity android:name=\".SafetyPrivacyActivity\" android:exported=\"false\" />
         <activity android:name=\".PaperTradingActivity\" android:exported=\"false\" />
         <activity android:name=\".CreateStudioActivity\" android:exported=\"false\" />
@@ -205,9 +211,9 @@ for required in [
     '-dontwarn com.gemalto.jp2.**', 'AttachmentManager.kt', 'LocalImageGenerator.kt',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
-    'AiReportClient.kt', 'SafetyGuard.kt',
+    'AiReportClient.kt', 'SafetyGuard.kt', 'OnlineToolClient.kt', 'TarotDeck.kt', 'TarotActivity.kt',
     'activity_rc8_home.xml', 'activity_file_chat.xml', 'activity_talk_rc8.xml',
-    'activity_create_studio.xml', 'activity_paper_trading.xml', 'activity_safety_privacy.xml',
+    'activity_create_studio.xml', 'activity_paper_trading.xml', 'activity_safety_privacy.xml', 'activity_tarot.xml',
     'android:allowBackup="false"', 'androidx.core.content.FileProvider',
     'out/nanu-local-ai-v1.0-rc8.apk'
 ]:

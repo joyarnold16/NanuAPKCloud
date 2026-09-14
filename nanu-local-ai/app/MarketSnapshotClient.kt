@@ -53,11 +53,10 @@ object MarketSnapshotClient {
         require(clean.length == 6) { "Use a 6-letter FX pair such as EURUSD or GBPJPY." }
         val from = clean.substring(0, 3)
         val to = clean.substring(3, 6)
-        val url = "https://api.frankfurter.app/latest?from=$from&to=$to"
+        val url = "https://api.frankfurter.dev/v2/rate/${from.lowercase(Locale.US)}/${to.lowercase(Locale.US)}"
         val json = JSONObject(get(url))
-        val rates = json.getJSONObject("rates")
-        val price = rates.getDouble(to)
-        return MarketSnapshot("$from/$to", price, null, "Frankfurter / ECB reference data")
+        val price = json.getDouble("rate")
+        return MarketSnapshot("$from/$to", price, null, "Frankfurter central-bank reference data")
     }
 
     private fun get(urlString: String): String {

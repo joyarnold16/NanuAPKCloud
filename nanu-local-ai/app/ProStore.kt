@@ -57,11 +57,11 @@ class ProStore private constructor(context: Context) : SQLiteOpenHelper(context,
         require(value.isNotEmpty() && value.length<=2_000) { "Use a memory note of 1–2,000 characters." }
         require(memories(project,false).size<100) { "Project memory limit reached (100 notes)." }
         val id=UUID.randomUUID().toString()
-        writableDatabase.execSQL("INSERT INTO memories VALUES(?,?,?,?,1)",arrayOf(id,project,System.currentTimeMillis(),value))
+        writableDatabase.execSQL("INSERT INTO memories VALUES(?,?,?,?,1)",arrayOf<Any>(id,project,System.currentTimeMillis(),value))
         return id
     }
     @Synchronized fun setMemoryEnabled(id: String, enabled: Boolean) {
-        writableDatabase.execSQL("UPDATE memories SET enabled=? WHERE id=?",arrayOf(if(enabled) 1 else 0,id))
+        writableDatabase.execSQL("UPDATE memories SET enabled=? WHERE id=?",arrayOf<Any>(if(enabled) 1 else 0,id))
     }
     @Synchronized fun deleteMemory(id: String) { writableDatabase.delete("memories","id=?",arrayOf(id)) }
     @Synchronized fun link(project: String, conversation: String) { writableDatabase.execSQL("INSERT OR IGNORE INTO conversations VALUES(?,?)", arrayOf(project,conversation)) }

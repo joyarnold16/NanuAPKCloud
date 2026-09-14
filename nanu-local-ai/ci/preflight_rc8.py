@@ -15,12 +15,14 @@ required = [
     'app/ImageModelManager.kt', 'app/Rc8HomeActivity.kt', 'app/FileChatActivity.kt',
     'app/ContinuousTalkActivity.kt', 'app/CreateStudioActivity.kt',
     'app/PaperTradingActivity.kt', 'app/SafetyPrivacyActivity.kt', 'app/AiReportClient.kt',
-    'app/SafetyGuard.kt', 'app/LocalRagEngine.kt', 'app/NanuToolRegistry.kt', 'app/ProStore.kt',
+    'app/SafetyGuard.kt', 'app/LocalRagEngine.kt', 'app/NanuToolRegistry.kt',
+    'app/OnlineToolClient.kt', 'app/TarotDeck.kt', 'app/TarotActivity.kt', 'app/ProStore.kt',
     'res/layout/activity_main.xml', 'res/layout/activity_talk.xml',
     'res/layout/activity_create.xml', 'res/layout/activity_trading.xml',
     'res/layout/activity_rc8_home.xml', 'res/layout/activity_file_chat.xml',
     'res/layout/activity_talk_rc8.xml', 'res/layout/activity_create_studio.xml',
     'res/layout/activity_paper_trading.xml', 'res/layout/activity_safety_privacy.xml',
+    'res/layout/activity_tarot.xml',
     'res/layout/sheet_plus_menu.xml', 'res/layout/item_message_assistant.xml',
     'res/layout/item_message_user.xml', 'res/xml/nanu_file_paths.xml',
     'res/drawable/ic_nanu_launcher.xml', 'strings.xml', 'ci/build_rc8.sh',
@@ -55,7 +57,8 @@ for marker in [
     'versionCode = 22', 'versionName = "1.0-rc8"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
-    'AiReportClient.kt', 'SafetyGuard.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt', 'ProStore.kt', 'patch_safety_rc8.py',
+    'AiReportClient.kt', 'SafetyGuard.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt',
+    'OnlineToolClient.kt', 'TarotDeck.kt', 'TarotActivity.kt', 'ProStore.kt', 'patch_safety_rc8.py',
     'android:allowBackup=\\"false\\"', '-dontwarn com.gemalto.jp2.**',
     'out/nanu-local-ai-v1.0-rc8.apk'
 ]:
@@ -71,9 +74,19 @@ for marker in [
         errors.append(f'RC8 branch workflow missing marker: {marker}')
 
 home = (ROOT / 'app/Rc8HomeActivity.kt').read_text() if (ROOT / 'app/Rc8HomeActivity.kt').exists() else ''
-for marker in ['MainActivity::class.java', 'ContinuousTalkActivity::class.java', 'FileChatActivity::class.java', 'CreateStudioActivity::class.java', 'TradingActivity::class.java', 'PaperTradingActivity::class.java', 'SafetyPrivacyActivity::class.java']:
+for marker in ['MainActivity::class.java', 'ContinuousTalkActivity::class.java', 'FileChatActivity::class.java', 'CreateStudioActivity::class.java', 'TarotActivity::class.java', 'TradingActivity::class.java', 'PaperTradingActivity::class.java', 'SafetyPrivacyActivity::class.java']:
     if marker not in home:
         errors.append(f'RC8 home missing destination: {marker}')
+
+registry = (ROOT / 'app/NanuToolRegistry.kt').read_text() if (ROOT / 'app/NanuToolRegistry.kt').exists() else ''
+for marker in ['current_weather', 'crypto_price', 'forex_rate', 'news_search', 'web_search', 'image_search', 'tarot_draw', 'onlineTools']:
+    if marker not in registry:
+        errors.append(f'agent registry missing tool marker: {marker}')
+
+tarot = (ROOT / 'app/TarotDeck.kt').read_text() if (ROOT / 'app/TarotDeck.kt').exists() else ''
+for marker in ['cards.size == 78', 'Past', 'Present', 'Future', 'not as factual prediction']:
+    if marker not in tarot:
+        errors.append(f'tarot deck missing marker: {marker}')
 
 safety = (ROOT / 'app/SafetyPrivacyActivity.kt').read_text() if (ROOT / 'app/SafetyPrivacyActivity.kt').exists() else ''
 for marker in ['PRIVACY_POLICY.md', 'TERMS_OF_USE.md', 'submitReport()', 'AiReportClient', 'Submit to developer', 'Export safety report']:

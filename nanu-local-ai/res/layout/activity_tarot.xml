@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/nanu_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/tarot_back"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="Back"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_accent_2" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Nanu Tarot"
+                android:textColor="@color/nanu_text"
+                android:textSize="23sp"
+                android:textStyle="bold" />
+
+            <Space android:layout_width="64dp" android:layout_height="1dp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="An offline 78-card reference and reflection tool. No question or reading leaves your device."
+            android:textColor="@color/nanu_muted"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/tarot_question"
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:layout_marginTop="14dp"
+            android:background="@color/nanu_input"
+            android:gravity="top|start"
+            android:hint="Optional question or topic…"
+            android:inputType="textCapSentences|textMultiLine"
+            android:maxLength="500"
+            android:padding="12dp"
+            android:textColor="@color/nanu_text"
+            android:textColorHint="@color/nanu_muted" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/tarot_one"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:text="Draw 1 card"
+                android:textAllCaps="false" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/tarot_three"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Draw 3 cards"
+                android:textAllCaps="false" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/tarot_library"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="10dp"
+            android:text="Browse all 78 cards &amp; meanings"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/tarot_history"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_weight="1"
+                android:text="Reading history"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_accent_2" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/tarot_clear_history"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="46dp"
+                android:layout_weight="1"
+                android:text="Clear history"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_danger" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tarot_history_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="@color/nanu_muted"
+            android:textSize="11sp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/nanu_panel"
+            app:cardCornerRadius="16dp"
+            app:strokeColor="@color/nanu_border"
+            app:strokeWidth="1dp">
+
+            <TextView
+                android:id="@+id/tarot_result"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="180dp"
+                android:padding="16dp"
+                android:text="Your reading will appear here. Reversed cards are supported."
+                android:textColor="@color/nanu_text"
+                android:textIsSelectable="true"
+                android:textSize="14sp" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="18dp"
+            android:gravity="center"
+            android:text="For reflection or entertainment only—not factual prediction, medical, legal, safety or trading advice."
+            android:textColor="@color/nanu_muted"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>

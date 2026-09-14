@@ -1,6 +1,6 @@
 # Nanu Local AI 1.0 — Google Play Readiness
 
-Date reviewed: 26 August 2026
+Date reviewed: 14 September 2026
 
 ## Built into the app
 
@@ -10,6 +10,8 @@ Date reviewed: 26 August 2026
 - No ads or analytics SDKs in the current source.
 - Local-first LLM/image inference and document processing.
 - Local project RAG, user-controlled memory notes and bounded allow-listed agent tools.
+- Optional read-only weather/time, crypto, FX, news, web and reusable-image tools with a Home-screen off switch, source links and retrieval times.
+- Offline 78-card Tarot reference/readings with a local history and explicit entertainment/reflection boundary.
 - Android system document picker instead of broad storage permissions.
 - Microphone permission requested contextually for voice features.
 - No location, contacts, SMS, call-log, broad package-query or all-files permissions.

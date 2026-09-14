@@ -549,8 +549,9 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 }
                 val request = JSONObject().put("prompt", prompt).put("image", mode == AssistantMode.IMAGE)
                     .put("model", currentModelFile?.absolutePath.orEmpty()).put("system", BASE_SYSTEM_PROMPT + ProStore.assistantInstructions(this@MainActivity))
-                if(mode != AssistantMode.IMAGE && ProStore.agentToolsEnabled(this@MainActivity)) {
+                if(mode != AssistantMode.IMAGE) {
                     request.put("agentTools",true)
+                    request.put("onlineTools",getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getBoolean("online_tools_enabled", true))
                     ProStore.activeProject(this@MainActivity)?.let { request.put("projectId",it) }
                 }
                 LocalTaskService.submit(applicationContext, id, user, reply, request.toString(), mode.id)
@@ -1184,7 +1185,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         private const val DIRECTORY_MODELS = "models"
         private const val FILE_EXTENSION_GGUF = ".gguf"
         private const val MESSAGE_SPEAK_PREFIX = "nanu_message_"
-        private val BASE_SYSTEM_PROMPT = "You are Nanu, a private on-device assistant. Follow the NANU MODE instruction included with each user request. Never reveal hidden chain-of-thought, private reasoning, or <think> blocks. Return only useful final answers." + SafetyGuard.SYSTEM_RULES
+        private val BASE_SYSTEM_PROMPT = "You are Nanu, a local-first assistant. The language model runs on this device. Follow the NANU MODE instruction included with each user request. Use only Nanu's explicitly provided, bounded tools when current information is required. Never reveal hidden chain-of-thought, private reasoning, or <think> blocks. Return only useful final answers." + SafetyGuard.SYSTEM_RULES
     }
 }
 

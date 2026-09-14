@@ -29,7 +29,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
                 android:layout_weight="1"
-                android:text="Your private local AI workspace"
+                android:text="Your local-first AI workspace"
                 android:textColor="@color/nanu_muted"
                 android:textSize="13sp" />
         </LinearLayout>
@@ -75,6 +75,18 @@
             app:strokeColor="@color/nanu_accent" />
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_online_tools"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start|center_vertical"
+            android:text="🌐   Online Tools: ON\n       Weather, prices, news, web &amp; image search"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_success" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/home_talk"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
@@ -109,6 +121,18 @@
             android:textAllCaps="false"
             android:textColor="@color/nanu_text"
             app:strokeColor="@color/nanu_image" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_tarot"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="8dp"
+            android:gravity="start|center_vertical"
+            android:text="✦   Nanu Tarot\n       78 cards, meanings, 1-card &amp; 3-card readings"
+            android:textAllCaps="false"
+            android:textColor="@color/nanu_text"
+            app:strokeColor="@color/nanu_accent_2" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -178,7 +202,7 @@
             android:layout_marginTop="18dp"
             android:layout_marginBottom="18dp"
             android:gravity="center"
-            android:text="RC8 keeps real-money execution out of the app. Market tools are informational and paper trading uses virtual funds only."
+            android:text="Online tools are used only when you ask for live information and may be turned off. RC8 keeps real-money execution out of the app."
             android:textColor="@color/nanu_muted"
             android:textSize="11sp" />
     </LinearLayout>

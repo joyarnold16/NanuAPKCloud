@@ -34,4 +34,28 @@ class NanuToolRegistryTest {
         try { NanuToolRegistry.positionSize(1000.0,6.0,10.0,9.5); fail("Risk above cap must fail") }
         catch(_:IllegalArgumentException) { }
     }
+
+    @Test fun obviousCurrentQuestionsRouteToReadOnlyTools() {
+        val weather=NanuToolRegistry.suggestedCall("User request:\nWhat is the current weather in Kanpur?",true)
+        assertEquals("current_weather",weather?.name)
+        assertEquals("Kanpur",weather?.arguments?.getString("location"))
+
+        val btc=NanuToolRegistry.suggestedCall("User request:\nWhat is the current price of BTC?",true)
+        assertEquals("crypto_price",btc?.name)
+        assertEquals("BTC",btc?.arguments?.getString("symbol"))
+
+        val typo=NanuToolRegistry.suggestedCall("User request:\nWhat is the current prize of bitcoin?",true)
+        assertEquals("crypto_price",typo?.name)
+
+        val image=NanuToolRegistry.suggestedCall("User request:\nShow me an image of the moon",true)
+        assertEquals("image_search",image?.name)
+        assertEquals("moon",image?.arguments?.getString("query"))
+    }
+
+    @Test fun onlineSwitchBlocksAutomaticLiveRoutingButKeepsOfflineTarot() {
+        assertNull(NanuToolRegistry.suggestedCall("User request:\nWeather in Kanpur",false))
+        val tarot=NanuToolRegistry.suggestedCall("User request:\nGive me a three-card tarot reading",false)
+        assertEquals("tarot_draw",tarot?.name)
+        assertEquals(3,tarot?.arguments?.getInt("count"))
+    }
 }

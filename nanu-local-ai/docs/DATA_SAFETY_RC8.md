@@ -1,6 +1,6 @@
 # Nanu Local AI 1.0 — Data Safety Working Notes
 
-Reviewed: 26 August 2026
+Reviewed: 14 September 2026
 
 This is a preparation aid for the exact signed production AAB. Play Console wording/taxonomy can change, so verify the final form at submission time.
 
@@ -16,7 +16,7 @@ Nanu locally stores or processes:
 - Ask My Files history
 - optional local copies of AI safety reports
 - trade journal data and virtual-money paper-trading data
-- bounded local tool calls and results
+- bounded local tool calls and results, including offline tarot readings and their optional local history
 
 These flows stay on the device unless the user deliberately shares/exports content or explicitly submits an AI safety report.
 
@@ -24,6 +24,7 @@ These flows stay on the device unless the user deliberately shares/exports conte
 
 - User-initiated language/image model downloads contact the configured model host (currently Hugging Face URLs).
 - Live market snapshot requests contact the public market-data services used by `MarketSnapshotClient`.
+- When the user asks for current information and Online Tools are enabled, the bounded agent may send only the short place, market symbol or search term required to Open-Meteo (weather/time), CoinGecko (crypto), Frankfurter (foreign exchange), Google News RSS (news), Jina Search (web search), or Wikimedia Commons (reusable image search). Full chats, documents and local RAG memory are not included in these requests. Online Tools can be disabled from Home.
 - User-opened model source/license, privacy-policy and terms links open external destinations.
 - Speech recognition prefers an on-device recognizer but Android may use the user's installed speech service when offline recognition is unavailable.
 - When the user explicitly taps **Submit to developer**, Nanu transmits the selected AI-report category, reported output/details, a generated report reference, app identifier, timestamp and ordinary network metadata to the configured HTTPS developer reporting endpoint. Nanu does not silently submit reports.
@@ -46,7 +47,7 @@ Do not mark ordinary local prompts, local document contents, local generated ima
 
 ## Permissions expected
 
-- `android.permission.INTERNET`
+- `android.permission.INTERNET` (model downloads and optional, user-requested online tools/reporting)
 - `android.permission.RECORD_AUDIO`
 
 Nanu CI rejects broad storage, location, contacts, SMS, call-log, all-packages and overlay permission markers.
@@ -57,4 +58,4 @@ Nanu contains Forex/Crypto informational analysis, risk calculations and virtual
 
 ## Privacy-policy consistency
 
-The public privacy policy must stay consistent with the exact production build. Update it if Nanu later adds or changes analytics, ads, accounts, cloud sync, crash reporting, remote AI inference, the reporting backend, market providers, data retention or any other off-device data flow.
+The public privacy policy must stay consistent with the exact production build. Update it if Nanu later adds or changes online-tool providers, analytics, ads, accounts, cloud sync, crash reporting, remote AI inference, the reporting backend, market providers, data retention or any other off-device data flow.

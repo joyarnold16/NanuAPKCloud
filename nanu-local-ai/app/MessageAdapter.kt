@@ -2,6 +2,7 @@ package com.example.llama
 
 import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
+import android.text.util.Linkify
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -67,6 +68,7 @@ class MessageAdapter(
         val content = item.findViewById<TextView>(R.id.msg_content)
         item.findViewById<TextView>(R.id.msg_timestamp)?.text = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(message.createdAt))
         content.text = message.content
+        if (!message.isUser) Linkify.addLinks(content, Linkify.WEB_URLS)
         content.setOnLongClickListener {
             onCopy(message.content)
             true

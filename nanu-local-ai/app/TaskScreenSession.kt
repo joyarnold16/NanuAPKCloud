@@ -54,10 +54,11 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
                 val prior = store.messages(id).takeLast(10).joinToString("\n") { (if(it.isUser) "User: " else "Assistant: ") + it.content.take(1500) }.takeLast(10000)
                 val body = if (request.optBoolean("image")) prompt else "Previous conversation (context only):\n$prior\nUser request:\n$prompt\n" + (attachment?.contextForPrompt(18000) ?: "")
                 val image = request.optBoolean("image")
-                val agent = !image && ProStore.agentToolsEnabled(screen)
+                val agent = !image
                 request.put("prompt", body).put("system", system + if(agent) ProStore.assistantInstructions(screen) else "").put("model", prefs.getString("last_model", ""))
                 if(agent) {
                     request.put("agentTools",true)
+                    request.put("onlineTools",prefs.getBoolean("online_tools_enabled", true))
                     if(request.optString("projectId").isBlank()) ProStore.activeProject(screen)?.let { request.put("projectId",it) }
                 }
                 val imageOptions = if (request.optBoolean("image")) ImageEditArguments.savedOptions(request) else null

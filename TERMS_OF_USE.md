@@ -1,6 +1,6 @@
 # Nanu Local AI Terms of Use
 
-**Effective date:** 25 August 2026
+**Effective date:** 14 September 2026
 
 These terms describe the intended use of Nanu Local AI. They are a product-readiness document and should be reviewed before a public commercial release.
 
@@ -24,7 +24,9 @@ Users should only process files and content they have the right to use. Nanu's l
 
 ## 5. Model licenses and third-party services
 
-Nanu can download third-party AI models. Each model remains subject to its own license. Optional network features may use third-party services such as model hosts and public market-data providers. Their terms and privacy practices may also apply.
+Nanu can download third-party AI models. Each model remains subject to its own license. Optional network features may use third-party services for model hosting, weather/time, public market data, news, web search and reusable-image search. Their terms and privacy practices may also apply, and free public services may be rate-limited, delayed or unavailable.
+
+Tarot cards and readings are provided for reflection or entertainment. They are not factual predictions or medical, legal, safety, financial or trading advice.
 
 ## 6. Voice and Android services
 
