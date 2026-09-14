@@ -95,16 +95,36 @@ class LocalTaskService : Service() {
                         }
                         }
                     } else {
+                        reply = reply!!.copy(content = "Starting the local AI engine…", status = "Engine startup")
+                        store.update(task!!, reply!!)
                         val engine = AiChat.getInferenceEngine(applicationContext)
                         try {
-                            withTimeout(30_000) { engine.state.first { it !is InferenceEngine.State.Initializing && it !is InferenceEngine.State.Uninitialized } }
-                            val model = File(request.getString("model"))
-                            require(model.isFile) { "Selected model is no longer available" }
-                            when(engine.state.value) {
-                                is InferenceEngine.State.ModelReady, is InferenceEngine.State.Error -> engine.cleanUp()
-                                else -> Unit
+                            val stable = withTimeout(45_000) {
+                                engine.state.first {
+                                    it is InferenceEngine.State.Initialized ||
+                                        it is InferenceEngine.State.ModelReady ||
+                                        it is InferenceEngine.State.Error
+                                }
                             }
-                            engine.loadModel(model.absolutePath)
+                            if (stable is InferenceEngine.State.Error) {
+                                val cause = stable.exception
+                                runCatching { engine.cleanUp() }
+                                throw IllegalStateException("Native engine initialization failed: ${cause.message ?: cause.javaClass.simpleName}", cause)
+                            }
+                            val model = File(request.getString("model"))
+                            require(model.isFile && model.canRead()) { "Selected model is no longer available" }
+                            if (engine.state.value is InferenceEngine.State.ModelReady) engine.cleanUp()
+                            check(engine.state.value is InferenceEngine.State.Initialized) {
+                                "Local engine is not ready (state: ${engineStateName(engine.state.value)})"
+                            }
+                            reply = reply!!.copy(
+                                content = "Loading ${model.nameWithoutExtension.take(36)}…",
+                                status = "Loading local model • ${formatBytes(model.length())}"
+                            )
+                            store.update(task!!, reply!!)
+                            withTimeout(10 * 60 * 1000L) { engine.loadModel(model.absolutePath) }
+                            reply = reply!!.copy(content = "Preparing Nanu…", status = "Preparing local model")
+                            store.update(task!!, reply!!)
                             val toolsEnabled = request.optBoolean("agentTools")
                             val onlineEnabled = request.optBoolean("onlineTools", true)
                             val projectAvailable = request.optString("projectId").isNotBlank()
@@ -178,6 +198,11 @@ class LocalTaskService : Service() {
                         ), "stopped")
                     }
                 }
+            } catch (e: LinkageError) {
+                if (task != null && reply != null) {
+                    val reason = failureMessage(e)
+                    runCatching { store.update(task!!, reply!!.copy(content=reason, status="Failed"), "failed") }
+                }
             } catch (e: Exception) {
                 if (task != null && reply != null) {
                     val reason = failureMessage(e)
@@ -220,12 +245,19 @@ class LocalTaskService : Service() {
             task
         }
         fun stop(context: Context) { context.startService(Intent(context, LocalTaskService::class.java).setAction(STOP)) }
+        fun engineStateName(state: InferenceEngine.State): String = state.javaClass.simpleName.ifBlank { "unknown" }
+        fun formatBytes(bytes: Long): String = when {
+            bytes >= 1024L * 1024L * 1024L -> String.format(java.util.Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+            bytes >= 1024L * 1024L -> String.format(java.util.Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
+            else -> "${bytes / 1024L} KB"
+        }
         fun visibleText(raw: String): String {
             val cleaned = raw.replace(Regex("(?s)<think>.*?</think>"), "")
             return cleaned.substringBefore("<think>").replace("</think>", "").trimStart()
         }
         fun failureMessage(error: Throwable): String = when {
-            error is TimeoutCancellationException -> "Nanu took too long to answer. Try a shorter message or a smaller model."
+            error is TimeoutCancellationException -> "Nanu timed out while starting or running the local model. Try a smaller model."
+            error is LinkageError -> "Nanu's native AI engine could not start on this device: ${error.message?.take(140) ?: error.javaClass.simpleName}"
             error.message?.contains("Selected model is no longer available", ignoreCase = true) == true -> "The selected AI model is missing. Tap Model and download or select it again."
             error.message?.contains("no answer", ignoreCase = true) == true -> "The model produced no answer. Try a shorter message or another model."
             else -> "Nanu could not answer: ${error.message?.take(180) ?: "local AI error"}"
