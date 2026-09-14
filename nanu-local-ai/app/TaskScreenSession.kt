@@ -1,13 +1,9 @@
 package com.example.llama
 
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
 import org.json.JSONObject
@@ -18,11 +14,8 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
     private val store by lazy { ChatStore.get(screen) }
     private val prefs by lazy { screen.getSharedPreferences("nanu_local_ai", 0) }
     private var conversation: String? = null
-    private var pending: (() -> Unit)? = null
-    private var asked = false
     private var submitting = false
     fun newConversation() { if (!submitting) { conversation = null; prefs.edit().remove(key).apply() } }
-    private val permission = screen.registerForActivityResult(ActivityResultContracts.RequestPermission()) { pending?.invoke(); pending = null }
     fun observe() {
         screen.lifecycleScope.launch {
             LocalTaskService.recover(screen)
@@ -35,12 +28,6 @@ class TaskScreenSession(private val screen: AppCompatActivity, private val key: 
     fun submit(prompt: String, system: String, request: JSONObject = JSONObject(), attachment: NanuAttachment? = null) {
         if (LocalTaskService.active.value || submitting) {
             android.widget.Toast.makeText(screen, "A local task is already running. Open Chat to view or stop it.", android.widget.Toast.LENGTH_LONG).show()
-            return
-        }
-        if (!asked && ContextCompat.checkSelfPermission(screen, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            asked = true
-            pending = { submit(prompt, system, request, attachment) }
-            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
             return
         }
         submitting = true
