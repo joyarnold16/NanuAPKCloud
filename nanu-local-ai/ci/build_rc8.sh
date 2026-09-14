@@ -211,7 +211,7 @@ for required in [
     '-dontwarn com.gemalto.jp2.**', 'AttachmentManager.kt', 'LocalImageGenerator.kt',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'PaperTradingActivity.kt', 'SafetyPrivacyActivity.kt',
-    'AiReportClient.kt', 'SafetyGuard.kt', 'OnlineToolClient.kt', 'TarotDeck.kt', 'TarotActivity.kt',
+    'AiReportClient.kt', 'SafetyGuard.kt',
     'activity_rc8_home.xml', 'activity_file_chat.xml', 'activity_talk_rc8.xml',
     'activity_create_studio.xml', 'activity_paper_trading.xml', 'activity_safety_privacy.xml', 'activity_tarot.xml',
     'android:allowBackup="false"', 'androidx.core.content.FileProvider',
