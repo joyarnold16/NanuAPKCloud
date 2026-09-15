@@ -83,6 +83,7 @@ class NanuToolRegistryTest {
         assertTrue(NanuToolRegistry.canAnswerDirectly("User request:\nCalculate 12 / (2 + 1)",false))
         assertTrue(NanuToolRegistry.canAnswerDirectly("User request:\nWeather in Kanpur",true))
         assertTrue(NanuToolRegistry.canAnswerDirectly("User request:\nWhat is the BTC price?",true))
+        assertTrue(NanuToolRegistry.canAnswerDirectly("User request:\nShow me the latest AI news",true))
         assertTrue(NanuToolRegistry.canAnswerDirectly("User request:\nDraw one tarot card",false))
         assertFalse(NanuToolRegistry.canAnswerDirectly("User request:\nSearch the web for Android news",true))
         assertFalse(NanuToolRegistry.canAnswerDirectly("User request:\nExplain gravity",true))

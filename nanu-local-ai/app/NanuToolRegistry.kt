@@ -138,11 +138,6 @@ object NanuToolRegistry {
             if (pair != null) return call("forex_rate", "pair" to pair)
         }
 
-        if (Regex("\\b(news|headlines)\\b").containsMatchIn(lower)) {
-            val query = cleanQuery(request, "(?i)\\b(show|find|search|tell me|give me|the|latest|recent|today(?:'s)?|news|headlines|about|on|for)\\b")
-            return call("news_search", "query" to query.ifBlank { "top news" })
-        }
-
         if (Regex("\\b(image|images|photo|photos|picture|pictures)\\b").containsMatchIn(lower) && Regex("\\b(show|find|search|look for|get)\\b").containsMatchIn(lower)) {
             val query = cleanQuery(request, "(?i)\\b(show|find|search|look|for|get|me|the|an?|some|image|images|photo|photos|picture|pictures|of)\\b")
             if (query.isNotBlank()) return call("image_search", "query" to query)
@@ -152,6 +147,11 @@ object NanuToolRegistry {
             val query = request.replace(Regex("(?i)\\b(search (?:the )?(?:web|internet|online)(?: for)?|look up online|web search(?: for)?)\\b"), " ")
                 .replace(Regex("[?!.]+$"), "").replace(Regex("\\s+"), " ").trim()
             if (query.isNotBlank()) return call("web_search", "query" to query)
+        }
+
+        if (Regex("\\b(news|headlines)\\b").containsMatchIn(lower)) {
+            val query = cleanQuery(request, "(?i)\\b(show|find|search|tell me|give me|the|latest|recent|today(?:'s)?|news|headlines|about|on|for)\\b")
+            return call("news_search", "query" to query.ifBlank { "top news" })
         }
         return null
     }
