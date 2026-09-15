@@ -1,4 +1,6 @@
-Nanu Local AI 1.0 RC8.3 release candidate.
+Nanu Local AI 1.0 RC8.4 release candidate.
 Includes local chat, RAG and project memory, bounded read-only online tools,
 voice, local image generation, tarot, saved history and Nanu Pro.
+RC8.4 adds deterministic fast live answers, stronger document retrieval,
+history counts/empty-chat cleanup and the first animated Nanu Visual home.
 Trading Lab and Paper Trading are separate from this application.

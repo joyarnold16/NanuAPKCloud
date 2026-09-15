@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/nanu_bg"
+    android:background="@drawable/nanu_home_background"
     android:fillViewport="true">
 
     <LinearLayout
@@ -12,32 +12,67 @@
         android:orientation="vertical"
         android:padding="18dp">
 
-        <LinearLayout
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/home_hero"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            app:cardBackgroundColor="@color/nanu_glass"
+            app:cardCornerRadius="28dp"
+            app:strokeColor="@color/nanu_border_bright"
+            app:strokeWidth="1dp">
 
-            <ImageView
-                android:layout_width="58dp"
-                android:layout_height="58dp"
-                android:contentDescription="Nanu"
-                android:src="@drawable/ic_nanu_launcher" />
-
-            <TextView
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:text="Your local-first AI workspace"
-                android:textColor="@color/nanu_muted"
-                android:textSize="13sp" />
-        </LinearLayout>
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="18dp">
+
+                <com.example.llama.NanuPulseView
+                    android:layout_width="96dp"
+                    android:layout_height="96dp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:letterSpacing="0.18"
+                        android:text="NANU"
+                        android:textColor="@color/nanu_accent_2"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Private intelligence.\nLive when you ask."
+                        android:textColor="@color/nanu_text"
+                        android:textSize="21sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Local AI, document memory and safe read-only internet tools."
+                        android:textColor="@color/nanu_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/home_status_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             app:cardBackgroundColor="@color/nanu_panel_2"
             app:cardCornerRadius="16dp"
             app:strokeColor="@color/nanu_border"
@@ -48,12 +83,88 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:padding="14dp"
-                android:text="RC8 • private local AI"
+                android:text="RC8.4 • private local AI"
                 android:textColor="@color/nanu_success"
                 android:textSize="12sp" />
         </com.google.android.material.card.MaterialCardView>
 
         <TextView
+            android:id="@+id/home_agent_section"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:letterSpacing="0.08"
+            android:text="TRY NANU AGENT"
+            android:textColor="@color/nanu_muted"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/home_quick_weather"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_weight="1"
+                android:text="Kanpur weather"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text"
+                app:cornerRadius="18dp"
+                app:strokeColor="@color/nanu_success" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/home_quick_btc"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="BTC price now"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text"
+                app:cornerRadius="18dp"
+                app:strokeColor="@color/nanu_accent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/home_quick_news"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_weight="1"
+                android:text="Latest AI news"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text"
+                app:cornerRadius="18dp"
+                app:strokeColor="@color/nanu_file" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/home_quick_tarot"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="3-card Tarot"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text"
+                app:cornerRadius="18dp"
+                app:strokeColor="@color/nanu_accent_2" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/home_workspace_section"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"

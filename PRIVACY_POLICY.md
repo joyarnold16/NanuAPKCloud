@@ -12,7 +12,7 @@ Nanu does not require a Nanu account and does not include advertising or analyti
 
 ## Optional online assistant tools
 
-The language model still runs locally. When Online Tools are enabled and the user asks for current information, Nanu may use a bounded, read-only request to Open-Meteo for place/time/weather data, CoinGecko for cryptocurrency reference prices, Frankfurter for central-bank foreign-exchange reference rates, Google News RSS for news results, Jina Search for web results, or Wikimedia Commons for reusable-image results.
+The language model still runs locally. When Online Tools are enabled and the user asks for current information, Nanu may use a bounded, read-only request to Open-Meteo for place/time/weather data, CoinGecko for cryptocurrency reference prices, Frankfurter for central-bank foreign-exchange reference rates, Google News RSS for news results, DuckDuckGo HTML for web results, or Wikimedia Commons for reusable-image results.
 
 Only the short place name, symbol, currency pair, or search term needed for the chosen tool is sent. Nanu does not include the full chat history, imported documents, project memory, or hidden prompts in these requests. The provider receives ordinary network metadata, such as the device IP address, under its own privacy practices. Online Tools can be turned off from the Home screen. Free public sources can be unavailable or rate-limited.
 

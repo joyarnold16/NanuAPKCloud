@@ -14,6 +14,8 @@ data class MarketSnapshot(
 )
 
 object MarketSnapshotClient {
+    private const val MAX_RESPONSE_CHARS = 100_000
+    private val allowedHosts = setOf("api.coingecko.com", "api.frankfurter.dev")
 
     fun crypto(symbolInput: String): MarketSnapshot {
         val normalized = symbolInput.uppercase(Locale.US)
@@ -57,17 +59,38 @@ object MarketSnapshotClient {
     }
 
     private fun get(urlString: String): String {
-        val connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
+        val requested = URL(urlString)
+        require(requested.protocol == "https" && requested.host.lowercase(Locale.US) in allowedHosts) {
+            "Market source is not allow-listed."
+        }
+        val connection = (requested.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 10_000
             readTimeout = 15_000
+            instanceFollowRedirects = false
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "NanuLocalAI/1.0")
         }
         try {
             val code = connection.responseCode
+            val finalUrl = connection.url
+            require(finalUrl.protocol == "https" && finalUrl.host.lowercase(Locale.US) in allowedHosts) {
+                "Market source redirected outside Nanu's allow-list."
+            }
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val body = stream?.bufferedReader()?.use { reader ->
+                val output = StringBuilder()
+                val buffer = CharArray(4_096)
+                while (true) {
+                    val read = reader.read(buffer)
+                    if (read < 0) break
+                    require(output.length + read <= MAX_RESPONSE_CHARS) { "Market source returned too much data." }
+                    output.append(buffer, 0, read)
+                }
+                output.toString()
+            }.orEmpty()
+            if (code == 429) error("The free market source is temporarily rate-limited. Please try again shortly.")
+            if (code in 300..399) error("Market source attempted a redirect, which Nanu blocks for privacy.")
             if (code !in 200..299) error("Market source returned HTTP $code")
             return body
         } finally {

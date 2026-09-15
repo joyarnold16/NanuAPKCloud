@@ -6,7 +6,9 @@ import org.xmlpull.v1.XmlPullParser
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -26,7 +28,7 @@ object OnlineToolClient {
     private val allowedHosts = setOf(
         "api.open-meteo.com",
         "geocoding-api.open-meteo.com",
-        "s.jina.ai",
+        "html.duckduckgo.com",
         "news.google.com",
         "commons.wikimedia.org"
     )
@@ -84,13 +86,19 @@ object OnlineToolClient {
 
     fun webSearch(queryInput: String): String {
         val query = boundedQuery(queryInput)
-        val sourceUrl = "https://s.jina.ai/?q=${encoded(query)}"
-        val body = get(sourceUrl, "text/markdown, text/plain;q=0.9")
-            .replace(Regex("(?i)ignore (all|any|previous) (instructions|prompts)"), "[untrusted instruction removed]")
-            .take(14_000)
-            .trim()
-        require(body.isNotBlank()) { "The web search source returned no readable results." }
-        return "Web results for: $query\n\n$body\n\nSearch source: Jina Search (https://jina.ai/reader/)\nRetrieved: ${retrievedAt()}"
+        val sourceUrl = "https://html.duckduckgo.com/html/?q=${encoded(query)}&kl=in-en"
+        val items = parseSearch(get(sourceUrl, "text/html")).take(6)
+        require(items.isNotEmpty()) { "The free web lookup returned no readable results." }
+        return buildString {
+            append("Web results for: $query\n\n")
+            items.forEachIndexed { index, item ->
+                append("${index + 1}. ${item.title}\n")
+                if (item.snippet.isNotBlank()) append("${item.snippet}\n")
+                append("Link: ${item.link}\n\n")
+            }
+            append("Search source: DuckDuckGo HTML (https://duckduckgo.com/)\n")
+            append("Retrieved: ${retrievedAt()}")
+        }
     }
 
     fun news(queryInput: String): String {
@@ -144,6 +152,28 @@ object OnlineToolClient {
     }
 
     internal data class NewsItem(val title: String, val link: String, val source: String, val published: String)
+    internal data class SearchItem(val title: String, val link: String, val snippet: String)
+
+    internal fun parseSearch(html: String): List<SearchItem> {
+        val titlePattern = Regex(
+            """(?is)<a[^>]*class=[\"'][^\"']*result__a[^\"']*[\"'][^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>"""
+        )
+        val snippetPattern = Regex(
+            """(?is)<a[^>]*class=[\"'][^\"']*result__snippet[^\"']*[\"'][^>]*>(.*?)</a>"""
+        )
+        val titles = titlePattern.findAll(html).toList()
+        return titles.mapNotNullIndexed { index, match ->
+            val title = stripHtml(match.groupValues[2]).take(300)
+            val link = decodeSearchLink(match.groupValues[1]) ?: return@mapNotNullIndexed null
+            val nextStart = titles.getOrNull(index + 1)?.range?.first ?: html.length
+            val block = html.substring(match.range.last + 1, nextStart)
+            val snippet = snippetPattern.find(block)?.groupValues?.get(1)?.let(::stripHtml)
+                ?.replace(Regex("(?i)ignore (all|any|previous) (instructions|prompts)"), "[untrusted instruction removed]")
+                ?.take(600)
+                .orEmpty()
+            if (title.isBlank()) null else SearchItem(title, link, snippet)
+        }.distinctBy { it.link }
+    }
 
     internal fun parseNews(xmlText: String): List<NewsItem> {
         val parser = Xml.newPullParser()
@@ -186,9 +216,24 @@ object OnlineToolClient {
         .replace(Regex("<[^>]+>"), " ")
         .replace("&amp;", "&")
         .replace("&quot;", "\"")
+        .replace("&#x27;", "'")
         .replace("&#39;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
         .replace(Regex("\\s+"), " ")
         .trim()
+
+    private fun decodeSearchLink(rawHref: String): String? {
+        val href = rawHref.replace("&amp;", "&").let { if (it.startsWith("//")) "https:$it" else it }
+        val uri = runCatching { URI(href) }.getOrNull() ?: return null
+        val target = uri.rawQuery.orEmpty().split('&')
+            .firstOrNull { it.substringBefore('=') == "uddg" }
+            ?.substringAfter('=', "")
+            ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
+            ?: href
+        val parsed = runCatching { URL(target) }.getOrNull() ?: return null
+        return target.takeIf { parsed.protocol == "https" && parsed.host.isNotBlank() }
+    }
 
     private fun geocode(locationInput: String): Place {
         val location = boundedQuery(locationInput)
@@ -213,7 +258,7 @@ object OnlineToolClient {
             requestMethod = "GET"
             connectTimeout = 10_000
             readTimeout = 20_000
-            instanceFollowRedirects = true
+            instanceFollowRedirects = false
             setRequestProperty("Accept", accept)
             setRequestProperty("Accept-Language", "en-IN,en;q=0.8")
             setRequestProperty("User-Agent", "NanuLocalAI/1.0 (Android; read-only agent tool)")
@@ -236,6 +281,7 @@ object OnlineToolClient {
                     out.toString()
                 }
             }.orEmpty()
+            if (code in 300..399) error("Online source attempted a redirect, which Nanu blocks for privacy.")
             if (code !in 200..299) error("Online source returned HTTP $code.")
             return body
         } finally {

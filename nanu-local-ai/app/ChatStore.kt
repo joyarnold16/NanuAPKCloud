@@ -11,7 +11,13 @@ import org.json.JSONObject
 import org.json.JSONArray
 import java.util.UUID
 
-data class Conversation(val id: String, val title: String, val updated: Long, val mode: String)
+data class Conversation(
+    val id: String,
+    val title: String,
+    val updated: Long,
+    val mode: String,
+    val messageCount: Int = 0
+)
 data class ChatTask(val id: String, val conversation: String, val message: String, val request: String)
 
 /** All database access is serialized off the UI thread. No chat data leaves app storage. */
@@ -48,8 +54,8 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
     suspend fun list(query: String = "", includeEmpty: Boolean = true): List<Conversation> = access { db ->
         val pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         val nonEmpty = if (includeEmpty) "" else " AND EXISTS (SELECT 1 FROM messages saved WHERE saved.conversation=c.id)"
-        db.rawQuery("SELECT DISTINCT c.id,c.title,c.updated,c.mode FROM conversations c LEFT JOIN messages m ON m.conversation=c.id WHERE (c.title LIKE ? ESCAPE '\\' OR m.payload LIKE ? ESCAPE '\\')$nonEmpty ORDER BY c.updated DESC", arrayOf(pattern, pattern)).use { c ->
-            buildList { while (c.moveToNext()) add(Conversation(c.getString(0), c.getString(1), c.getLong(2), c.getString(3))) }
+        db.rawQuery("SELECT c.id,c.title,c.updated,c.mode,(SELECT COUNT(*) FROM messages all_messages WHERE all_messages.conversation=c.id) FROM conversations c LEFT JOIN messages m ON m.conversation=c.id WHERE (c.title LIKE ? ESCAPE '\\' OR m.payload LIKE ? ESCAPE '\\')$nonEmpty GROUP BY c.id,c.title,c.updated,c.mode ORDER BY c.updated DESC", arrayOf(pattern, pattern)).use { c ->
+            buildList { while (c.moveToNext()) add(Conversation(c.getString(0), c.getString(1), c.getLong(2), c.getString(3), c.getInt(4))) }
         }
     }
     suspend fun messages(id: String): List<Message> = access { db ->
@@ -60,7 +66,11 @@ class ChatStore private constructor(context: Context) : SQLiteOpenHelper(context
     suspend fun saveBatchResult(conversation: String, message: Message) = access(true) { db -> put(db, conversation, message) }
     suspend fun rename(id: String, title: String) = access(true) { db ->
         require(title.trim().isNotEmpty())
-        db.execSQL("UPDATE conversations SET title=? WHERE id=?", arrayOf(title.trim().take(120), id))
+        db.execSQL("UPDATE conversations SET title=?,updated=? WHERE id=?", arrayOf<Any>(title.trim().take(120), System.currentTimeMillis(), id))
+    }
+    suspend fun deleteIfEmpty(id: String): Boolean = access(true) { db ->
+        val empty = db.rawQuery("SELECT 1 FROM messages WHERE conversation=? LIMIT 1", arrayOf(id)).use { !it.moveToFirst() }
+        empty && db.delete("conversations", "id=?", arrayOf(id)) == 1
     }
     suspend fun delete(id: String? = null) = access(true) { db ->
         // The user has already confirmed a permanent delete. Do not let a stale or

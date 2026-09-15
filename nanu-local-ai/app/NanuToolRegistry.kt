@@ -8,7 +8,12 @@ import java.util.Locale
 import kotlin.math.pow
 
 data class NanuToolCall(val name: String, val arguments: JSONObject)
-data class NanuToolResult(val name: String, val content: String, val online: Boolean = false)
+data class NanuToolResult(
+    val name: String,
+    val content: String,
+    val online: Boolean = false,
+    val directlyPresentable: Boolean = false
+)
 
 /**
  * A closed, auditable tool registry for Nanu's bounded agent.
@@ -23,6 +28,14 @@ object NanuToolRegistry {
     private val names = setOf(
         "calculator", "project_search", "current_time", "tarot_draw",
         "current_weather", "crypto_price", "forex_rate", "news_search", "web_search", "image_search"
+    )
+    /**
+     * These tools already produce a complete, source-labelled answer. Passing their result back
+     * through a small LLM would add latency and could accidentally alter a price, time or URL.
+     */
+    private val directlyPresentableNames = setOf(
+        "calculator", "current_time", "tarot_draw", "current_weather",
+        "crypto_price", "forex_rate", "news_search", "image_search"
     )
     private val knownCrypto = linkedMapOf(
         "bitcoin" to "BTC", "btc" to "BTC", "ethereum" to "ETH", "ether" to "ETH", "eth" to "ETH",
@@ -99,6 +112,8 @@ object NanuToolRegistry {
             return call("tarot_draw", "question" to request.take(500), "count" to count)
         }
 
+        suggestedCalculation(request)?.let { return it }
+
         if (Regex("\\b(current time|time (?:in|at|for)|what time is it)\\b").containsMatchIn(lower)) {
             val location = targetAfterPreposition(request)
             if (location.isBlank() || onlineAvailable) return call("current_time", "location" to location)
@@ -140,6 +155,10 @@ object NanuToolRegistry {
         }
         return null
     }
+
+    /** True when Nanu can answer this request safely without starting or loading the LLM. */
+    fun canAnswerDirectly(prompt: String, onlineAvailable: Boolean): Boolean =
+        suggestedCall(prompt, onlineAvailable)?.name in directlyPresentableNames
 
     fun execute(context: Context, request: JSONObject, call: NanuToolCall): NanuToolResult {
         val onlineEnabled = request.optBoolean("onlineTools", true)
@@ -207,7 +226,12 @@ object NanuToolRegistry {
             else -> error("Tool is not allow-listed.")
         }
         require(output.length <= 16_000) { "Tool output exceeded the context limit." }
-        return NanuToolResult(call.name, output, online)
+        return NanuToolResult(
+            name = call.name,
+            content = output,
+            online = online,
+            directlyPresentable = call.name in directlyPresentableNames
+        )
     }
 
     fun followUpPrompt(result: NanuToolResult): String = buildString {
@@ -230,10 +254,34 @@ object NanuToolRegistry {
     private fun call(name: String, vararg arguments: Pair<String, Any>): NanuToolCall =
         NanuToolCall(name, JSONObject().apply { arguments.forEach { (key, value) -> put(key, value) } })
 
-    private fun latestUserRequest(prompt: String): String = prompt.substringAfterLast("User request:\n", prompt)
-        .substringBefore("\n[Attachment:")
-        .trim()
-        .take(1_000)
+    private fun latestUserRequest(prompt: String): String {
+        // Attached text is untrusted evidence and must never be allowed to select an online tool.
+        // Trim it before looking for the final user-request marker so a document cannot inject a
+        // second marker and replace the user's actual request.
+        val beforeAttachment = prompt.substringBefore("\nAttached file:")
+        return beforeAttachment.substringAfterLast("User request:\n", beforeAttachment)
+            .trim()
+            .take(1_000)
+    }
+
+    private fun suggestedCalculation(request: String): NanuToolCall? {
+        val mathCommand = Regex("(?i)^\\s*(?:please\\s+)?(calculate|compute|evaluate|solve)\\s*:?[ ]*")
+        val questionPrefix = Regex("(?i)^\\s*what(?:'s| is)\\s+")
+        val explicitlyRequested = mathCommand.containsMatchIn(request)
+        val candidate = when {
+            explicitlyRequested -> mathCommand.replaceFirst(request, "")
+            questionPrefix.containsMatchIn(request) -> questionPrefix.replaceFirst(request, "")
+            else -> request
+        }
+            .removeSuffix("?")
+            .trim()
+        if (candidate.isBlank() || candidate.length > 300) return null
+        if (!Regex("[0-9]").containsMatchIn(candidate)) return null
+        if (!Regex("^[0-9eE+\\-*/^().\\s]+$").matches(candidate)) return null
+        if (!explicitlyRequested && !Regex("[+*/^()]|(?<=\\d)\\s*-\\s*(?=\\d)").containsMatchIn(candidate)) return null
+        if (runCatching { calculate(candidate) }.isFailure) return null
+        return call("calculator", "expression" to candidate)
+    }
 
     private fun targetAfterPreposition(request: String): String =
         Regex("(?i)\\b(?:in|at|for)\\s+([\\p{L}][\\p{L} .,'-]{0,100}?)(?:\\s+(?:right now|now|today)|[?!.]|$)")

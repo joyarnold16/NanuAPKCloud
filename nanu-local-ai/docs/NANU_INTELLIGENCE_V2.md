@@ -23,9 +23,10 @@ This increment completes the first shared foundation for Nanu's six requested pr
 - Online Tools are read-only, can be switched off on Home, and send only the short place, symbol/pair or search term required for the request. Online answers retain source links and retrieval times.
 - Trading analysis and execution features are not part of Nanu Local AI.
 - Agents remain subject to the same shared text and image safety policy as normal chat.
+- Complete structured tool answers bypass the LLM so a small model cannot change a price, time, source URL or Tarot card. Open-ended web and project retrieval still use the local model for synthesis.
 
 ## Validation
 
-Unit coverage includes retrieval relevance, source diversity, context bounds, citation-name sanitization, version-1 database migration, memory persistence, tool-call parsing/routing, calculator isolation, position-risk limits, the complete 78-card deck, unique draws, and bounded online-result parsing. The RC8 workflow runs these tests before producing the APK and AAB.
+Unit coverage includes retrieval relevance, source diversity, context bounds, citation-name sanitization, version-1 database migration, memory persistence, tool-call parsing/routing, calculator isolation, the separate-trading-app boundary, the complete 78-card deck, unique draws, and bounded online-result parsing. The RC8 workflow runs these tests before producing the APK and AAB.
 
 Real-device acceptance should cover microphone/TTS behavior, long-document latency, process recovery during agent tool loops, each public provider's rate-limit/failure behavior, link handling, offline-toggle behavior, Tarot persistence, image-model performance and thermal behavior, and purchase restoration with the Play test product.

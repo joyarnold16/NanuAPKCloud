@@ -39,6 +39,7 @@ class ChatStoreTest {
         assertEquals(1, store.list("50%_").size)
         assertEquals(0, store.list("50X_").size)
         assertEquals(1, store.list("Persisted reply").size)
+        assertEquals(2, store.list().single().messageCount)
         store.rename(id, "Renamed")
         assertEquals("Renamed", store.list().single().title)
         store.delete(id)
@@ -92,6 +93,8 @@ class ChatStoreTest {
         val id = store.create("general")
         assertTrue(store.list(includeEmpty = false).isEmpty())
         assertEquals(id, store.list(includeEmpty = true).single().id)
+        assertTrue(store.deleteIfEmpty(id))
+        assertTrue(store.list(includeEmpty = true).isEmpty())
     }
     @Test fun failuresAreVisibleAsUsefulChatReplies() {
         assertTrue(LocalTaskService.failureMessage(IllegalStateException("Selected model is no longer available")).contains("Tap Model"))

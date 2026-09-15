@@ -95,10 +95,44 @@ class LocalTaskService : Service() {
                         }
                         }
                     } else {
-                        reply = reply!!.copy(content = "Starting the local AI engine…", status = "Engine startup")
-                        store.update(task!!, reply!!)
-                        val engine = AiChat.getInferenceEngine(applicationContext)
-                        try {
+                        val toolsEnabled = request.optBoolean("agentTools")
+                        val onlineEnabled = request.optBoolean("onlineTools", true)
+                        val projectAvailable = request.optString("projectId").isNotBlank()
+                        val routingPrompt = request.optString("userPrompt").takeIf { it.isNotBlank() }
+                            ?: request.getString("prompt")
+                        var initialToolResult: NanuToolResult? = null
+                        var directAnswerDelivered = false
+
+                        if (toolsEnabled) {
+                            NanuToolRegistry.suggestedCall(routingPrompt, onlineEnabled)?.let { suggested ->
+                                val onlineTool = suggested.name in setOf(
+                                    "current_weather", "crypto_price", "forex_rate",
+                                    "news_search", "web_search", "image_search"
+                                )
+                                reply = reply!!.copy(
+                                    content = if (onlineTool) "Checking a read-only online source…" else "Using a safe local tool…",
+                                    status = "Agent step 1/${NanuToolRegistry.MAX_TOOL_STEPS}"
+                                )
+                                store.update(task!!, reply!!)
+                                val result = NanuToolRegistry.execute(this@LocalTaskService, request, suggested)
+                                if (result.directlyPresentable) {
+                                    reply = reply!!.copy(
+                                        content = result.content,
+                                        status = if (result.online) "Complete • live online source" else "Complete • local tool",
+                                        generationStats = if (result.online) "Fast answer • 1 read-only online tool" else "Fast answer • 1 local tool"
+                                    )
+                                    directAnswerDelivered = true
+                                } else {
+                                    initialToolResult = result
+                                }
+                            }
+                        }
+
+                        if (!directAnswerDelivered) {
+                            reply = reply!!.copy(content = "Starting the local AI engine…", status = "Engine startup")
+                            store.update(task!!, reply!!)
+                            val engine = AiChat.getInferenceEngine(applicationContext)
+                            try {
                             val stable = withTimeout(45_000) {
                                 engine.state.first {
                                     it is InferenceEngine.State.Initialized ||
@@ -125,9 +159,6 @@ class LocalTaskService : Service() {
                             withTimeout(10 * 60 * 1000L) { engine.loadModel(model.absolutePath) }
                             reply = reply!!.copy(content = "Preparing Nanu…", status = "Preparing local model")
                             store.update(task!!, reply!!)
-                            val toolsEnabled = request.optBoolean("agentTools")
-                            val onlineEnabled = request.optBoolean("onlineTools", true)
-                            val projectAvailable = request.optString("projectId").isNotBlank()
                             engine.setSystemPrompt(request.getString("system") + if(toolsEnabled) NanuToolRegistry.systemPrompt(projectAvailable, onlineEnabled) else "")
                             var nextPrompt = request.getString("prompt")
                             var totalTokens = 0
@@ -135,18 +166,10 @@ class LocalTaskService : Service() {
                             var onlineToolUsed = false
                             var finalAnswer = false
                             val started = android.os.SystemClock.elapsedRealtime()
-                            if (toolsEnabled) {
-                                NanuToolRegistry.suggestedCall(nextPrompt, onlineEnabled)?.let { suggested ->
-                                    reply = reply!!.copy(
-                                        content = if (onlineEnabled && suggested.name in setOf("current_weather", "crypto_price", "forex_rate", "news_search", "web_search", "image_search")) "Checking a read-only online source…" else "Using a safe local tool…",
-                                        status = "Agent step 1/${NanuToolRegistry.MAX_TOOL_STEPS}"
-                                    )
-                                    store.update(task!!, reply!!)
-                                    val result = NanuToolRegistry.execute(this@LocalTaskService, request, suggested)
-                                    toolSteps = 1
-                                    onlineToolUsed = result.online
-                                    nextPrompt = request.getString("prompt") + "\n\n" + NanuToolRegistry.followUpPrompt(result)
-                                }
+                            initialToolResult?.let { result ->
+                                toolSteps = 1
+                                onlineToolUsed = result.online
+                                nextPrompt = request.getString("prompt") + "\n\n" + NanuToolRegistry.followUpPrompt(result)
                             }
                             while(!finalAnswer) {
                                 val raw = StringBuilder()
@@ -181,8 +204,9 @@ class LocalTaskService : Service() {
                                 toolSteps > 0 -> "Complete • $toolSteps local tool${if(toolSteps==1) "" else "s"}"
                                 else -> "Complete • fully local"
                             }, generationStats=String.format(java.util.Locale.US, "%d tokens • %.1f tok/s • %.1fs", totalTokens, totalTokens / seconds, seconds))
-                        } finally {
-                            withContext(NonCancellable) { runCatching { engine.cleanUp() } }
+                            } finally {
+                                withContext(NonCancellable) { runCatching { engine.cleanUp() } }
+                            }
                         }
                     }
                 }

@@ -1,4 +1,4 @@
-# Nanu Local AI 1.0 RC8
+# Nanu Local AI 1.0 RC8.4
 
 Nanu Local AI is a local-first Android AI workspace built around llama.cpp, GGUF language models, bounded read-only information tools, local document retrieval, Android speech services, offline tarot, and a bundled stable-diffusion.cpp image engine.
 
@@ -15,7 +15,9 @@ RC8 is the integrated device-test candidate. It is not yet the production Play S
 - Android DownloadManager downloads recommended GGUF files directly into app-owned storage, shows progress, resumes after relaunch, validates GGUF format, and automatically loads a completed model.
 - Initial LLM choices remain Gemma 3 1B, Qwen3 1.7B, Qwen2.5 Coder 1.5B, Qwen3 4B, and Qwen3 8B.
 
-Internet access is used for optional model downloads and user-requested read-only information tools. LLM inference itself remains on-device after a model is installed.
+Internet access is used for optional model downloads and user-requested read-only information tools. LLM inference itself remains on-device after a model is installed. General web lookup uses DuckDuckGo's key-free HTML results; it does not require a Nanu subscription or API key, but the public provider may rate-limit requests.
+
+RC8.4 returns complete weather, time, current-price, currency-rate, news, reusable-image, calculator and Tarot tool results directly. This preserves the source and retrieved time exactly, avoids needless model loading, and lets these specific tools work even before an LLM is installed. Open-ended web results still pass through the local model for synthesis.
 
 ### Talk to Nanu
 
@@ -54,10 +56,11 @@ General current-information questions remain available through the bounded assis
 ### Product UI
 
 - Nanu launcher icon.
+- Animated Nanu Visual home hero with layered colour, restrained motion and quick actions.
 - Header says `LOCAL AI` rather than implying the whole app never uses network access.
 - Home navigation: Chat, Online Tools, Continuous Talk, Ask My Files, Create Studio, Tarot, Privacy/Safety and Nanu Pro.
 - General, Coding, Academics and Create Image modes.
-- New Chat, Stop generation, hidden `<think>` blocks, Copy/Report, and local generation statistics.
+- New Chat, searchable history with message counts, rename/delete/clear controls, Stop generation, hidden `<think>` blocks, Copy/Report, and local generation statistics.
 
 ## Build
 

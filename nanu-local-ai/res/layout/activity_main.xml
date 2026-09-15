@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/nanu_bg"
+    android:background="@drawable/nanu_home_background"
     android:fitsSystemWindows="true"
     android:orientation="vertical"
     android:paddingHorizontal="14dp"
@@ -68,6 +68,82 @@
         android:text="Starting local engine…"
         android:textColor="@color/nanu_muted"
         android:textSize="11sp" />
+
+    <TextView
+        android:id="@+id/agent_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="4dp"
+        android:paddingTop="2dp"
+        android:text="Agent ready • live sources ON • documents stay local"
+        android:textColor="@color/nanu_success"
+        android:textSize="11sp" />
+
+    <HorizontalScrollView
+        android:id="@+id/quick_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:clipToPadding="false"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/quick_weather"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:minHeight="0dp"
+                android:text="Kanpur weather"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text"
+                app:cornerRadius="16dp"
+                app:strokeColor="@color/nanu_success" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/quick_btc"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:layout_marginStart="7dp"
+                android:minHeight="0dp"
+                android:text="BTC now"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text"
+                app:cornerRadius="16dp"
+                app:strokeColor="@color/nanu_accent" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/quick_news"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:layout_marginStart="7dp"
+                android:minHeight="0dp"
+                android:text="Latest AI news"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text"
+                app:cornerRadius="16dp"
+                app:strokeColor="@color/nanu_file" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/quick_tarot"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:layout_marginStart="7dp"
+                android:minHeight="0dp"
+                android:text="3-card Tarot"
+                android:textAllCaps="false"
+                android:textColor="@color/nanu_text"
+                app:cornerRadius="16dp"
+                app:strokeColor="@color/nanu_accent_2" />
+        </LinearLayout>
+    </HorizontalScrollView>
 
     <FrameLayout
         android:layout_width="match_parent"

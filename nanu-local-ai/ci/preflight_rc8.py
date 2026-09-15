@@ -16,7 +16,7 @@ required = [
     'app/ContinuousTalkActivity.kt', 'app/CreateStudioActivity.kt',
     'app/SafetyPrivacyActivity.kt', 'app/AiReportClient.kt',
     'app/SafetyGuard.kt', 'app/LocalRagEngine.kt', 'app/NanuToolRegistry.kt',
-    'app/OnlineToolClient.kt', 'app/TarotDeck.kt', 'app/TarotActivity.kt', 'app/ProStore.kt',
+    'app/OnlineToolClient.kt', 'app/NanuPulseView.kt', 'app/TarotDeck.kt', 'app/TarotActivity.kt', 'app/ProStore.kt',
     'app/ChatStore.kt', 'app/LocalTaskService.kt', 'app/TaskScreenSession.kt',
     'res/layout/activity_main.xml', 'res/layout/activity_talk.xml',
     'res/layout/activity_create.xml',
@@ -27,6 +27,7 @@ required = [
     'res/layout/sheet_plus_menu.xml', 'res/layout/item_message_assistant.xml',
     'res/layout/item_message_user.xml', 'res/xml/nanu_file_paths.xml',
     'res/drawable/ic_nanu_launcher.xml', 'strings.xml', 'ci/build_rc8.sh',
+    'res/drawable/nanu_home_background.xml',
     'ci/build_play_release.sh', 'ci/patch_main_rc8.py', 'ci/patch_safety_rc8.py',
     'ci/patch_native_compat_rc82.py',
     'ci/strip_trading_rc8.py', 'ci/verify_no_trading_artifact.py', 'RC8_READY.txt',
@@ -49,7 +50,7 @@ for rel in required:
         if marker in text:
             errors.append(f'merge-conflict marker in {path}')
 
-for xml in [p for p in (ROOT / 'res/layout').glob('*.xml')] + [ROOT / 'res/xml/nanu_file_paths.xml', ROOT / 'res/drawable/ic_nanu_launcher.xml']:
+for xml in [p for p in (ROOT / 'res/layout').glob('*.xml')] + [p for p in (ROOT / 'res/drawable').glob('*.xml')] + [ROOT / 'res/xml/nanu_file_paths.xml']:
     try:
         ET.parse(xml)
     except Exception as exc:
@@ -57,7 +58,7 @@ for xml in [p for p in (ROOT / 'res/layout').glob('*.xml')] + [ROOT / 'res/xml/n
 
 build = (ROOT / 'ci/build_rc8.sh').read_text() if (ROOT / 'ci/build_rc8.sh').exists() else ''
 for marker in [
-    'versionCode = 25', 'versionName = "1.0-rc8.3"',
+    'versionCode = 26', 'versionName = "1.0-rc8.4"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'SafetyPrivacyActivity.kt',
     'AiReportClient.kt', 'SafetyGuard.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt',
@@ -127,6 +128,9 @@ for marker in ['CALL_OPEN', 'CALL_CLOSE', 'withoutThinkingBlocks', 'cleaned.star
         errors.append(f'portable tool-call parser missing marker: {marker}')
 if 'callPattern = Regex' in registry:
     errors.append('tool-call parsing must not depend on a startup-time regular expression')
+for marker in ['directlyPresentable', 'canAnswerDirectly']:
+    if marker not in registry:
+        errors.append(f'direct live-answer path missing marker: {marker}')
 
 tarot = (ROOT / 'app/TarotDeck.kt').read_text() if (ROOT / 'app/TarotDeck.kt').exists() else ''
 for marker in ['cards.size == 78', 'Past', 'Present', 'Future', 'not as factual prediction']:
@@ -171,9 +175,19 @@ if 'POST_NOTIFICATIONS' in task_session or 'RequestPermission()' in task_session
     errors.append('background task submission must not be blocked on notification permission')
 
 main_chat = (ROOT / 'app/MainActivity.kt').read_text() if (ROOT / 'app/MainActivity.kt').exists() else ''
-for marker in ['withTimeout(45_000L)', 'RC8.3 • selected', 'Chat is still starting']:
+for marker in ['withTimeout(45_000L)', 'RC8.4 • selected', 'Chat is still starting', 'quick_weather', 'canAnswerDirectly']:
     if marker not in main_chat:
         errors.append(f'main chat runtime diagnostic missing marker: {marker}')
+
+file_chat = (ROOT / 'app/FileChatActivity.kt').read_text() if (ROOT / 'app/FileChatActivity.kt').exists() else ''
+for marker in ['LocalRagEngine.retrieve', 'exact [Source: name §section]', 'relevant section', 'groundedOnly']:
+    if marker not in file_chat:
+        errors.append(f'Ask My Files retrieval missing marker: {marker}')
+
+visual = (ROOT / 'app/NanuPulseView.kt').read_text() if (ROOT / 'app/NanuPulseView.kt').exists() else ''
+for marker in ['ValueAnimator.areAnimatorsEnabled()', 'onDetachedFromWindow', 'RadialGradient']:
+    if marker not in visual:
+        errors.append(f'Nanu Visual pulse missing marker: {marker}')
 
 
 native_compat = (ROOT / 'ci/patch_native_compat_rc82.py').read_text() if (ROOT / 'ci/patch_native_compat_rc82.py').exists() else ''

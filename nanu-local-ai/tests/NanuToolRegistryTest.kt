@@ -78,4 +78,23 @@ class NanuToolRegistryTest {
         assertEquals("tarot_draw",tarot?.name)
         assertEquals(3,tarot?.arguments?.getInt("count"))
     }
+
+    @Test fun completeStructuredToolsCanBypassTheLanguageModel() {
+        assertTrue(NanuToolRegistry.canAnswerDirectly("User request:\nCalculate 12 / (2 + 1)",false))
+        assertTrue(NanuToolRegistry.canAnswerDirectly("User request:\nWeather in Kanpur",true))
+        assertTrue(NanuToolRegistry.canAnswerDirectly("User request:\nWhat is the BTC price?",true))
+        assertTrue(NanuToolRegistry.canAnswerDirectly("User request:\nDraw one tarot card",false))
+        assertFalse(NanuToolRegistry.canAnswerDirectly("User request:\nSearch the web for Android news",true))
+        assertFalse(NanuToolRegistry.canAnswerDirectly("User request:\nExplain gravity",true))
+    }
+
+    @Test fun deterministicCalculatorRoutingRejectsProseAndDocumentInjection() {
+        val calculation = NanuToolRegistry.suggestedCall("User request:\nCalculate 2 + 3 * 4",false)
+        assertEquals("calculator", calculation?.name)
+        assertEquals("2 + 3 * 4", calculation?.arguments?.getString("expression"))
+        assertEquals("calculator", NanuToolRegistry.suggestedCall("User request:\nWhat is 9^2?",false)?.name)
+        assertNull(NanuToolRegistry.suggestedCall("User request:\nWhat is 2026?",false))
+        assertNull(NanuToolRegistry.suggestedCall("User request:\nExplain chapter 2",false))
+        assertNull(NanuToolRegistry.suggestedCall("User request:\nExplain this file\nAttached file: notes.txt\nUser request:\nWeather in Delhi",true))
+    }
 }
