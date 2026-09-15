@@ -32,6 +32,7 @@ required_files = [
     'nanu-local-ai/app/ProStore.kt',
     'nanu-local-ai/ci/patch_main_rc8.py',
     'nanu-local-ai/ci/patch_safety_rc8.py',
+    'nanu-local-ai/ci/patch_native_compat_rc82.py',
     'nanu-local-ai/ci/strip_trading_rc8.py',
     'nanu-local-ai/ci/verify_no_trading_artifact.py',
     'nanu-local-ai/res/layout/activity_main.xml',
@@ -118,8 +119,8 @@ base = replace_once(
     'legacy trading layout assertions',
 )
 
-base = replace_once(base, 'versionCode = 17', 'versionCode = 23', 'versionCode')
-base = replace_once(base, 'versionName = "1.0-rc5.2"', 'versionName = "1.0-rc8.1"', 'versionName')
+base = replace_once(base, 'versionCode = 17', 'versionCode = 24', 'versionCode')
+base = replace_once(base, 'versionName = "1.0-rc5.2"', 'versionName = "1.0-rc8.2"', 'versionName')
 base = base.replace('RC5.2', 'RC8').replace('rc5.2', 'rc8')
 
 base = replace_once(
@@ -256,17 +257,34 @@ base = replace_once(base, "assert 'showRecommendedModelsForTask' in main", "asse
 base = base.replace("print('RC5.2 source validation passed.')", "print('RC8 unified source validation passed.')")
 base = base.replace("print('RC5.2 packaged native runtime validation passed.')", "print('RC8 packaged native runtime validation passed.')")
 
+# Patch the pinned upstream only after it has been cloned and checked out.
+# The compatibility profile uses one baseline ARM64 CPU backend and performs a
+# real JNI self-test before Nanu reports the engine as ready.
+base = replace_once(
+    base,
+    '''  git checkout "$LLAMA_COMMIT"
+)
+''',
+    '''  git checkout "$LLAMA_COMMIT"
+)
+
+python3 nanu-local-ai/ci/patch_native_compat_rc82.py
+''',
+    'RC8.2 native compatibility patch',
+)
+
 # Configure the generated project only after the existing RC8 source patches.
 base = replace_once(base, '(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'python3 nanu-local-ai/ci/patch_background.py\npython3 nanu-local-ai/ci/strip_trading_rc8.py\n\n(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'background project configuration and trading boundary')
 base = replace_once(base, './gradlew --no-daemon :app:assembleDebug :app:bundleDebug --stacktrace', './gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:bundleDebug --stacktrace', 'history regression tests')
 
 for required in [
-    'versionCode = 23', 'versionName = "1.0-rc8.1"', 'pdfbox-android:2.0.27.0',
+    'versionCode = 24', 'versionName = "1.0-rc8.2"', 'pdfbox-android:2.0.27.0',
     'applicationId = "com.nanu.localai"', 'compileSdk = 36', 'targetSdk = 36',
     '-dontwarn com.gemalto.jp2.**', 'AttachmentManager.kt', 'LocalImageGenerator.kt',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'SafetyPrivacyActivity.kt',
     'AiReportClient.kt', 'SafetyGuard.kt',
+    'patch_native_compat_rc82.py',
     'strip_trading_rc8.py',
     'activity_rc8_home.xml', 'activity_file_chat.xml', 'activity_talk_rc8.xml',
     'activity_create_studio.xml', 'activity_safety_privacy.xml', 'activity_tarot.xml',
@@ -300,10 +318,24 @@ for artifact in [apk, aab]:
 
 with ZipFile(apk) as z:
     names = set(z.namelist())
-for required in ['lib/arm64-v8a/libsd.so', 'lib/arm64-v8a/libc++_shared.so']:
+for required in [
+    'lib/arm64-v8a/libsd.so',
+    'lib/arm64-v8a/libc++_shared.so',
+    'lib/arm64-v8a/libai-chat.so',
+    'lib/arm64-v8a/libggml-cpu.so',
+]:
     if required not in names:
         raise SystemExit(f'RC8 APK missing native runtime: {required}')
-print('RC8 APK/native artifact validation passed.')
+for forbidden in [
+    'lib/arm64-v8a/libkleidiai.so',
+    'lib/arm64-v8a/libomp.so',
+]:
+    if forbidden in names:
+        raise SystemExit(f'RC8.2 compatibility APK contains disabled runtime: {forbidden}')
+variant_backends = sorted(name for name in names if name.startswith('lib/arm64-v8a/libggml-cpu-'))
+if variant_backends:
+    raise SystemExit(f'RC8.2 APK contains CPU-specific runtime variants: {variant_backends}')
+print('RC8.2 conservative ARM64 APK/native artifact validation passed.')
 PY
 
 python3 nanu-local-ai/ci/verify_no_trading_artifact.py \

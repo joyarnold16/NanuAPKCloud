@@ -233,11 +233,11 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 restoreLastModelOrShowWelcome()
                 resumePendingModelDownload()
             } catch (e: LinkageError) {
-                setModelUi(null, false, "RC8.1 • native AI unavailable")
-                Toast.makeText(this@MainActivity, "Native AI engine could not start: ${e.message ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                setModelUi(null, false, "RC8.2 • native AI unavailable")
+                Toast.makeText(this@MainActivity, LocalTaskService.failureMessage(e), Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
-                setModelUi(null, false, "Local AI engine unavailable")
-                Toast.makeText(this@MainActivity, "Local AI engine failed to start: ${e.message}", Toast.LENGTH_LONG).show()
+                setModelUi(null, false, "RC8.2 • local AI unavailable")
+                Toast.makeText(this@MainActivity, LocalTaskService.failureMessage(e), Toast.LENGTH_LONG).show()
             }
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { chatStore.changes.collect { refreshHistoryMessages() } }
@@ -1050,7 +1050,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             isModelReady = true
             prefs.edit().putString(KEY_LAST_MODEL, file.absolutePath).apply()
             withContext(Dispatchers.Main) {
-                setModelUi(displayName, true, "RC8.1 • selected • ${formatBytes(file.length())} • loads on Send")
+                setModelUi(displayName, true, "RC8.2 • selected • ${formatBytes(file.length())} • loads on Send")
                 if (announce) statsTv.text = ""
                 showEmptyState(messages.isEmpty(), "Nanu is ready. Use + to switch mode, attach files, or create images.")
                 updateComposerAction()

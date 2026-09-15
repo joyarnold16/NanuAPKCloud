@@ -97,6 +97,10 @@ class ChatStoreTest {
         assertTrue(LocalTaskService.failureMessage(IllegalStateException("Selected model is no longer available")).contains("Tap Model"))
         assertTrue(LocalTaskService.failureMessage(IllegalStateException("The model returned no answer")).contains("no answer"))
         assertTrue(LocalTaskService.failureMessage(UnsatisfiedLinkError("missing ai-chat")).contains("native AI engine"))
+        val wrapped = ExceptionInInitializerError(UnsatisfiedLinkError("dlopen failed: missing libggml-cpu.so"))
+        val diagnostic = LocalTaskService.failureMessage(wrapped)
+        assertTrue(diagnostic.contains("ExceptionInInitializerError"))
+        assertTrue(diagnostic.contains("missing libggml-cpu.so"))
         assertTrue(LocalTaskService.formatBytes(1024L * 1024L).contains("MB"))
     }
     @Test fun importsLegacyFileHistoryOnce(): Unit = runBlocking {

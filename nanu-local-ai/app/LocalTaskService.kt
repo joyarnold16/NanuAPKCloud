@@ -255,12 +255,36 @@ class LocalTaskService : Service() {
             val cleaned = raw.replace(Regex("(?s)<think>.*?</think>"), "")
             return cleaned.substringBefore("<think>").replace("</think>", "").trimStart()
         }
-        fun failureMessage(error: Throwable): String = when {
-            error is TimeoutCancellationException -> "Nanu timed out while starting or running the local model. Try a smaller model."
-            error is LinkageError -> "Nanu's native AI engine could not start on this device: ${error.message?.take(140) ?: error.javaClass.simpleName}"
-            error.message?.contains("Selected model is no longer available", ignoreCase = true) == true -> "The selected AI model is missing. Tap Model and download or select it again."
-            error.message?.contains("no answer", ignoreCase = true) == true -> "The model produced no answer. Try a shorter message or another model."
-            else -> "Nanu could not answer: ${error.message?.take(180) ?: "local AI error"}"
+        fun errorSummary(error: Throwable): String {
+            val details = mutableListOf<String>()
+            val seen = HashSet<Throwable>()
+            var current: Throwable? = error
+            while (current != null && details.size < 6 && seen.add(current)) {
+                val type = current.javaClass.simpleName.ifBlank { current.javaClass.name }
+                val message = current.message?.trim()?.replace(Regex("\\s+"), " ")?.take(180)
+                details += if (message.isNullOrBlank()) type else "$type: $message"
+                current = current.cause
+            }
+            return details.joinToString(" → ").take(420)
+        }
+        private fun hasNativeFailure(error: Throwable): Boolean {
+            val seen = HashSet<Throwable>()
+            var current: Throwable? = error
+            while (current != null && seen.add(current)) {
+                if (current is LinkageError) return true
+                current = current.cause
+            }
+            return false
+        }
+        fun failureMessage(error: Throwable): String {
+            val summary = errorSummary(error)
+            return when {
+                error is TimeoutCancellationException -> "Nanu timed out while starting or running the local model. Try a smaller model."
+                hasNativeFailure(error) -> "Nanu's native AI engine could not start on this device: $summary"
+                summary.contains("Selected model is no longer available", ignoreCase = true) -> "The selected AI model is missing. Tap Model and download or select it again."
+                summary.contains("no answer", ignoreCase = true) -> "The model produced no answer. Try a shorter message or another model."
+                else -> "Nanu could not answer: $summary"
+            }
         }
     }
 }

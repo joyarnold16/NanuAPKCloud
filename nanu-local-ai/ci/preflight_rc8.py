@@ -28,6 +28,7 @@ required = [
     'res/layout/item_message_user.xml', 'res/xml/nanu_file_paths.xml',
     'res/drawable/ic_nanu_launcher.xml', 'strings.xml', 'ci/build_rc8.sh',
     'ci/build_play_release.sh', 'ci/patch_main_rc8.py', 'ci/patch_safety_rc8.py',
+    'ci/patch_native_compat_rc82.py',
     'ci/strip_trading_rc8.py', 'ci/verify_no_trading_artifact.py', 'RC8_READY.txt',
     'docs/PLAY_STORE_READINESS_RC8.md', 'docs/DATA_SAFETY_RC8.md'
 ]
@@ -56,11 +57,12 @@ for xml in [p for p in (ROOT / 'res/layout').glob('*.xml')] + [ROOT / 'res/xml/n
 
 build = (ROOT / 'ci/build_rc8.sh').read_text() if (ROOT / 'ci/build_rc8.sh').exists() else ''
 for marker in [
-    'versionCode = 23', 'versionName = "1.0-rc8.1"',
+    'versionCode = 24', 'versionName = "1.0-rc8.2"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'SafetyPrivacyActivity.kt',
     'AiReportClient.kt', 'SafetyGuard.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt',
     'OnlineToolClient.kt', 'TarotDeck.kt', 'TarotActivity.kt', 'ProStore.kt', 'patch_safety_rc8.py',
+    'patch_native_compat_rc82.py',
     'strip_trading_rc8.py',
     'verify_no_trading_artifact.py',
     'applicationId = "com.nanu.localai"', 'compileSdk = 36', 'targetSdk = 36',
@@ -164,9 +166,20 @@ if 'POST_NOTIFICATIONS' in task_session or 'RequestPermission()' in task_session
     errors.append('background task submission must not be blocked on notification permission')
 
 main_chat = (ROOT / 'app/MainActivity.kt').read_text() if (ROOT / 'app/MainActivity.kt').exists() else ''
-for marker in ['withTimeout(45_000L)', 'RC8.1 • selected', 'Chat is still starting']:
+for marker in ['withTimeout(45_000L)', 'RC8.2 • selected', 'Chat is still starting']:
     if marker not in main_chat:
         errors.append(f'main chat runtime diagnostic missing marker: {marker}')
+
+
+native_compat = (ROOT / 'ci/patch_native_compat_rc82.py').read_text() if (ROOT / 'ci/patch_native_compat_rc82.py').exists() else ''
+for marker in [
+    '-DGGML_BACKEND_DL=OFF', '-DGGML_CPU_ALL_VARIANTS=OFF',
+    '-DGGML_CPU_KLEIDIAI=OFF', '-DGGML_OPENMP=OFF',
+    'val nativeSystemInfo = systemInfo()', 'catch (error: Throwable)',
+    'InferenceEngine.State.Error(wrapped)'
+]:
+    if marker not in native_compat:
+        errors.append(f'RC8.2 native compatibility patch missing marker: {marker}')
 
 safety_patch = (ROOT / 'ci/patch_safety_rc8.py').read_text() if (ROOT / 'ci/patch_safety_rc8.py').exists() else ''
 for marker in ['SafetyGuard.blockedReason(userMsg', 'ContinuousTalkActivity.kt', 'FileChatActivity.kt', 'SafetyGuard.SYSTEM_RULES']:
