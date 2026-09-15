@@ -271,7 +271,7 @@ class LocalTaskService : Service() {
             val seen = HashSet<Throwable>()
             var current: Throwable? = error
             while (current != null && seen.add(current)) {
-                if (current is LinkageError) return true
+                if (current is UnsatisfiedLinkError) return true
                 current = current.cause
             }
             return false

@@ -57,7 +57,7 @@ for xml in [p for p in (ROOT / 'res/layout').glob('*.xml')] + [ROOT / 'res/xml/n
 
 build = (ROOT / 'ci/build_rc8.sh').read_text() if (ROOT / 'ci/build_rc8.sh').exists() else ''
 for marker in [
-    'versionCode = 24', 'versionName = "1.0-rc8.2"',
+    'versionCode = 25', 'versionName = "1.0-rc8.3"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'SafetyPrivacyActivity.kt',
     'AiReportClient.kt', 'SafetyGuard.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt',
@@ -122,6 +122,11 @@ for marker in ['current_weather', 'crypto_price', 'forex_rate', 'news_search', '
         errors.append(f'agent registry missing tool marker: {marker}')
 if 'position_size' in registry:
     errors.append('Nanu Local AI must not expose the trading position-size tool')
+for marker in ['CALL_OPEN', 'CALL_CLOSE', 'withoutThinkingBlocks', 'cleaned.startsWith(CALL_OPEN)', 'cleaned.endsWith(CALL_CLOSE)']:
+    if marker not in registry:
+        errors.append(f'portable tool-call parser missing marker: {marker}')
+if 'callPattern = Regex' in registry:
+    errors.append('tool-call parsing must not depend on a startup-time regular expression')
 
 tarot = (ROOT / 'app/TarotDeck.kt').read_text() if (ROOT / 'app/TarotDeck.kt').exists() else ''
 for marker in ['cards.size == 78', 'Past', 'Present', 'Future', 'not as factual prediction']:
@@ -166,7 +171,7 @@ if 'POST_NOTIFICATIONS' in task_session or 'RequestPermission()' in task_session
     errors.append('background task submission must not be blocked on notification permission')
 
 main_chat = (ROOT / 'app/MainActivity.kt').read_text() if (ROOT / 'app/MainActivity.kt').exists() else ''
-for marker in ['withTimeout(45_000L)', 'RC8.2 • selected', 'Chat is still starting']:
+for marker in ['withTimeout(45_000L)', 'RC8.3 • selected', 'Chat is still starting']:
     if marker not in main_chat:
         errors.append(f'main chat runtime diagnostic missing marker: {marker}')
 

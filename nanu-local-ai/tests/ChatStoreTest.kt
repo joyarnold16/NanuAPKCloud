@@ -101,6 +101,11 @@ class ChatStoreTest {
         val diagnostic = LocalTaskService.failureMessage(wrapped)
         assertTrue(diagnostic.contains("ExceptionInInitializerError"))
         assertTrue(diagnostic.contains("missing libggml-cpu.so"))
+        val parserFailure = LocalTaskService.failureMessage(
+            ExceptionInInitializerError(IllegalArgumentException("tool parser failed"))
+        )
+        assertFalse(parserFailure.contains("native AI engine"))
+        assertTrue(parserFailure.contains("tool parser failed"))
         assertTrue(LocalTaskService.formatBytes(1024L * 1024L).contains("MB"))
     }
     @Test fun importsLegacyFileHistoryOnce(): Unit = runBlocking {

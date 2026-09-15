@@ -21,6 +21,12 @@ class NanuToolRegistryTest {
         val call=NanuToolRegistry.parseCall("<tool_call>{\"name\":\"calculator\",\"arguments\":{\"expression\":\"5*5\"}}</tool_call>")
         assertEquals("calculator",call?.name)
         assertEquals("5*5",call?.arguments?.getString("expression"))
+        val multiline=NanuToolRegistry.parseCall("""<think>private plan</think>
+            <tool_call>
+              {"name":"current_weather","arguments":{"location":"Kanpur"}}
+            </tool_call>""".trimIndent())
+        assertEquals("current_weather",multiline?.name)
+        assertEquals("Kanpur",multiline?.arguments?.getString("location"))
         assertNull(NanuToolRegistry.parseCall("A normal final answer."))
         try {
             NanuToolRegistry.parseCall("Do this <tool_call>{\"name\":\"calculator\",\"arguments\":{}}</tool_call>")
@@ -29,6 +35,14 @@ class NanuToolRegistryTest {
         try {
             NanuToolRegistry.parseCall("<tool_call>{\"name\":\"send_transaction\",\"arguments\":{}}</tool_call>")
             fail("Unlisted tools must fail")
+        } catch(_:IllegalArgumentException) { }
+        try {
+            NanuToolRegistry.parseCall("<tool_call>{\"name\":\"calculator\",\"arguments\":{}}")
+            fail("An incomplete tool-call wrapper must fail")
+        } catch(_:IllegalArgumentException) { }
+        try {
+            NanuToolRegistry.parseCall("<tool_call>{\"name\":\"calculator\",\"arguments\":{}}</tool_call><tool_call>{\"name\":\"calculator\",\"arguments\":{}}</tool_call>")
+            fail("Multiple tool calls must fail")
         } catch(_:IllegalArgumentException) { }
     }
 

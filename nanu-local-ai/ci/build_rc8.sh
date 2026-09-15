@@ -119,8 +119,8 @@ base = replace_once(
     'legacy trading layout assertions',
 )
 
-base = replace_once(base, 'versionCode = 17', 'versionCode = 24', 'versionCode')
-base = replace_once(base, 'versionName = "1.0-rc5.2"', 'versionName = "1.0-rc8.2"', 'versionName')
+base = replace_once(base, 'versionCode = 17', 'versionCode = 25', 'versionCode')
+base = replace_once(base, 'versionName = "1.0-rc5.2"', 'versionName = "1.0-rc8.3"', 'versionName')
 base = base.replace('RC5.2', 'RC8').replace('rc5.2', 'rc8')
 
 base = replace_once(
@@ -278,7 +278,7 @@ base = replace_once(base, '(\n  cd llama-upstream/examples/llama.android\n  chmo
 base = replace_once(base, './gradlew --no-daemon :app:assembleDebug :app:bundleDebug --stacktrace', './gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:bundleDebug --stacktrace', 'history regression tests')
 
 for required in [
-    'versionCode = 24', 'versionName = "1.0-rc8.2"', 'pdfbox-android:2.0.27.0',
+    'versionCode = 25', 'versionName = "1.0-rc8.3"', 'pdfbox-android:2.0.27.0',
     'applicationId = "com.nanu.localai"', 'compileSdk = 36', 'targetSdk = 36',
     '-dontwarn com.gemalto.jp2.**', 'AttachmentManager.kt', 'LocalImageGenerator.kt',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',

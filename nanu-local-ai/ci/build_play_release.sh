@@ -79,8 +79,8 @@ from pathlib import Path
 
 path = Path('llama-upstream/examples/llama.android/app/build.gradle.kts')
 text = path.read_text()
-text = text.replace('versionCode = 24', 'versionCode = 100', 1)
-text = text.replace('versionName = "1.0-rc8.2"', 'versionName = "1.0"', 1)
+text = text.replace('versionCode = 25', 'versionCode = 100', 1)
+text = text.replace('versionName = "1.0-rc8.3"', 'versionName = "1.0"', 1)
 
 if 'signingConfigs {' not in text:
     anchor = '    buildTypes {'

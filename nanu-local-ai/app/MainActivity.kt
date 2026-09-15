@@ -233,10 +233,10 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 restoreLastModelOrShowWelcome()
                 resumePendingModelDownload()
             } catch (e: LinkageError) {
-                setModelUi(null, false, "RC8.2 • native AI unavailable")
+                setModelUi(null, false, "RC8.3 • native AI unavailable")
                 Toast.makeText(this@MainActivity, LocalTaskService.failureMessage(e), Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
-                setModelUi(null, false, "RC8.2 • local AI unavailable")
+                setModelUi(null, false, "RC8.3 • local AI unavailable")
                 Toast.makeText(this@MainActivity, LocalTaskService.failureMessage(e), Toast.LENGTH_LONG).show()
             }
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -1050,7 +1050,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             isModelReady = true
             prefs.edit().putString(KEY_LAST_MODEL, file.absolutePath).apply()
             withContext(Dispatchers.Main) {
-                setModelUi(displayName, true, "RC8.2 • selected • ${formatBytes(file.length())} • loads on Send")
+                setModelUi(displayName, true, "RC8.3 • selected • ${formatBytes(file.length())} • loads on Send")
                 if (announce) statsTv.text = ""
                 showEmptyState(messages.isEmpty(), "Nanu is ready. Use + to switch mode, attach files, or create images.")
                 updateComposerAction()

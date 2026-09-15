@@ -18,8 +18,8 @@ data class NanuToolResult(val name: String, val content: String, val online: Boo
  */
 object NanuToolRegistry {
     const val MAX_TOOL_STEPS = 2
-    private val callPattern = Regex("(?s)<tool_call>\\s*(\\{.*?})\\s*</tool_call>")
-    private val thinkingPattern = Regex("(?s)<think>.*?</think>")
+    private const val CALL_OPEN = "<tool_call>"
+    private const val CALL_CLOSE = "</tool_call>"
     private val names = setOf(
         "calculator", "project_search", "current_time", "tarot_draw",
         "current_weather", "crypto_price", "forex_rate", "news_search", "web_search", "image_search"
@@ -50,16 +50,43 @@ object NanuToolRegistry {
     }
 
     fun parseCall(modelOutput: String): NanuToolCall? {
-        val cleaned = modelOutput.replace(thinkingPattern, "").trim()
-        val match = callPattern.find(cleaned) ?: return null
-        require(cleaned.replaceRange(match.range, "").isBlank()) { "The local agent mixed a tool call with untrusted free text." }
-        val payload = match.groupValues[1]
+        val cleaned = withoutThinkingBlocks(modelOutput).trim()
+        val containsOpen = cleaned.contains(CALL_OPEN)
+        val containsClose = cleaned.contains(CALL_CLOSE)
+        if (!containsOpen && !containsClose) return null
+        require(cleaned.startsWith(CALL_OPEN) && cleaned.endsWith(CALL_CLOSE)) {
+            "The local agent mixed a tool call with untrusted free text."
+        }
+        val payload = cleaned.substring(CALL_OPEN.length, cleaned.length - CALL_CLOSE.length).trim()
+        require(CALL_OPEN !in payload && CALL_CLOSE !in payload) {
+            "The local agent produced more than one tool call."
+        }
+        require(payload.startsWith('{') && payload.endsWith('}')) {
+            "The local agent produced invalid tool JSON."
+        }
         require(payload.length <= 4_000) { "The local agent requested an oversized tool call." }
         val json = runCatching { JSONObject(payload) }.getOrElse { error("The local agent produced invalid tool JSON.") }
         val name = json.optString("name").trim()
         require(name in names) { "The local agent requested an unavailable tool: ${name.ifBlank { "unnamed" }}." }
         val arguments = json.optJSONObject("arguments") ?: error("The local agent tool call has no arguments object.")
         return NanuToolCall(name, arguments)
+    }
+
+    private fun withoutThinkingBlocks(modelOutput: String): String {
+        val output = StringBuilder(modelOutput.length)
+        var cursor = 0
+        while (cursor < modelOutput.length) {
+            val start = modelOutput.indexOf("<think>", cursor)
+            if (start < 0) {
+                output.append(modelOutput, cursor, modelOutput.length)
+                break
+            }
+            output.append(modelOutput, cursor, start)
+            val end = modelOutput.indexOf("</think>", start + "<think>".length)
+            if (end < 0) break
+            cursor = end + "</think>".length
+        }
+        return output.toString()
     }
 
     /** Routes obvious live-data requests before asking a small local model to select a tool. */
