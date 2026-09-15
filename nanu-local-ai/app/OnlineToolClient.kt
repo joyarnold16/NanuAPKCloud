@@ -162,7 +162,7 @@ object OnlineToolClient {
             """(?is)<a[^>]*class=[\"'][^\"']*result__snippet[^\"']*[\"'][^>]*>(.*?)</a>"""
         )
         val titles = titlePattern.findAll(html).toList()
-        return titles.mapNotNullIndexed { index, match ->
+        return titles.mapIndexedNotNull { index, match ->
             val title = stripHtml(match.groupValues[2]).take(300)
             val link = decodeSearchLink(match.groupValues[1]) ?: return@mapNotNullIndexed null
             val nextStart = titles.getOrNull(index + 1)?.range?.first ?: html.length
