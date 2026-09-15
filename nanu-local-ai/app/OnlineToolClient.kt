@@ -164,7 +164,7 @@ object OnlineToolClient {
         val titles = titlePattern.findAll(html).toList()
         return titles.mapIndexedNotNull { index, match ->
             val title = stripHtml(match.groupValues[2]).take(300)
-            val link = decodeSearchLink(match.groupValues[1]) ?: return@mapNotNullIndexed null
+            val link = decodeSearchLink(match.groupValues[1]) ?: return@mapIndexedNotNull null
             val nextStart = titles.getOrNull(index + 1)?.range?.first ?: html.length
             val block = html.substring(match.range.last + 1, nextStart)
             val snippet = snippetPattern.find(block)?.groupValues?.get(1)?.let(::stripHtml)
