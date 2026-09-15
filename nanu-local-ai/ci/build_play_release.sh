@@ -79,8 +79,8 @@ from pathlib import Path
 
 path = Path('llama-upstream/examples/llama.android/app/build.gradle.kts')
 text = path.read_text()
-text = text.replace('versionCode = 22', 'versionCode = 100', 1)
-text = text.replace('versionName = "1.0-rc8"', 'versionName = "1.0"', 1)
+text = text.replace('versionCode = 26', 'versionCode = 100', 1)
+text = text.replace('versionName = "1.0-rc8.4"', 'versionName = "1.0"', 1)
 
 if 'signingConfigs {' not in text:
     anchor = '    buildTypes {'
@@ -121,19 +121,30 @@ PY
 (
   cd "$ANDROID_PROJECT"
   chmod +x gradlew
-  ./gradlew --no-daemon :app:bundleRelease --stacktrace
+  ./gradlew --no-daemon :app:lintRelease :app:assembleRelease :app:bundleRelease --stacktrace
 )
 
 mkdir -p out
+PLAY_APK="out/nanu-local-ai-v1.0-release.apk"
 PLAY_AAB="out/nanu-local-ai-v1.0-play-release.aab"
+cp "$ANDROID_PROJECT/app/build/outputs/apk/release/app-release.apk" "$PLAY_APK"
 cp "$ANDROID_PROJECT/app/build/outputs/bundle/release/app-release.aab" "$PLAY_AAB"
+test -s "$PLAY_APK"
 test -s "$PLAY_AAB"
+cp "$ANDROID_PROJECT/app/build/reports/lint-results-release.html" out/PLAY_LINT_REPORT.html
+test -s out/PLAY_LINT_REPORT.html
 
 # Verify JAR/AAB signature integrity. Android upload keys are normally
 # self-signed certificates, so -strict would incorrectly fail solely because
 # the certificate chain is not rooted in a public CA.
 jarsigner -verify "$PLAY_AAB" >/dev/null
 
+BUILD_TOOLS="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/36.0.0"
+"$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$PLAY_APK" > out/PLAY_APK_SIGNATURE.txt
+"$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$PLAY_APK" > out/PLAY_APK_ALIGNMENT.txt
+
+python3 nanu-local-ai/ci/verify_no_trading_artifact.py "$PLAY_APK" "$PLAY_AAB"
+python3 nanu-local-ai/ci/verify_16k_native.py "$PLAY_APK"
 python3 nanu-local-ai/ci/verify_16k_native.py "$PLAY_AAB"
 
 keytool -exportcert -rfc \
@@ -158,13 +169,19 @@ python3 <<'PY'
 from pathlib import Path
 import hashlib
 
-path = Path('out/nanu-local-ai-v1.0-play-release.aab')
-if path.stat().st_size <= 1_000_000:
-    raise SystemExit('Play AAB is suspiciously small')
-digest = hashlib.sha256(path.read_bytes()).hexdigest()
-Path('out/PLAY_RELEASE_SHA256.txt').write_text(f'{digest}  {path.name}\n')
-print(f'Play release AAB ready: {path} ({path.stat().st_size} bytes)')
-print(f'SHA256: {digest}')
+artifacts = [
+    Path('out/nanu-local-ai-v1.0-release.apk'),
+    Path('out/nanu-local-ai-v1.0-play-release.aab'),
+]
+lines = []
+for path in artifacts:
+    if path.stat().st_size <= 1_000_000:
+        raise SystemExit(f'Play artifact is suspiciously small: {path}')
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    lines.append(f'{digest}  {path.name}')
+    print(f'Play artifact ready: {path} ({path.stat().st_size} bytes)')
+    print(f'SHA256: {digest}')
+Path('out/PLAY_RELEASE_SHA256.txt').write_text('\n'.join(lines) + '\n')
 PY
 
 rm -f "$KEYSTORE"

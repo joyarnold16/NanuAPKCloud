@@ -65,7 +65,9 @@ class ProBilling private constructor(private val context: Context) : PurchasesUp
         val product = details ?: return
         val offer = product.oneTimePurchaseOfferDetailsList?.singleOrNull() ?: return
         if (!state.value.ready) return
-        val params = BillingFlowParams.ProductDetailsParams.newBuilder().setProductDetails(product).setOfferToken(offer.offerToken).build()
+        val paramsBuilder = BillingFlowParams.ProductDetailsParams.newBuilder().setProductDetails(product)
+        offer.offerToken?.takeIf { it.isNotBlank() }?.let(paramsBuilder::setOfferToken)
+        val params = paramsBuilder.build()
         val result = client.launchBillingFlow(activity, BillingFlowParams.newBuilder().setProductDetailsParamsList(listOf(params)).build())
         if (result.responseCode == BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED) refresh()
         else if (result.responseCode != BillingClient.BillingResponseCode.OK) message("Purchase could not start (${result.responseCode}). Please retry.")

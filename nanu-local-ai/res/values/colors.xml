@@ -13,6 +13,8 @@
     <color name="nanu_panel_2">#111C29</color>
     <color name="nanu_input">#0E1824</color>
     <color name="nanu_border">#26384B</color>
+    <color name="nanu_border_bright">#365B72</color>
+    <color name="nanu_glass">#CC101B29</color>
     <color name="nanu_text">#F7FBFF</color>
     <color name="nanu_muted">#8FA1B7</color>
     <color name="nanu_accent">#08B9D7</color>
@@ -24,7 +26,6 @@
     <color name="nanu_danger">#FF7181</color>
     <color name="nanu_code">#AF7CFF</color>
     <color name="nanu_academic">#B877FF</color>
-    <color name="nanu_trading">#FFBD3D</color>
     <color name="nanu_image">#45DB78</color>
     <color name="nanu_file">#4DA3FF</color>
 </resources>

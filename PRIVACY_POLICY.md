@@ -1,22 +1,24 @@
 # Nanu Local AI Privacy Policy
 
-**Effective date:** 25 August 2026
+**Effective date:** 14 September 2026
 
 Nanu Local AI is designed as a local-first Android assistant. This policy explains what the app accesses, what may leave the device, and what remains on the device.
 
 ## Local AI and user content
 
-Nanu's downloaded language-model inference runs on the user's device. Prompts, generated text, imported documents, extracted document text, local chat/file-session data, generated images, paper-trading data, and app settings are stored locally in the app's storage unless the user intentionally shares, exports, or submits a safety report.
+Nanu's downloaded language-model inference runs on the user's device. Prompts, generated text, imported documents, extracted document text, local chat/file-session data, generated images and app settings are stored locally in the app's storage unless the user intentionally shares, exports, or submits a safety report.
 
 Nanu does not require a Nanu account and does not include advertising or analytics SDKs in the current build.
+
+## Optional online assistant tools
+
+The language model still runs locally. When Online Tools are enabled and the user asks for current information, Nanu may use a bounded, read-only request to Open-Meteo for place/time/weather data, CoinGecko for cryptocurrency reference prices, Frankfurter for central-bank foreign-exchange reference rates, Google News RSS for news results, DuckDuckGo HTML for web results, or Wikimedia Commons for reusable-image results.
+
+Only the short place name, symbol, currency pair, or search term needed for the chosen tool is sent. Nanu does not include the full chat history, imported documents, project memory, or hidden prompts in these requests. The provider receives ordinary network metadata, such as the device IP address, under its own privacy practices. Online Tools can be turned off from the Home screen. Free public sources can be unavailable or rate-limited.
 
 ## Model downloads
 
 When the user chooses to download a language or image model, Nanu connects to the model host identified in the app (currently Hugging Face-hosted model files). The remote host may receive ordinary network information such as the device IP address and request metadata according to that host's own privacy practices.
-
-## Live market snapshots
-
-The Markets feature can request public market-reference data over the internet. Cryptocurrency snapshots currently use CoinGecko endpoints and foreign-exchange reference rates use Frankfurter/ECB-derived endpoints. The symbol or market requested and ordinary network metadata may be transmitted to those services. Nanu does not send the user's local documents, chat history, or model prompts with these market requests.
 
 ## Voice features
 
@@ -26,9 +28,9 @@ Text-to-speech uses Android's installed text-to-speech service. Speech recogniti
 
 Files are selected with Android's system document picker. Nanu does not request broad storage access. Selected documents are processed in app storage for local question answering and attachments. Generated images are created locally and, when Android permits, copied to `Pictures/Nanu` so the user can see them in Gallery.
 
-## Financial features
+## Product boundary
 
-Nanu provides market information, technical-analysis tools, risk calculators, a local journal, and paper-trading simulation. Nanu does not execute real-money trades, operate a cryptocurrency exchange, or provide a custodial cryptocurrency wallet.
+Nanu Local AI does not provide Trading Lab, Paper Trading, technical-analysis tools, risk calculators, trade journals, wallet connections or order execution. User-requested current cryptocurrency prices and currency rates are general read-only information results from the providers listed above. Trading is reserved for a separate application.
 
 ## AI safety reports
 
@@ -40,7 +42,7 @@ The user may separately save a local copy of a report or export a local report t
 
 ## Permissions
 
-Nanu uses the minimum permissions needed for its features. Internet access is used for user-initiated model downloads, optional source/license links, live market snapshots, and AI safety reports the user explicitly submits. Microphone access is requested for voice conversation. File access uses Android's system pickers rather than broad storage permissions.
+Nanu uses the minimum permissions needed for its features. Internet access is used for user-initiated model downloads, optional read-only online assistant tools and source/license links, and AI safety reports the user explicitly submits. Microphone access is requested for voice conversation. File access uses Android's system pickers rather than broad storage permissions.
 
 ## Data retention and deletion
 

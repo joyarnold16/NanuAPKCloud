@@ -78,21 +78,6 @@
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/plus_trading"
-        android:layout_width="match_parent"
-        android:layout_height="70dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="8dp">
-        <TextView android:layout_width="42dp" android:layout_height="42dp" android:gravity="center" android:text="↗" android:textColor="@color/nanu_trading" android:textSize="26sp" android:textStyle="bold" />
-        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Trading" android:textColor="@color/nanu_text" android:textSize="16sp" android:textStyle="bold" />
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Market insights and analysis" android:textColor="@color/nanu_muted" android:textSize="12sp" />
-        </LinearLayout>
-        <TextView android:layout_width="32dp" android:layout_height="match_parent" android:gravity="center" android:text="›" android:textColor="@color/nanu_text" android:textSize="28sp" />
-    </LinearLayout>
-
-    <LinearLayout
         android:id="@+id/plus_image"
         android:layout_width="match_parent"
         android:layout_height="70dp"

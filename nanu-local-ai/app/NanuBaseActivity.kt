@@ -21,18 +21,8 @@ open class NanuBaseActivity : AppCompatActivity() {
     }
 
     @Suppress("UNUSED_PARAMETER")
-    fun openTrading(view: View) {
-        startActivity(Intent(this, TradingActivity::class.java))
-    }
-
-    @Suppress("UNUSED_PARAMETER")
     fun openFiles(view: View) {
         startActivity(Intent(this, FileChatActivity::class.java))
-    }
-
-    @Suppress("UNUSED_PARAMETER")
-    fun openPaperTrading(view: View) {
-        startActivity(Intent(this, PaperTradingActivity::class.java))
     }
 
     @Suppress("UNUSED_PARAMETER")
