@@ -1,10 +1,10 @@
-# Nanu Local AI 1.0 RC8.4
+# Nanu Local AI 1.0 Final Test
 
 Nanu Local AI is a local-first Android AI workspace built around llama.cpp, GGUF language models, bounded read-only information tools, local document retrieval, Android speech services, offline tarot, and a bundled stable-diffusion.cpp image engine.
 
-## RC8 test goals
+## Final-candidate test goals
 
-RC8 is the integrated device-test candidate. It is not yet the production Play Store release.
+Version `1.0-final-test` (versionCode 27) is the integrated device-acceptance candidate. It is not the signed Play Store release.
 
 ### Local chat and in-app LLM downloads
 
@@ -17,7 +17,9 @@ RC8 is the integrated device-test candidate. It is not yet the production Play S
 
 Internet access is used for optional model downloads and user-requested read-only information tools. LLM inference itself remains on-device after a model is installed. General web lookup uses DuckDuckGo's key-free HTML results; it does not require a Nanu subscription or API key, but the public provider may rate-limit requests.
 
-RC8.4 returns complete weather, time, current-price, currency-rate, news, reusable-image, calculator and Tarot tool results directly. This preserves the source and retrieved time exactly, avoids needless model loading, and lets these specific tools work even before an LLM is installed. Open-ended web results still pass through the local model for synthesis.
+The final test build returns complete weather, time, current-price, currency-rate, news, reusable-image, calculator and Tarot tool results directly. This preserves the source and retrieved time exactly, avoids needless model loading, and lets these specific tools work even before an LLM is installed. Open-ended web results still pass through the local model for synthesis.
+
+Ask My Files accepts up to five sources at once. It extracts embedded text from PDF and Office files and uses bundled, on-device Latin/Devanagari OCR for images and scanned PDF pages. Retrieval remains local and answers cite the exact source and section supplied to the model.
 
 ### Talk to Nanu
 
@@ -56,7 +58,11 @@ General current-information questions remain available through the bounded assis
 ### Product UI
 
 - Nanu launcher icon.
-- Animated Nanu Visual home hero with layered colour, restrained motion and quick actions.
+- Adaptive Jetpack Compose home for phones and tablets.
+- Animated Nanu orb, layered colour, restrained motion and quick actions.
+- System, light and dark appearance modes shared by Compose and legacy screens.
+- Consistent vector icons, natural message entrance motion, explicit thinking state, voice activity visualizer and live-data insight cards.
+- First-run privacy/onboarding guide.
 - Header says `LOCAL AI` rather than implying the whole app never uses network access.
 - Home navigation: Chat, Online Tools, Continuous Talk, Ask My Files, Create Studio, Tarot, Privacy/Safety and Nanu Pro.
 - General, Coding, Academics and Create Image modes.
@@ -64,4 +70,4 @@ General current-information questions remain available through the bounded assis
 
 ## Build
 
-GitHub Actions builds ARM64 debug APK/AAB artifacts for device testing. The workflow packages the pinned llama.cpp Android engine, cross-compiles stable-diffusion.cpp for Android ARM64, and verifies that legacy trading components are excluded before Gradle compiles the app. Production signing, broader ABI support and Play submission remain separate until RC8 is validated on real devices.
+GitHub Actions builds ARM64 debug APK/AAB artifacts for device testing. The debug APK exposes the full Projects/Agents workspace so every feature can be accepted before billing is configured; release builds remain receipt-gated. The workflow packages the pinned llama.cpp Android engine, cross-compiles stable-diffusion.cpp for Android ARM64, runs unit tests and verifies that legacy trading components are excluded. Production signing and Play submission remain separate until the final candidate is validated on real devices.

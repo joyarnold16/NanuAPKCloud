@@ -12,6 +12,9 @@ object ProEntitlement {
     const val PRODUCT = "nanu_pro_lifetime"
     fun publicKey(context: Context) = context.getString(R.string.nanu_play_public_key).trim()
     fun enabled(context: Context): Boolean {
+        // Debug APKs expose the full workspace for device acceptance testing.
+        // BuildConfig.DEBUG is compile-time false in every Play release variant.
+        if (BuildConfig.DEBUG) return true
         val prefs = context.getSharedPreferences("nanu_purchase", 0)
         return verify(publicKey(context), prefs.getString("receipt", "").orEmpty(),
             prefs.getString("signature", "").orEmpty(), context.packageName)

@@ -83,7 +83,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:padding="14dp"
-                android:text="RC8.4 • private local AI"
+                android:text="1.0 final test • private local AI"
                 android:textColor="@color/nanu_success"
                 android:textSize="12sp" />
         </com.google.android.material.card.MaterialCardView>

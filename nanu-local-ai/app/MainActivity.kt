@@ -9,7 +9,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
@@ -152,8 +151,6 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.parseColor("#060B12")
-        window.navigationBarColor = Color.parseColor("#060B12")
         setContentView(R.layout.activity_main)
 
         modelStatusTv = findViewById(R.id.model_status)
@@ -245,10 +242,10 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 restoreLastModelOrShowWelcome()
                 resumePendingModelDownload()
             } catch (e: LinkageError) {
-                setModelUi(null, false, "RC8.4 • native AI unavailable")
+                setModelUi(null, false, "1.0 FINAL TEST • native AI unavailable")
                 Toast.makeText(this@MainActivity, LocalTaskService.failureMessage(e), Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
-                setModelUi(null, false, "RC8.4 • local AI unavailable")
+                setModelUi(null, false, "1.0 FINAL TEST • local AI unavailable")
                 Toast.makeText(this@MainActivity, LocalTaskService.failureMessage(e), Toast.LENGTH_LONG).show()
             }
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -446,7 +443,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             attachmentNameTv.text = ""
         } else {
             attachmentCard.visibility = View.VISIBLE
-            attachmentNameTv.text = "${attachment.displayName}  •  ${formatBytes(attachment.sizeBytes)}"
+            attachmentNameTv.text = "${attachment.displayName}  •  ${formatBytes(attachment.sizeBytes)}  •  ${attachment.extractionMethod}"
         }
     }
 
@@ -612,7 +609,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 val user = Message(
                     UUID.randomUUID().toString(), userMsg, true,
                     attachmentName = groundedAttachment?.displayName,
-                    attachmentInfo = groundedAttachment?.let { formatBytes(it.sizeBytes) },
+                    attachmentInfo = groundedAttachment?.let { "${formatBytes(it.sizeBytes)} • ${it.extractionMethod}" },
                     attachmentContext = groundedAttachment?.contextForPrompt(),
                     sourcePrompt = userMsg
                 )
@@ -1096,7 +1093,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             isModelReady = true
             prefs.edit().putString(KEY_LAST_MODEL, file.absolutePath).apply()
             withContext(Dispatchers.Main) {
-                setModelUi(displayName, true, "RC8.4 • selected • ${formatBytes(file.length())} • loads on Send")
+                setModelUi(displayName, true, "1.0 FINAL TEST • selected • ${formatBytes(file.length())} • loads on Send")
                 if (announce) statsTv.text = ""
                 showEmptyState(messages.isEmpty(), "Nanu is ready. Use + to switch mode, attach files, or create images.")
                 updateComposerAction()

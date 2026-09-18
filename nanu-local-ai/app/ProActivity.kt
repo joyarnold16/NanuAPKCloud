@@ -2,13 +2,12 @@ package com.example.llama
 
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.os.Bundle
 import android.view.View
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -23,7 +22,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-class ProActivity : AppCompatActivity() {
+class ProActivity : NanuBaseActivity() {
     private lateinit var content: LinearLayout
     private lateinit var status: TextView
     private lateinit var answer: TextView
@@ -53,8 +52,8 @@ class ProActivity : AppCompatActivity() {
         session.observe()
         lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) {
             ProBilling.get(this@ProActivity).state.collect { state ->
-                if(displayedOwned!=state.owned) render()
-                status.text=state.message
+                if(displayedOwned!=ProEntitlement.enabled(this@ProActivity)) render()
+                status.text=if(BuildConfig.DEBUG) "Full workspace enabled for this test APK." else state.message
                 price?.text=state.price ?: "₹299 • planned India price"
                 buy?.apply { isEnabled=state.ready && !state.owned; text=state.price?.let { "Unlock Nanu Pro · $it" } ?: "Purchase unavailable" }
             }
@@ -63,14 +62,14 @@ class ProActivity : AppCompatActivity() {
     override fun onResume() { super.onResume(); ProBilling.get(this).refresh() }
     private fun dp(value: Int)=(resources.displayMetrics.density*value).toInt()
     private fun text(value: String,size: Float=14f): TextView = TextView(this).apply {
-        text=value; textSize=size; setTextColor(Color.parseColor("#E9EFF8")); setPadding(0,dp(8),0,dp(8)); content.addView(this)
+        text=value; textSize=size; setTextColor(ContextCompat.getColor(this@ProActivity,R.color.nanu_text)); setPadding(0,dp(8),0,dp(8)); content.addView(this)
     }
     private fun button(label: String, action: () -> Unit): MaterialButton = MaterialButton(this).apply {
-        text=label; isAllCaps=false; minHeight=dp(48); setTextColor(Color.parseColor("#08202A")); backgroundTintList=ColorStateList.valueOf(Color.parseColor("#7DE2E9"))
+        text=label; isAllCaps=false; minHeight=dp(48); setTextColor(ContextCompat.getColor(this@ProActivity,R.color.nanu_bg)); backgroundTintList=ColorStateList.valueOf(ContextCompat.getColor(this@ProActivity,R.color.nanu_accent_2))
         content.addView(this,LinearLayout.LayoutParams(-1,-2)); setOnClickListener { action() }
     }
     private fun input(hintText: String,multiline: Boolean=true): EditText = EditText(this).apply {
-        hint=hintText; setTextColor(Color.WHITE); setHintTextColor(Color.parseColor("#ACBBCE")); textSize=16f
+        hint=hintText; setTextColor(ContextCompat.getColor(this@ProActivity,R.color.nanu_text)); setHintTextColor(ContextCompat.getColor(this@ProActivity,R.color.nanu_muted)); textSize=16f
         inputType=android.text.InputType.TYPE_CLASS_TEXT or if(multiline) android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE else 0
         minLines=if(multiline) 2 else 1; maxLines=6; content.addView(this,LinearLayout.LayoutParams(-1,-2))
     }
@@ -80,13 +79,13 @@ class ProActivity : AppCompatActivity() {
     }
     private fun render() {
         displayedOwned=ProEntitlement.enabled(this); price=null; buy=null
-        content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(24),dp(16),dp(24),dp(28)); setBackgroundColor(Color.parseColor("#080D14")) }
+        content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(24),dp(16),dp(24),dp(28)); setBackgroundColor(ContextCompat.getColor(this@ProActivity,R.color.nanu_bg)) }
         val scroll=ScrollView(this).apply { isFillViewport=true; addView(content) }; setContentView(scroll)
         ViewCompat.setOnApplyWindowInsetsListener(scroll) { view,insets ->
             val bars=insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime()); view.setPadding(bars.left,bars.top,bars.right,bars.bottom); insets
         }; ViewCompat.requestApplyInsets(scroll)
         button("‹ Back to Nanu") { finish() }
-        text("NANU PRO",16f).setTextColor(Color.parseColor("#CBBAFA"))
+        text("NANU PRO",16f).setTextColor(ContextCompat.getColor(this,R.color.nanu_code))
         if(!displayedOwned) {
             text("More room for your ideas.",30f)
             text("Go further with your files, photos and projects. Your AI stays on your device.")
@@ -146,8 +145,8 @@ class ProActivity : AppCompatActivity() {
                 button("Stop current task") { LocalTaskService.stop(this) }
             }
         }
-        button("Restore purchase") { ProBilling.get(this).refresh() }
-        status=text(if(displayedOwned) "Nanu Pro is unlocked." else "Connecting to Google Play…")
+        if(!BuildConfig.DEBUG) button("Restore purchase") { ProBilling.get(this).refresh() }
+        status=text(if(BuildConfig.DEBUG) "Full workspace enabled for this test APK." else if(displayedOwned) "Nanu Pro is unlocked." else "Connecting to Google Play…")
         answer=text("")
     }
     private fun seek(update:(Int)->Unit)=object:SeekBar.OnSeekBarChangeListener {

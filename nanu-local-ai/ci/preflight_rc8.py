@@ -17,6 +17,9 @@ required = [
     'app/SafetyPrivacyActivity.kt', 'app/AiReportClient.kt',
     'app/SafetyGuard.kt', 'app/LocalRagEngine.kt', 'app/NanuToolRegistry.kt',
     'app/OnlineToolClient.kt', 'app/NanuPulseView.kt', 'app/TarotDeck.kt', 'app/TarotActivity.kt', 'app/ProStore.kt',
+    'app/NanuThemeController.kt', 'app/NanuVisualHome.kt', 'app/OnDeviceOcr.kt',
+    'app/NanuVoiceWaveView.kt', 'app/NanuThinkingView.kt', 'app/NanuInsightView.kt',
+    'app/NanuRemoteGalleryView.kt',
     'app/ChatStore.kt', 'app/LocalTaskService.kt', 'app/TaskScreenSession.kt',
     'res/layout/activity_main.xml', 'res/layout/activity_talk.xml',
     'res/layout/activity_create.xml',
@@ -28,6 +31,10 @@ required = [
     'res/layout/item_message_user.xml', 'res/xml/nanu_file_paths.xml',
     'res/drawable/ic_nanu_launcher.xml', 'strings.xml', 'ci/build_rc8.sh',
     'res/drawable/nanu_home_background.xml',
+    'res/drawable-night/nanu_home_background.xml', 'res/values-night/colors.xml',
+    'res/drawable/ic_nanu_chat.xml', 'res/drawable/ic_nanu_code.xml',
+    'res/drawable/ic_nanu_study.xml', 'res/drawable/ic_nanu_image.xml',
+    'res/drawable/ic_nanu_file.xml',
     'ci/build_play_release.sh', 'ci/patch_main_rc8.py', 'ci/patch_safety_rc8.py',
     'ci/patch_native_compat_rc82.py',
     'ci/strip_trading_rc8.py', 'ci/verify_no_trading_artifact.py', 'RC8_READY.txt',
@@ -50,7 +57,13 @@ for rel in required:
         if marker in text:
             errors.append(f'merge-conflict marker in {path}')
 
-for xml in [p for p in (ROOT / 'res/layout').glob('*.xml')] + [p for p in (ROOT / 'res/drawable').glob('*.xml')] + [ROOT / 'res/xml/nanu_file_paths.xml']:
+for xml in (
+    [p for p in (ROOT / 'res/layout').glob('*.xml')]
+    + [p for p in (ROOT / 'res/drawable').glob('*.xml')]
+    + [p for p in (ROOT / 'res/drawable-night').glob('*.xml')]
+    + [p for p in (ROOT / 'res/values-night').glob('*.xml')]
+    + [ROOT / 'res/xml/nanu_file_paths.xml']
+):
     try:
         ET.parse(xml)
     except Exception as exc:
@@ -58,7 +71,7 @@ for xml in [p for p in (ROOT / 'res/layout').glob('*.xml')] + [p for p in (ROOT 
 
 build = (ROOT / 'ci/build_rc8.sh').read_text() if (ROOT / 'ci/build_rc8.sh').exists() else ''
 for marker in [
-    'versionCode = 26', 'versionName = "1.0-rc8.4"',
+    'versionCode = 27', 'versionName = "1.0-final-test"',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
     'CreateStudioActivity.kt', 'SafetyPrivacyActivity.kt',
     'AiReportClient.kt', 'SafetyGuard.kt', 'LocalRagEngine.kt', 'NanuToolRegistry.kt',
@@ -68,7 +81,9 @@ for marker in [
     'verify_no_trading_artifact.py',
     'applicationId = "com.nanu.localai"', 'compileSdk = 36', 'targetSdk = 36',
     'android:allowBackup=\\"false\\"', '-dontwarn com.gemalto.jp2.**',
-    'out/nanu-local-ai-v1.0-rc8.apk'
+    'compose-bom:2026.06.01', 'text-recognition:16.0.1',
+    'text-recognition-devanagari:16.0.1', 'NanuVisualHome.kt', 'OnDeviceOcr.kt',
+    'out/nanu-local-ai-v1.0-final-test.apk'
 ]:
     if marker not in build:
         errors.append(f'build_rc8.sh missing marker: {marker}')
@@ -76,7 +91,7 @@ for marker in [
 workflow = WORKFLOW.read_text() if WORKFLOW.exists() else ''
 for marker in [
     'platforms;android-36', 'build_rc8.sh', 'preflight_rc8.py',
-    'nanu-local-ai-v1.0-rc8'
+    'nanu-local-ai-v1.0-final-test'
 ]:
     if marker not in workflow:
         errors.append(f'RC8 branch workflow missing marker: {marker}')
@@ -175,7 +190,7 @@ if 'POST_NOTIFICATIONS' in task_session or 'RequestPermission()' in task_session
     errors.append('background task submission must not be blocked on notification permission')
 
 main_chat = (ROOT / 'app/MainActivity.kt').read_text() if (ROOT / 'app/MainActivity.kt').exists() else ''
-for marker in ['withTimeout(45_000L)', 'RC8.4 • selected', 'Chat is still starting', 'quick_weather', 'canAnswerDirectly']:
+for marker in ['withTimeout(45_000L)', '1.0 FINAL TEST • selected', 'Chat is still starting', 'quick_weather', 'canAnswerDirectly']:
     if marker not in main_chat:
         errors.append(f'main chat runtime diagnostic missing marker: {marker}')
 
@@ -183,6 +198,40 @@ file_chat = (ROOT / 'app/FileChatActivity.kt').read_text() if (ROOT / 'app/FileC
 for marker in ['LocalRagEngine.retrieve', 'exact [Source: name §section]', 'relevant section', 'groundedOnly']:
     if marker not in file_chat:
         errors.append(f'Ask My Files retrieval missing marker: {marker}')
+for marker in ['OpenMultipleDocuments', 'MAX_FILES = 5', 'maxChunks = 8', 'maxChunksPerSource = 2', 'sourceCount']:
+    if marker not in file_chat:
+        errors.append(f'multi-file retrieval missing marker: {marker}')
+
+ocr = (ROOT / 'app/OnDeviceOcr.kt').read_text() if (ROOT / 'app/OnDeviceOcr.kt').exists() else ''
+for marker in ['TextRecognizerOptions.DEFAULT_OPTIONS', 'DevanagariTextRecognizerOptions', 'PdfRenderer', 'MAX_PDF_PAGES = 16', 'Tasks.await']:
+    if marker not in ocr:
+        errors.append(f'on-device OCR missing marker: {marker}')
+
+attachment_manager = (ROOT / 'app/AttachmentManager.kt').read_text() if (ROOT / 'app/AttachmentManager.kt').exists() else ''
+for marker in ['extractionMethod', 'OnDeviceOcr(context).recognizePdf', 'OnDeviceOcr(context).recognizeImage', 'hasReadableText']:
+    if marker not in attachment_manager:
+        errors.append(f'attachment OCR integration missing marker: {marker}')
+
+visual_home = (ROOT / 'app/NanuVisualHome.kt').read_text() if (ROOT / 'app/NanuVisualHome.kt').exists() else ''
+for marker in ['MaterialTheme', 'BoxWithConstraints', 'NanuOrb', 'ThemeDialog', 'Onboarding', 'NanuDestination.FILES']:
+    if marker not in visual_home:
+        errors.append(f'adaptive Compose home missing marker: {marker}')
+
+theme = (ROOT / 'app/NanuThemeController.kt').read_text() if (ROOT / 'app/NanuThemeController.kt').exists() else ''
+for marker in ['MODE_NIGHT_FOLLOW_SYSTEM', 'MODE_NIGHT_NO', 'MODE_NIGHT_YES', 'syncSystemBars']:
+    if marker not in theme:
+        errors.append(f'theme controller missing marker: {marker}')
+
+voice_wave = (ROOT / 'app/NanuVoiceWaveView.kt').read_text() if (ROOT / 'app/NanuVoiceWaveView.kt').exists() else ''
+for marker in ['LISTENING', 'THINKING', 'SPEAKING', 'onRmsChanged', 'onDetachedFromWindow']:
+    if marker not in voice_wave and marker != 'onRmsChanged':
+        errors.append(f'voice visualizer missing marker: {marker}')
+if 'voiceWave.updateRms(rmsdB)' not in (ROOT / 'app/ContinuousTalkActivity.kt').read_text(errors='ignore'):
+    errors.append('voice visualizer is not connected to microphone RMS')
+
+entitlement = (ROOT / 'app/ProEntitlement.kt').read_text(errors='ignore')
+if 'if (BuildConfig.DEBUG) return true' not in entitlement:
+    errors.append('test APK must expose Pro tools through the compile-time debug flag')
 
 visual = (ROOT / 'app/NanuPulseView.kt').read_text() if (ROOT / 'app/NanuPulseView.kt').exists() else ''
 for marker in ['ValueAnimator.areAnimatorsEnabled()', 'onDetachedFromWindow', 'RadialGradient']:
@@ -213,6 +262,8 @@ if 'msg_report' not in message_layout:
     errors.append('Assistant message layout missing Report action')
 
 play_build = (ROOT / 'ci/build_play_release.sh').read_text() if (ROOT / 'ci/build_play_release.sh').exists() else ''
+if 'versionName = "1.0-final-test"' not in build or ':app:assembleRelease' not in play_build:
+    errors.append('debug test access must remain separated from the Play release build')
 for marker in ['NANU_REPORT_ENDPOINT', 'NANU_UPLOAD_KEYSTORE_BASE64', 'versionName = "1.0"', ':app:assembleRelease', ':app:bundleRelease', 'jarsigner -verify', 'verify_no_trading_artifact.py']:
     if marker not in play_build:
         errors.append(f'Play release script missing marker: {marker}')

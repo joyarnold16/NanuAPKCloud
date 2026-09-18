@@ -1,5 +1,6 @@
 package com.example.llama
 
+import android.animation.ValueAnimator
 import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
 import android.text.util.Linkify
@@ -39,6 +40,7 @@ class MessageAdapter(
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private var speakingMessageId: String? = null
+    private val animatedIds = mutableSetOf<String>()
 
     companion object {
         private const val VIEW_TYPE_USER = 1
@@ -65,6 +67,14 @@ class MessageAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val message = messages[position]
         val item = holder.itemView
+        if (animatedIds.add(message.id) && ValueAnimator.areAnimatorsEnabled()) {
+            item.alpha = 0f
+            item.translationY = 10f * item.resources.displayMetrics.density
+            item.animate().alpha(1f).translationY(0f).setDuration(260L).start()
+        } else {
+            item.alpha = 1f
+            item.translationY = 0f
+        }
         val content = item.findViewById<TextView>(R.id.msg_content)
         item.findViewById<TextView>(R.id.msg_timestamp)?.text = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(message.createdAt))
         content.text = message.content
@@ -77,7 +87,7 @@ class MessageAdapter(
         item.findViewById<TextView>(R.id.msg_attachment)?.apply {
             val label = message.attachmentName?.let { name ->
                 val detail = message.attachmentInfo?.takeIf { it.isNotBlank() }
-                if (detail == null) "📎  $name" else "📎  $name  •  $detail"
+                if (detail == null) "Attached • $name" else "Attached • $name • $detail"
             }
             text = label.orEmpty()
             visibility = if (label == null) View.GONE else View.VISIBLE
@@ -86,6 +96,12 @@ class MessageAdapter(
         item.findViewById<TextView>(R.id.msg_copy)?.setOnClickListener { onCopy(message.content) }
 
         if (!message.isUser) {
+            val working = message.status?.let { status ->
+                listOf("starting", "loading", "preparing", "thinking", "generating", "searching").any { status.contains(it, true) }
+            } == true
+            item.findViewById<NanuThinkingView>(R.id.msg_thinking)?.visibility = if (working) View.VISIBLE else View.GONE
+            item.findViewById<NanuInsightView>(R.id.msg_insight)?.bind(message.content)
+            item.findViewById<NanuRemoteGalleryView>(R.id.msg_gallery)?.bind(message.content)
             item.findViewById<TextView>(R.id.msg_speak)?.apply {
                 val active = speakingMessageId == message.id
                 text = if (active) "Speaking • tap to stop" else "Speak"

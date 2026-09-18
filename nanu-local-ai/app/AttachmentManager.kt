@@ -16,13 +16,17 @@ data class NanuAttachment(
     val mimeType: String,
     val sizeBytes: Long,
     val localPath: String,
-    val extractedText: String?
+    val extractedText: String?,
+    val extractionMethod: String = "embedded text"
 ) {
     val extension: String
         get() = displayName.substringAfterLast('.', "").lowercase(Locale.US)
 
     val isImage: Boolean
         get() = mimeType.startsWith("image/") || extension in setOf("png", "jpg", "jpeg", "webp", "bmp")
+
+    val hasReadableText: Boolean
+        get() = !extractedText.isNullOrBlank()
 
     fun contextForPrompt(maxChars: Int = 12000): String {
         val text = extractedText?.trim().orEmpty()
@@ -70,19 +74,26 @@ class AttachmentManager(private val context: Context) {
             mimeType = mime,
             sizeBytes = if (reportedSize >= 0L) reportedSize else target.length(),
             localPath = target.absolutePath,
-            extractedText = extracted?.take(MAX_EXTRACTED_CHARS)
+            extractedText = extracted?.text?.take(MAX_EXTRACTED_CHARS),
+            extractionMethod = extracted?.method ?: "no readable text"
         )
     }
 
-    private fun extractText(file: File, displayName: String, mime: String): String? {
+    private fun extractText(file: File, displayName: String, mime: String): Extracted? {
         val ext = displayName.substringAfterLast('.', "").lowercase(Locale.US)
         return when {
             mime.startsWith("text/") || ext in setOf("txt", "csv", "json", "md", "log", "xml", "html", "htm") ->
-                file.readText(Charsets.UTF_8)
-            ext == "pdf" || mime == "application/pdf" -> extractPdf(file)
-            ext == "docx" -> extractDocx(file)
-            ext == "xlsx" -> extractXlsx(file)
-            ext == "pptx" -> extractPptx(file)
+                Extracted(file.readText(Charsets.UTF_8), "embedded text")
+            ext == "pdf" || mime == "application/pdf" -> {
+                val embedded = extractPdf(file).trim()
+                if (embedded.count(Char::isLetterOrDigit) >= MIN_EMBEDDED_TEXT) Extracted(embedded, "embedded PDF text")
+                else OnDeviceOcr(context).recognizePdf(file).let { Extracted(it.text, it.method) }
+            }
+            mime.startsWith("image/") || ext in setOf("png", "jpg", "jpeg", "webp", "bmp") ->
+                OnDeviceOcr(context).recognizeImage(file).let { Extracted(it.text, it.method) }
+            ext == "docx" -> Extracted(extractDocx(file), "embedded Word text")
+            ext == "xlsx" -> Extracted(extractXlsx(file), "embedded spreadsheet text")
+            ext == "pptx" -> Extracted(extractPptx(file), "embedded presentation text")
             else -> null
         }
     }
@@ -169,5 +180,8 @@ class AttachmentManager(private val context: Context) {
 
     companion object {
         private const val MAX_EXTRACTED_CHARS = 80_000
+        private const val MIN_EMBEDDED_TEXT = 24
     }
+
+    private data class Extracted(val text: String, val method: String)
 }

@@ -4,13 +4,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +20,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class SafetyPrivacyActivity : AppCompatActivity() {
+class SafetyPrivacyActivity : NanuBaseActivity() {
     private lateinit var categoryEt: EditText
     private lateinit var detailsEt: EditText
     private lateinit var reportStatusTv: TextView
@@ -32,8 +30,6 @@ class SafetyPrivacyActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.parseColor("#060B12")
-        window.navigationBarColor = Color.parseColor("#060B12")
         setContentView(R.layout.activity_safety_privacy)
 
         categoryEt = findViewById(R.id.report_category)

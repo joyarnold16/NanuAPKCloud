@@ -1,6 +1,6 @@
 # Nanu Local AI 1.0 — Google Play Readiness
 
-Date reviewed: 14 September 2026
+Date reviewed: 18 September 2026
 
 ## Built into the app
 
@@ -9,6 +9,8 @@ Date reviewed: 14 September 2026
 - 16 KB page-size validation for every packaged native `.so` using ELF LOAD alignment checks.
 - No ads or analytics SDKs in the current source.
 - Local-first LLM/image inference and document processing.
+- Bundled Latin/Devanagari OCR for selected images and scanned PDF pages; no OCR cloud service.
+- Adaptive Compose home, light/dark/system themes and tablet-aware two-column layout.
 - Local project RAG, user-controlled memory notes and bounded allow-listed agent tools.
 - Optional read-only weather/time, crypto, FX, news, web and reusable-image tools with a Home-screen off switch, source links and retrieval times.
 - Offline 78-card Tarot reference/readings with a local history and explicit entertainment/reflection boundary.
@@ -33,6 +35,7 @@ Date reviewed: 14 September 2026
 
 Production configuration:
 - `NANU_REPORT_ENDPOINT` — maintained HTTPS endpoint that accepts Nanu safety-report JSON. It may be supplied as the manual workflow input or repository variable.
+- `NANU_PLAY_PUBLIC_KEY` — public RSA billing key for verifying the one-time `nanu_pro_lifetime` receipt.
 - The current public Nanu support mailbox is the default release support contact; it may be overridden by workflow input/repository variable if needed.
 
 GitHub Actions secrets:

@@ -1,12 +1,10 @@
 package com.example.llama
 
-import android.graphics.Color
 import android.os.Bundle
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import org.json.JSONArray
 import org.json.JSONObject
@@ -14,7 +12,7 @@ import java.text.DateFormat
 import java.util.Date
 
 /** Offline tarot library and reflection tool. No reading or question leaves the device. */
-class TarotActivity : AppCompatActivity() {
+class TarotActivity : NanuBaseActivity() {
     private val prefs by lazy { getSharedPreferences(PREFS, MODE_PRIVATE) }
     private lateinit var question: EditText
     private lateinit var result: TextView
@@ -22,8 +20,6 @@ class TarotActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.parseColor("#060B12")
-        window.navigationBarColor = Color.parseColor("#060B12")
         setContentView(R.layout.activity_tarot)
 
         question = findViewById(R.id.tarot_question)

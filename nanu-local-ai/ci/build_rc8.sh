@@ -28,6 +28,13 @@ required_files = [
     'nanu-local-ai/app/NanuToolRegistry.kt',
     'nanu-local-ai/app/OnlineToolClient.kt',
     'nanu-local-ai/app/NanuPulseView.kt',
+    'nanu-local-ai/app/NanuThemeController.kt',
+    'nanu-local-ai/app/NanuVisualHome.kt',
+    'nanu-local-ai/app/OnDeviceOcr.kt',
+    'nanu-local-ai/app/NanuVoiceWaveView.kt',
+    'nanu-local-ai/app/NanuThinkingView.kt',
+    'nanu-local-ai/app/NanuInsightView.kt',
+    'nanu-local-ai/app/NanuRemoteGalleryView.kt',
     'nanu-local-ai/app/TarotDeck.kt',
     'nanu-local-ai/app/TarotActivity.kt',
     'nanu-local-ai/app/ProStore.kt',
@@ -51,6 +58,13 @@ required_files = [
     'nanu-local-ai/res/xml/nanu_file_paths.xml',
     'nanu-local-ai/res/drawable/ic_nanu_launcher.xml',
     'nanu-local-ai/res/drawable/nanu_home_background.xml',
+    'nanu-local-ai/res/drawable-night/nanu_home_background.xml',
+    'nanu-local-ai/res/values-night/colors.xml',
+    'nanu-local-ai/res/drawable/ic_nanu_chat.xml',
+    'nanu-local-ai/res/drawable/ic_nanu_code.xml',
+    'nanu-local-ai/res/drawable/ic_nanu_study.xml',
+    'nanu-local-ai/res/drawable/ic_nanu_image.xml',
+    'nanu-local-ai/res/drawable/ic_nanu_file.xml',
     'nanu-local-ai/strings.xml',
 ]
 for path in required_files:
@@ -58,10 +72,13 @@ for path in required_files:
     if not p.exists() or p.stat().st_size <= 50:
         raise SystemExit(f'Missing or empty required RC8 source file: {path}')
 
-for xml in [p for p in Path('nanu-local-ai/res/layout').glob('*.xml')] + [
-    Path('nanu-local-ai/res/xml/nanu_file_paths.xml'),
-    Path('nanu-local-ai/res/drawable/ic_nanu_launcher.xml'),
-]:
+for xml in (
+    [p for p in Path('nanu-local-ai/res/layout').glob('*.xml')]
+    + [p for p in Path('nanu-local-ai/res/drawable').glob('*.xml')]
+    + [p for p in Path('nanu-local-ai/res/drawable-night').glob('*.xml')]
+    + [p for p in Path('nanu-local-ai/res/values-night').glob('*.xml')]
+    + [Path('nanu-local-ai/res/xml/nanu_file_paths.xml')]
+):
     ET.parse(xml)
 
 base_path = Path('nanu-local-ai/ci/build_rc5.sh')
@@ -121,15 +138,17 @@ base = replace_once(
     'legacy trading layout assertions',
 )
 
-base = replace_once(base, 'versionCode = 17', 'versionCode = 26', 'versionCode')
-base = replace_once(base, 'versionName = "1.0-rc5.2"', 'versionName = "1.0-rc8.4"', 'versionName')
+base = replace_once(base, 'versionCode = 17', 'versionCode = 27', 'versionCode')
+base = replace_once(base, 'versionName = "1.0-rc5.2"', 'versionName = "1.0-final-test"', 'versionName')
 base = base.replace('RC5.2', 'RC8').replace('rc5.2', 'rc8')
+base = base.replace('nanu-local-ai-v1.0-rc8-debug.aab', 'nanu-local-ai-v1.0-final-test-debug.aab')
+base = base.replace('nanu-local-ai-v1.0-rc8.apk', 'nanu-local-ai-v1.0-final-test.apk')
 
 base = replace_once(
     base,
     'mkdir -p "$APP/res/drawable" "$NATIVE_DIR"',
-    'mkdir -p "$APP/res/drawable" "$APP/res/xml" "$NATIVE_DIR"',
-    'res/xml directory'
+    'mkdir -p "$APP/res/drawable" "$APP/res/drawable-night" "$APP/res/values-night" "$APP/res/xml" "$NATIVE_DIR"',
+    'theme resource directories'
 )
 
 base = replace_once(
@@ -149,8 +168,8 @@ cp nanu-local-ai/res/layout/activity_tarot.xml "$APP/res/layout/activity_tarot.x
 base = replace_once(
     base,
     'cp nanu-local-ai/res/drawable/ic_nanu_launcher.xml "$APP/res/drawable/ic_nanu_launcher.xml"',
-    'cp nanu-local-ai/res/drawable/*.xml "$APP/res/drawable/"\ncp nanu-local-ai/res/xml/nanu_file_paths.xml "$APP/res/xml/nanu_file_paths.xml"',
-    'FileProvider paths copy'
+    'cp nanu-local-ai/res/drawable/*.xml "$APP/res/drawable/"\ncp nanu-local-ai/res/drawable-night/*.xml "$APP/res/drawable-night/"\ncp nanu-local-ai/res/values-night/colors.xml "$APP/res/values-night/colors.xml"\ncp nanu-local-ai/res/xml/nanu_file_paths.xml "$APP/res/xml/nanu_file_paths.xml"',
+    'theme and FileProvider resources copy'
 )
 
 base = replace_once(
@@ -166,18 +185,71 @@ base = replace_once(
   SafetyPrivacyActivity.kt \\
   AiReportClient.kt \\
   NanuPulseView.kt \\
+  NanuThemeController.kt \\
+  NanuVisualHome.kt \\
+  OnDeviceOcr.kt \\
+  NanuVoiceWaveView.kt \\
+  NanuThinkingView.kt \\
+  NanuInsightView.kt \\
+  NanuRemoteGalleryView.kt \\
   SafetyGuard.kt; do''',
     'RC8 Kotlin source list'
 )
 
 old_gradle = "app_gradle.write_text(text)"
-new_gradle = '''if 'pdfbox-android' not in text:
-    text = text.replace('dependencies {', 'dependencies {\\n    implementation("com.tom-roush:pdfbox-android:2.0.27.0")', 1)
+new_gradle = '''catalog = Path('llama-upstream/examples/llama.android/gradle/libs.versions.toml')
+catalog_text = catalog.read_text()
+if 'compose-compiler' not in catalog_text:
+    catalog_text = catalog_text.replace(
+        'jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }',
+        'jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }\\ncompose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }',
+        1,
+    )
+catalog.write_text(catalog_text)
+
+root_gradle = Path('llama-upstream/examples/llama.android/build.gradle.kts')
+root_text = root_gradle.read_text()
+if 'libs.plugins.compose.compiler' not in root_text:
+    root_text = root_text.replace(
+        'alias(libs.plugins.jetbrains.kotlin.android) apply false',
+        'alias(libs.plugins.jetbrains.kotlin.android) apply false\\n    alias(libs.plugins.compose.compiler) apply false',
+        1,
+    )
+root_gradle.write_text(root_text)
+
+if 'libs.plugins.compose.compiler' not in text:
+    text = text.replace(
+        'alias(libs.plugins.jetbrains.kotlin.android)',
+        'alias(libs.plugins.jetbrains.kotlin.android)\\n    alias(libs.plugins.compose.compiler)',
+        1,
+    )
+if 'buildFeatures { compose = true }' not in text:
+    text = text.replace('android {', 'android {\\n    buildFeatures { compose = true }', 1)
+dependencies = [
+    'implementation("com.tom-roush:pdfbox-android:2.0.27.0")',
+    'implementation(platform("androidx.compose:compose-bom:2026.06.01"))',
+    'implementation("androidx.activity:activity-compose:1.12.2")',
+    'implementation("androidx.compose.material3:material3")',
+    'implementation("androidx.compose.material:material-icons-extended")',
+    'implementation("androidx.compose.animation:animation")',
+    'implementation("androidx.compose.ui:ui-tooling-preview")',
+    'debugImplementation("androidx.compose.ui:ui-tooling")',
+    'implementation("com.google.mlkit:text-recognition:16.0.1")',
+    'implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")',
+]
+for dependency in reversed(dependencies):
+    if dependency not in text:
+        text = text.replace('dependencies {', 'dependencies {\\n    ' + dependency, 1)
 for required in [
     'applicationId = "com.nanu.localai"',
     'compileSdk = 36',
     'minSdk = 33',
     'targetSdk = 36',
+    'libs.plugins.compose.compiler',
+    'buildFeatures { compose = true }',
+    'compose-bom:2026.06.01',
+    'text-recognition:16.0.1',
+    'text-recognition-devanagari:16.0.1',
 ]:
     if required not in text:
         raise SystemExit(f'Generated Android configuration missing: {required}')
@@ -191,7 +263,7 @@ if r8_rule not in proguard_text:
         proguard_text += '\\n'
     proguard_text += '\\n# Optional PDFBox JPEG-2000 decoder is not bundled.\\n' + r8_rule + '\\n'
     proguard.write_text(proguard_text)'''
-base = replace_once(base, old_gradle, new_gradle, 'pdfbox dependency and R8 rule')
+base = replace_once(base, old_gradle, new_gradle, 'Compose, OCR, PDF dependency and R8 configuration')
 
 old_manifest = 'manifest.write_text(text)'
 new_manifest = """# RC8 privacy hardening: local private data is not included in Android cloud backup,
@@ -281,7 +353,9 @@ base = replace_once(base, '(\n  cd llama-upstream/examples/llama.android\n  chmo
 base = replace_once(base, './gradlew --no-daemon :app:assembleDebug :app:bundleDebug --stacktrace', './gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:bundleDebug --stacktrace', 'history regression tests')
 
 for required in [
-    'versionCode = 26', 'versionName = "1.0-rc8.4"', 'pdfbox-android:2.0.27.0',
+    'versionCode = 27', 'versionName = "1.0-final-test"', 'pdfbox-android:2.0.27.0',
+    'compose-bom:2026.06.01', 'text-recognition:16.0.1', 'text-recognition-devanagari:16.0.1',
+    'NanuVisualHome.kt', 'OnDeviceOcr.kt', 'NanuVoiceWaveView.kt',
     'applicationId = "com.nanu.localai"', 'compileSdk = 36', 'targetSdk = 36',
     '-dontwarn com.gemalto.jp2.**', 'AttachmentManager.kt', 'LocalImageGenerator.kt',
     'Rc8HomeActivity.kt', 'FileChatActivity.kt', 'ContinuousTalkActivity.kt',
@@ -292,7 +366,7 @@ for required in [
     'activity_rc8_home.xml', 'activity_file_chat.xml', 'activity_talk_rc8.xml',
     'activity_create_studio.xml', 'activity_safety_privacy.xml', 'activity_tarot.xml',
     'android:allowBackup="false"', 'androidx.core.content.FileProvider',
-    'out/nanu-local-ai-v1.0-rc8.apk'
+    'out/nanu-local-ai-v1.0-final-test.apk'
 ]:
     if required not in base:
         raise SystemExit(f'Generated RC8 build script is missing: {required}')
@@ -313,8 +387,8 @@ python3 <<'PY'
 from pathlib import Path
 from zipfile import ZipFile
 
-apk = Path('out/nanu-local-ai-v1.0-rc8.apk')
-aab = Path('out/nanu-local-ai-v1.0-rc8-debug.aab')
+apk = Path('out/nanu-local-ai-v1.0-final-test.apk')
+aab = Path('out/nanu-local-ai-v1.0-final-test-debug.aab')
 for artifact in [apk, aab]:
     if not artifact.exists() or artifact.stat().st_size <= 1_000_000:
         raise SystemExit(f'Missing or suspiciously small RC8 artifact: {artifact}')
@@ -342,5 +416,5 @@ print('RC8.2 conservative ARM64 APK/native artifact validation passed.')
 PY
 
 python3 nanu-local-ai/ci/verify_no_trading_artifact.py \
-  out/nanu-local-ai-v1.0-rc8.apk \
-  out/nanu-local-ai-v1.0-rc8-debug.aab
+  out/nanu-local-ai-v1.0-final-test.apk \
+  out/nanu-local-ai-v1.0-final-test-debug.aab

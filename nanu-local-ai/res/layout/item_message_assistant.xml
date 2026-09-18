@@ -50,6 +50,28 @@
                     android:textSize="15sp"
                     android:lineSpacingExtra="2dp" />
 
+                <com.example.llama.NanuThinkingView
+                    android:id="@+id/msg_thinking"
+                    android:layout_width="56dp"
+                    android:layout_height="28dp"
+                    android:layout_marginTop="4dp"
+                    android:contentDescription="Nanu is working"
+                    android:visibility="gone" />
+
+                <com.example.llama.NanuInsightView
+                    android:id="@+id/msg_insight"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:visibility="gone" />
+
+                <com.example.llama.NanuRemoteGalleryView
+                    android:id="@+id/msg_gallery"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
                 <ImageView
                     android:id="@+id/msg_image"
                     android:layout_width="match_parent"
