@@ -223,8 +223,12 @@ if 'libs.plugins.compose.compiler' not in text:
         'alias(libs.plugins.jetbrains.kotlin.android)\\n    alias(libs.plugins.compose.compiler)',
         1,
     )
-if 'buildFeatures { compose = true }' not in text:
-    text = text.replace('android {', 'android {\\n    buildFeatures { compose = true }', 1)
+if 'buildConfig = true' not in text:
+    text = text.replace(
+        'android {',
+        'android {\\n    buildFeatures {\\n        compose = true\\n        buildConfig = true\\n    }',
+        1,
+    )
 dependencies = [
     'implementation("com.tom-roush:pdfbox-android:2.0.27.0")',
     'implementation(platform("androidx.compose:compose-bom:2026.06.01"))',
@@ -246,7 +250,8 @@ for required in [
     'minSdk = 33',
     'targetSdk = 36',
     'libs.plugins.compose.compiler',
-    'buildFeatures { compose = true }',
+    'compose = true',
+    'buildConfig = true',
     'compose-bom:2026.06.01',
     'text-recognition:16.0.1',
     'text-recognition-devanagari:16.0.1',
