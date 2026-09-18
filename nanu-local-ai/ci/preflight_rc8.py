@@ -83,6 +83,7 @@ for marker in [
     'android:allowBackup=\\"false\\"', '-dontwarn com.gemalto.jp2.**',
     'compose-bom:2026.06.01', 'text-recognition:16.0.1',
     'text-recognition-devanagari:16.0.1', 'NanuVisualHome.kt', 'OnDeviceOcr.kt',
+    'wrapper_ready=0', './gradlew --no-daemon --version',
     'out/nanu-local-ai-v1.0-final-test.apk'
 ]:
     if marker not in build:

@@ -86,7 +86,7 @@ class AttachmentManager(private val context: Context) {
                 Extracted(file.readText(Charsets.UTF_8), "embedded text")
             ext == "pdf" || mime == "application/pdf" -> {
                 val embedded = extractPdf(file).trim()
-                if (embedded.count(Char::isLetterOrDigit) >= MIN_EMBEDDED_TEXT) Extracted(embedded, "embedded PDF text")
+                if (embedded.count { it.isLetterOrDigit() } >= MIN_EMBEDDED_TEXT) Extracted(embedded, "embedded PDF text")
                 else OnDeviceOcr(context).recognizePdf(file).let { Extracted(it.text, it.method) }
             }
             mime.startsWith("image/") || ext in setOf("png", "jpg", "jpeg", "webp", "bmp") ->

@@ -351,6 +351,26 @@ python3 nanu-local-ai/ci/patch_native_compat_rc82.py
 # Configure the generated project only after the existing RC8 source patches.
 base = replace_once(base, '(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'python3 nanu-local-ai/ci/patch_background.py\npython3 nanu-local-ai/ci/strip_trading_rc8.py\n\n(\n  cd llama-upstream/examples/llama.android\n  chmod +x gradlew', 'background project configuration and trading boundary')
 base = replace_once(base, './gradlew --no-daemon :app:assembleDebug :app:bundleDebug --stacktrace', './gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:bundleDebug --stacktrace', 'history regression tests')
+base = replace_once(
+    base,
+    '''  chmod +x gradlew
+  ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:bundleDebug --stacktrace''',
+    '''  chmod +x gradlew
+  # Prime the wrapper separately so a transient services.gradle.org reset can
+  # be retried without rebuilding the native engines from scratch.
+  wrapper_ready=0
+  for attempt in 1 2 3; do
+    if ./gradlew --no-daemon --version; then
+      wrapper_ready=1
+      break
+    fi
+    echo "Gradle wrapper bootstrap attempt $attempt failed; retrying..." >&2
+    sleep $((attempt * 5))
+  done
+  (( wrapper_ready == 1 ))
+  ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:bundleDebug --stacktrace''',
+    'Gradle wrapper bootstrap retry',
+)
 
 for required in [
     'versionCode = 27', 'versionName = "1.0-final-test"', 'pdfbox-android:2.0.27.0',

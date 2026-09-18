@@ -168,6 +168,7 @@ class FileChatActivity : NanuBaseActivity() {
                 refreshAskButton()
             }
         }
+        job?.invokeOnCompletion { runOnUiThread(::refreshAskButton) }
     }
 
     private fun refreshAskButton() {
