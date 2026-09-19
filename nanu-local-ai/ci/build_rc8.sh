@@ -229,6 +229,13 @@ if 'buildConfig = true' not in text:
         'android {\\n    buildFeatures {\\n        compose = true\\n        buildConfig = true\\n    }',
         1,
     )
+if 'abiFilters += listOf("arm64-v8a")' not in text:
+    text = text.replace(
+        '    defaultConfig {',
+        '    defaultConfig {\\n        ndk {\\n            abiFilters += listOf("arm64-v8a")\\n        }',
+        1,
+    )
+
 dependencies = [
     'implementation("com.tom-roush:pdfbox-android:2.0.27.0")',
     'implementation(platform("androidx.compose:compose-bom:2026.06.01"))',
@@ -245,6 +252,7 @@ for dependency in reversed(dependencies):
     if dependency not in text:
         text = text.replace('dependencies {', 'dependencies {\\n    ' + dependency, 1)
 for required in [
+    'abiFilters += listOf("arm64-v8a")',
     'applicationId = "com.nanu.localai"',
     'compileSdk = 36',
     'minSdk = 33',
