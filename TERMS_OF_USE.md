@@ -1,6 +1,6 @@
 # Nanu Local AI Terms of Use
 
-**Effective date:** 25 August 2026
+**Effective date:** 14 September 2026
 
 These terms describe the intended use of Nanu Local AI. They are a product-readiness document and should be reviewed before a public commercial release.
 
@@ -8,11 +8,11 @@ These terms describe the intended use of Nanu Local AI. They are a product-readi
 
 Nanu is a general-purpose local AI assistant. AI-generated text, images, summaries, code, and analysis may be incomplete, inaccurate, outdated, or unsuitable for a particular purpose. Users remain responsible for reviewing outputs before relying on them.
 
-## 2. Financial and trading features
+## 2. Current-information tools and product boundary
 
-Nanu Markets, technical analysis, risk calculators, watch tools, journals, and paper trading are educational and informational tools. They are not a promise of profit, personalized investment advice, brokerage, exchange, custodial wallet, or real-money execution service. RC8 does not place real trades.
+Nanu Local AI does not include Trading Lab, Paper Trading, technical analysis, risk calculators, trade journals, wallet connections or order execution. Trading is reserved for a separate application.
 
-Users are responsible for their own financial decisions and for complying with laws and regulations that apply in their jurisdiction.
+Nanu may return user-requested current cryptocurrency prices or currency reference rates from public read-only sources. These results can be delayed, incomplete or inaccurate and are not executable quotes, financial advice or a recommendation to trade. Users remain responsible for decisions based on this information.
 
 ## 3. AI-generated content and responsible use
 
@@ -24,7 +24,9 @@ Users should only process files and content they have the right to use. Nanu's l
 
 ## 5. Model licenses and third-party services
 
-Nanu can download third-party AI models. Each model remains subject to its own license. Optional network features may use third-party services such as model hosts and public market-data providers. Their terms and privacy practices may also apply.
+Nanu can download third-party AI models. Each model remains subject to its own license. Optional network features may use third-party services for model hosting, weather/time, current price and currency reference data, news, web search and reusable-image search. Their terms and privacy practices may also apply, and free public services may be rate-limited, delayed or unavailable.
+
+Tarot cards and readings are provided for reflection or entertainment. They are not factual predictions or medical, legal, safety, financial or trading advice.
 
 ## 6. Voice and Android services
 

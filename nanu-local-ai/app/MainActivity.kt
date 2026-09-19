@@ -9,7 +9,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
@@ -52,7 +51,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -71,8 +72,11 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private lateinit var actionBtn: MaterialButton
     private lateinit var modelsBtn: MaterialButton
     private lateinit var newChatBtn: MaterialButton
+    private lateinit var historyBtn: MaterialButton
     private lateinit var plusBtn: MaterialButton
     private lateinit var modeChip: MaterialButton
+    private lateinit var agentStatusTv: TextView
+    private lateinit var quickActions: View
     private lateinit var attachmentCard: MaterialCardView
     private lateinit var attachmentNameTv: TextView
     private lateinit var attachmentRemoveTv: TextView
@@ -101,6 +105,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private var currentMode = AssistantMode.GENERAL
     private var currentAttachment: NanuAttachment? = null
     private var lastUserPrompt: String? = null
+    private var speakingMessageId: String? = null
 
     private val prefs by lazy { getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
     private val modelDownloader by lazy { ModelDownloadManager(applicationContext) }
@@ -146,8 +151,6 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.parseColor("#060B12")
-        window.navigationBarColor = Color.parseColor("#060B12")
         setContentView(R.layout.activity_main)
 
         modelStatusTv = findViewById(R.id.model_status)
@@ -158,8 +161,11 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         actionBtn = findViewById(R.id.send_button)
         modelsBtn = findViewById(R.id.models_button)
         newChatBtn = findViewById(R.id.new_chat_button)
+        historyBtn = findViewById(R.id.history_button)
         plusBtn = findViewById(R.id.plus_button)
         modeChip = findViewById(R.id.mode_chip)
+        agentStatusTv = findViewById(R.id.agent_status)
+        quickActions = findViewById(R.id.quick_actions)
         attachmentCard = findViewById(R.id.attachment_card)
         attachmentNameTv = findViewById(R.id.attachment_name)
         attachmentRemoveTv = findViewById(R.id.attachment_remove)
@@ -171,18 +177,19 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         messageAdapter = MessageAdapter(
             messages = messages,
             onCopy = ::copyText,
-            onSpeak = ::speakText,
+            onSpeak = ::toggleSpeakMessage,
             onRegenerate = ::regenerateMessage,
             onShare = ::shareMessage,
             onEditPrompt = ::editMessagePrompt,
-            onSaveImage = ::saveImageMessage
+            onSaveImage = ::saveImageMessage,
+            onReport = ::reportMessage
         )
         messagesRv.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
         messagesRv.adapter = messageAdapter
 
         modelsBtn.setOnClickListener { showModelManager() }
         newChatBtn.setOnClickListener { startNewChat() }
-        findViewById<View>(R.id.history_button).setOnClickListener { showHistory() }
+        historyBtn.setOnClickListener { showHistory() }
         plusBtn.setOnClickListener { showPlusMenu() }
         modeChip.setOnClickListener { switchMode(AssistantMode.GENERAL) }
         attachmentRemoveTv.setOnClickListener {
@@ -199,6 +206,12 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = updateComposerAction()
             override fun afterTextChanged(s: Editable?) = Unit
         })
+        findViewById<View>(R.id.quick_weather).setOnClickListener { useQuickPrompt("What is the current weather in Kanpur?") }
+        findViewById<View>(R.id.quick_btc).setOnClickListener { useQuickPrompt("What is the current price of BTC?") }
+        findViewById<View>(R.id.quick_news).setOnClickListener { useQuickPrompt("Show me the latest AI news") }
+        findViewById<View>(R.id.quick_tarot).setOnClickListener { useQuickPrompt("Give me a three-card tarot reading") }
+        renderAgentStatus()
+        applyStarterPrompt(intent)
 
         tts = TextToSpeech(this, this)
         createSpeechRecognizer()
@@ -207,15 +220,34 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
         lifecycleScope.launch {
             LocalTaskService.recover(applicationContext)
-            val existing = chatStore.list()
+            val existing = chatStore.list(includeEmpty = true)
             val wanted = intent.getStringExtra("conversation") ?: prefs.getString("last_conversation", null)
             conversationId = existing.firstOrNull { it.id == wanted }?.id ?: chatStore.create(currentMode.id)
             prefs.edit().putString("last_conversation", conversationId).apply()
             currentMode = AssistantMode.fromId(existing.firstOrNull { it.id == conversationId }?.mode ?: currentMode.id)
             refreshModeUi()
-            engineReady = true
-            restoreLastModelOrShowWelcome()
-            resumePendingModelDownload()
+            try {
+                withContext(Dispatchers.Default) {
+                    engine = AiChat.getInferenceEngine(applicationContext)
+                    val stable = withTimeout(45_000L) {
+                        engine.state.first {
+                            it is InferenceEngine.State.Initialized ||
+                                it is InferenceEngine.State.ModelReady ||
+                                it is InferenceEngine.State.Error
+                        }
+                    }
+                    if (stable is InferenceEngine.State.Error) throw stable.exception
+                }
+                engineReady = true
+                restoreLastModelOrShowWelcome()
+                resumePendingModelDownload()
+            } catch (e: LinkageError) {
+                setModelUi(null, false, "1.0 FINAL TEST • native AI unavailable")
+                Toast.makeText(this@MainActivity, LocalTaskService.failureMessage(e), Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                setModelUi(null, false, "1.0 FINAL TEST • local AI unavailable")
+                Toast.makeText(this@MainActivity, LocalTaskService.failureMessage(e), Toast.LENGTH_LONG).show()
+            }
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { chatStore.changes.collect { refreshHistoryMessages() } }
                 launch { LocalTaskService.active.collect {
@@ -232,6 +264,16 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.getStringExtra("conversation")?.let { id -> lifecycleScope.launch { openConversation(id) } }
+        applyStarterPrompt(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        renderAgentStatus()
+        lifecycleScope.launch {
+            LocalTaskService.recover(applicationContext)
+            refreshHistoryMessages()
+        }
     }
 
     private suspend fun refreshHistoryMessages() {
@@ -241,6 +283,8 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         messages.clear()
         messages.addAll(saved)
         messageAdapter.notifyDataSetChanged()
+        val historyCount = chatStore.list(includeEmpty = false).size
+        historyBtn.text = if (historyCount == 0) "History" else "History • $historyCount"
         saved.firstOrNull { it.id == voiceReplyId && it.status == "Complete" }?.let {
             voiceReplyId = null
             speakText(it.content)
@@ -248,11 +292,12 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         statsTv.text = saved.lastOrNull { !it.isUser }?.let { it.generationStats ?: it.status }.orEmpty()
         lastUserPrompt = saved.lastOrNull { it.isUser }?.sourcePrompt
         showEmptyState(saved.isEmpty(), "Start a conversation. Messages are saved on this device.")
+        quickActions.visibility = if (saved.isEmpty()) View.VISIBLE else View.GONE
         scrollToBottom()
     }
 
     private suspend fun openConversation(id: String) {
-        val conversation = chatStore.list().firstOrNull { it.id == id } ?: return
+        val conversation = chatStore.list(includeEmpty = true).firstOrNull { it.id == id } ?: return
         conversationId = id
         prefs.edit().putString("last_conversation", id).apply()
         switchMode(AssistantMode.fromId(conversation.mode))
@@ -275,9 +320,12 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         fun reload() {
             searchJob?.cancel()
             searchJob = lifecycleScope.launch {
-                rows = chatStore.list(search.text.toString())
+                rows = chatStore.list(search.text.toString(), includeEmpty = false)
                 val date = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
-                list.adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_list_item_1, rows.map { it.title + "\n" + date.format(java.util.Date(it.updated)) })
+                list.adapter = android.widget.ArrayAdapter(this@MainActivity, android.R.layout.simple_list_item_1, rows.map {
+                    val count = "${it.messageCount} message${if (it.messageCount == 1) "" else "s"}"
+                    it.title + "\n" + count + " • " + date.format(java.util.Date(it.updated))
+                })
             }
         }
         search.addTextChangedListener(object : TextWatcher {
@@ -312,12 +360,14 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             .setMessage("This permanently removes saved messages from this device. Exported images remain in your gallery.")
             .setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> lifecycleScope.launch {
                 try {
+                    if (LocalTaskService.active.value) LocalTaskService.stop(applicationContext)
                     chatStore.delete(id)
                     if (id == null || id == conversationId) {
                         conversationId = chatStore.create(currentMode.id)
                         prefs.edit().putString("last_conversation", conversationId).apply()
                         refreshHistoryMessages()
                     }
+                    Toast.makeText(this@MainActivity, if (id == null) "Chat history cleared." else "Conversation deleted.", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) { Toast.makeText(this@MainActivity, e.message, Toast.LENGTH_LONG).show() }
             } }.show()
     }
@@ -347,7 +397,6 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         choose(R.id.plus_general, AssistantMode.GENERAL)
         choose(R.id.plus_code, AssistantMode.CODING)
         choose(R.id.plus_academics, AssistantMode.ACADEMICS)
-        choose(R.id.plus_trading, AssistantMode.TRADING)
         choose(R.id.plus_image, AssistantMode.IMAGE)
         view.findViewById<View>(R.id.plus_attach).setOnClickListener {
             dialog.dismiss()
@@ -372,7 +421,6 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
                 userInputEt.hint = "Describe the image you want…"
                 if (!imageModelReady()) modelStatusTv.text = "Create Image selected • image model needs download"
             }
-            AssistantMode.TRADING -> userInputEt.hint = "Ask about a market, setup, chart, or risk…"
             AssistantMode.CODING -> userInputEt.hint = "Ask Nanu to write, debug, or explain code…"
             AssistantMode.ACADEMICS -> userInputEt.hint = "Ask a study or research question…"
             AssistantMode.GENERAL -> userInputEt.hint = "Message Nanu…"
@@ -395,7 +443,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             attachmentNameTv.text = ""
         } else {
             attachmentCard.visibility = View.VISIBLE
-            attachmentNameTv.text = "${attachment.displayName}  •  ${formatBytes(attachment.sizeBytes)}"
+            attachmentNameTv.text = "${attachment.displayName}  •  ${formatBytes(attachment.sizeBytes)}  •  ${attachment.extractionMethod}"
         }
     }
 
@@ -501,47 +549,91 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         val userMsg = userInputEt.text.toString().trim()
         if (userMsg.isEmpty()) return
 
+        SafetyGuard.blockedReason(userMsg, image = currentMode == AssistantMode.IMAGE)?.let { reason ->
+            modelStatusTv.text = reason
+            Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val onlineEnabled = prefs.getBoolean("online_tools_enabled", true)
+        val directToolAvailable = currentMode != AssistantMode.IMAGE &&
+            NanuToolRegistry.canAnswerDirectly("User request:\n$userMsg", onlineEnabled)
+
         if (currentMode == AssistantMode.IMAGE) {
             if (!imageModelReady()) {
                 offerImageModelDownload()
                 return
             }
-        } else if (!isModelReady) {
+        } else if (!isModelReady && !directToolAvailable) {
+            val message = "Download or select an AI model first. Live weather, time, prices, news and Tarot can work without one."
+            modelStatusTv.text = "AI model required"
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             showModelManager()
             return
         }
 
-        if (LocalTaskService.active.value || submitting || conversationId == null) return
-        if (Build.VERSION.SDK_INT >= 33 && !askedNotifications && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            askedNotifications = true
-            pendingVoice = fromVoice
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        if (LocalTaskService.active.value) {
+            Toast.makeText(this, "Nanu is already working. Tap Stop, then try again.", Toast.LENGTH_LONG).show()
             return
         }
-        val id = conversationId ?: return
+        if (submitting) {
+            Toast.makeText(this, "Saving your message…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val id = conversationId
+        if (id == null) {
+            Toast.makeText(this, "Chat is still starting. Wait a moment and tap Send again.", Toast.LENGTH_LONG).show()
+            return
+        }
         val attachment = currentAttachment
         val mode = currentMode
-        val user = Message(UUID.randomUUID().toString(), userMsg, true, attachmentName=attachment?.displayName, attachmentInfo=attachment?.let { formatBytes(it.sizeBytes) }, attachmentContext=attachment?.contextForPrompt(), sourcePrompt=userMsg)
         val reply = Message(UUID.randomUUID().toString(), "Preparing local task…", false, status="Queued", sourcePrompt=userMsg)
         submitting = true
         updateComposerAction()
         lifecycleScope.launch {
             try {
+                val groundedAttachment = if (mode != AssistantMode.IMAGE && !attachment?.extractedText.isNullOrBlank()) {
+                    modelStatusTv.text = "Finding relevant document sections locally…"
+                    val selected = requireNotNull(attachment)
+                    val result = withContext(Dispatchers.Default) {
+                        LocalRagEngine.retrieve(
+                            userMsg,
+                            listOf(RagDocument("attachment", selected.displayName, requireNotNull(selected.extractedText))),
+                            maxChunks = 6,
+                            charBudget = 12_000,
+                            maxChunksPerSource = 6
+                        )
+                    }
+                    if (result.hits.isEmpty()) selected else selected.copy(extractedText = result.context)
+                } else attachment
+                val user = Message(
+                    UUID.randomUUID().toString(), userMsg, true,
+                    attachmentName = groundedAttachment?.displayName,
+                    attachmentInfo = groundedAttachment?.let { "${formatBytes(it.sizeBytes)} • ${it.extractionMethod}" },
+                    attachmentContext = groundedAttachment?.contextForPrompt(),
+                    sourcePrompt = userMsg
+                )
                 val previous = chatStore.messages(id)
                 val context = previous.filter { it.imagePath == null }.takeLast(12).joinToString("\n") {
                     (if (it.isUser) "User: " else "Assistant: ") + it.content.take(2000) + (it.attachmentContext?.let { info -> "\n" + info.take(1500) } ?: "")
                 }.takeLast(14000)
                 val prompt = if (mode == AssistantMode.IMAGE) {
-                    userMsg + (attachment?.extractedText?.take(1200)?.let { "\nVisual context: $it" } ?: "")
+                    userMsg + (groundedAttachment?.extractedText?.take(1200)?.let { "\nVisual context: $it" } ?: "")
                 } else buildString {
                     append("[NANU MODE: ${mode.label}]\n${mode.instruction}\n")
                     if (context.isNotBlank()) append("Previous conversation (context only):\n$context\n")
                     append("User request:\n$userMsg")
-                    attachment?.let { append("\n" + it.contextForPrompt()) }
+                    groundedAttachment?.let { append("\n" + it.contextForPrompt()) }
                 }
                 val request = JSONObject().put("prompt", prompt).put("image", mode == AssistantMode.IMAGE)
-                    .put("model", currentModelFile?.absolutePath.orEmpty()).put("system", BASE_SYSTEM_PROMPT + ProStore.assistantInstructions(this@MainActivity) + SafetyGuard.SYSTEM_RULES).toString()
-                LocalTaskService.submit(applicationContext, id, user, reply, request, mode.id)
+                    .put("userPrompt", userMsg)
+                    .put("model", currentModelFile?.absolutePath.orEmpty()).put("system", BASE_SYSTEM_PROMPT + ProStore.assistantInstructions(this@MainActivity))
+                if(mode != AssistantMode.IMAGE) {
+                    request.put("agentTools",true)
+                    request.put("onlineTools", onlineEnabled)
+                    ProStore.activeProject(this@MainActivity)?.let { request.put("projectId",it) }
+                }
+                LocalTaskService.submit(applicationContext, id, user, reply, request.toString(), mode.id)
                 if (fromVoice) voiceReplyId = reply.id
                 userInputEt.setText("")
                 currentAttachment = null
@@ -581,6 +673,20 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             .putExtra(CreateStudioActivity.EXTRA_IMAGE_OPTIONS, options)
             .putExtra(CreateStudioActivity.EXTRA_IMAGE_PROMPT, message.sourcePrompt.orEmpty()))
         return true
+    }
+
+    private fun reportMessage(message: Message) {
+        val reportText = buildString {
+            append(message.content.take(8000))
+            message.sourcePrompt?.takeIf { it.isNotBlank() }?.let {
+                append("\n\nUser prompt:\n")
+                append(it.take(2000))
+            }
+            if (!message.imagePath.isNullOrBlank()) append("\n\nThis response included a locally generated image.")
+        }
+        startActivity(Intent(this, SafetyPrivacyActivity::class.java).apply {
+            putExtra(SafetyPrivacyActivity.EXTRA_REPORTED_CONTENT, reportText)
+        })
     }
 
     private fun shareMessage(message: Message) {
@@ -694,7 +800,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension, announce = false) }
         } else {
             setModelUi(null, false, "No LLM loaded • tap Model to download one")
-            showEmptyState(true, "Private local AI.\n\nTap Model at the top right to download a recommended LLM. Use + for General, Code, Academics, Trading, Create Image, or Attach File.")
+            showEmptyState(true, "Private local AI.\n\nTap Model at the top right to download a recommended LLM. Use + for General, Code, Academics, Create Image, or Attach File.")
         }
     }
 
@@ -710,31 +816,57 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             Toast.makeText(this, "The local LLM engine is still starting.", Toast.LENGTH_SHORT).show()
             return
         }
-        val files = storedModelFiles()
+
         val ramGb = totalDeviceRamGb()
         val best = ModelCatalog.bestForRam(ramGb, if (currentMode == AssistantMode.CODING) "coding" else null)
         val activeModel = activeDownloadModel()
-        val labels = mutableListOf(
-            "★ Recommended • ${best.name}",
-            "Import your own GGUF"
-        )
-        if (activeModel != null) labels += "↓ Download in progress • ${activeModel.name}"
-        val fileStart = labels.size
-        labels += files.map { "${it.nameWithoutExtension} • ${formatBytes(it.length())}" }
-        if (files.isNotEmpty()) labels += "Delete a stored model…"
+        val ordered = listOf(best) + ModelCatalog.models.filter { it.id != best.id }
+        val catalogPaths = ModelCatalog.models.map { modelDownloader.destinationFile(it).absolutePath }.toSet()
+        val allFiles = storedModelFiles()
+        val customFiles = allFiles.filterNot { it.absolutePath in catalogPaths }
+
+        val labels = ordered.map { model ->
+            val downloaded = modelDownloader.destinationFile(model).let { it.exists() && modelDownloader.looksLikeGguf(it) }
+            val role = when (model.id) {
+                "qwen3-1.7b-q4km" -> "Everyday • fast balance"
+                "qwen2.5-coder-1.5b-q4km" -> "Coding • fast"
+                "qwen3-4b-q4km" -> "Better quality • slower"
+                "gemma3-1b-q4km" -> "Lightweight • very fast"
+                "qwen3-8b-q4km" -> "Advanced • heavy / slow"
+                else -> model.useCase
+            }
+            val badge = when {
+                activeModel?.id == model.id -> "↓ DOWNLOADING"
+                downloaded -> "✓ DOWNLOADED"
+                model.id == best.id -> "★ RECOMMENDED"
+                ramGb + 0.25 >= model.minimumRamGb -> "○ AVAILABLE"
+                else -> "⚠ HEAVY FOR THIS DEVICE"
+            }
+            "$badge • $role\n${model.name} • ${model.sizeLabel} • ${model.minimumRamGb} GB+ RAM"
+        }.toMutableList()
+
+        val importIndex = labels.size
+        labels += "Import your own GGUF"
+        val customStart = labels.size
+        labels += customFiles.map { "Custom • ${it.nameWithoutExtension} • ${formatBytes(it.length())}" }
+        val deleteIndex = if (allFiles.isNotEmpty()) labels.size else -1
+        if (deleteIndex >= 0) labels += "Delete a stored model…"
 
         AlertDialog.Builder(this)
             .setTitle("Local models • ${String.format(Locale.US, "%.1f", ramGb)} GB RAM")
             .setItems(labels.toTypedArray()) { _, which ->
                 when {
-                    which == 0 -> showRecommendedModelCatalog(ramGb)
-                    which == 1 -> openModelDocument.launch(arrayOf("*/*"))
-                    activeModel != null && which == 2 -> showActiveDownload(activeModel)
-                    which in fileStart until fileStart + files.size -> {
-                        val file = files[which - fileStart]
+                    which < ordered.size -> {
+                        val model = ordered[which]
+                        if (activeModel?.id == model.id) showActiveDownload(model)
+                        else showModelSuggestionDetail(model, ramGb, best.id)
+                    }
+                    which == importIndex -> openModelDocument.launch(arrayOf("*/*"))
+                    which in customStart until customStart + customFiles.size -> {
+                        val file = customFiles[which - customStart]
                         lifecycleScope.launch { loadModelFile(file, file.nameWithoutExtension) }
                     }
-                    else -> showDeleteModelDialog(files)
+                    deleteIndex >= 0 && which == deleteIndex -> showDeleteModelDialog(allFiles)
                 }
             }
             .setNegativeButton("Close", null)
@@ -961,7 +1093,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             isModelReady = true
             prefs.edit().putString(KEY_LAST_MODEL, file.absolutePath).apply()
             withContext(Dispatchers.Main) {
-                setModelUi(displayName, true, "Ready • local • ${formatBytes(file.length())}")
+                setModelUi(displayName, true, "1.0 FINAL TEST • selected • ${formatBytes(file.length())} • loads on Send")
                 if (announce) statsTv.text = ""
                 showEmptyState(messages.isEmpty(), "Nanu is ready. Use + to switch mode, attach files, or create images.")
                 updateComposerAction()
@@ -977,7 +1109,35 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
     private fun startNewChat() {
         if (LocalTaskService.active.value || submitting) return
-        lifecycleScope.launch { openConversation(chatStore.create(currentMode.id)) }
+        lifecycleScope.launch {
+            conversationId?.let { chatStore.deleteIfEmpty(it) }
+            openConversation(chatStore.create(currentMode.id))
+        }
+    }
+
+    private fun useQuickPrompt(prompt: String) {
+        switchMode(AssistantMode.GENERAL)
+        userInputEt.setText(prompt)
+        userInputEt.setSelection(prompt.length)
+        userInputEt.requestFocus()
+        Toast.makeText(this, "Prompt ready • tap Send", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun applyStarterPrompt(source: Intent) {
+        val prompt = source.getStringExtra(EXTRA_DRAFT_PROMPT)?.trim().orEmpty()
+        if (prompt.isBlank()) return
+        source.removeExtra(EXTRA_DRAFT_PROMPT)
+        useQuickPrompt(prompt.take(500))
+    }
+
+    private fun renderAgentStatus() {
+        val online = prefs.getBoolean("online_tools_enabled", true)
+        agentStatusTv.text = if (online) {
+            "Agent ready • live sources ON • documents stay local"
+        } else {
+            "Agent ready • offline tools only"
+        }
+        agentStatusTv.setTextColor(getColor(if (online) R.color.nanu_success else R.color.nanu_muted))
     }
 
     private fun stripThinking(raw: String): String {
@@ -1034,8 +1194,38 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         else -> "$bytes B"
     }
 
+    private fun toggleSpeakMessage(message: Message) {
+        if (!ttsReady || message.content.isBlank()) {
+            Toast.makeText(this, "Voice is not ready yet.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (speakingMessageId == message.id && tts?.isSpeaking == true) {
+            tts?.stop()
+            clearSpeakingMessageUi()
+            return
+        }
+
+        tts?.stop()
+        speakingMessageId = message.id
+        messageAdapter.setSpeakingMessage(message.id)
+        val result = tts?.speak(
+            message.content.take(3500),
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            MESSAGE_SPEAK_PREFIX + message.id
+        ) ?: TextToSpeech.ERROR
+        if (result == TextToSpeech.ERROR) clearSpeakingMessageUi()
+    }
+
+    private fun clearSpeakingMessageUi() {
+        speakingMessageId = null
+        if (::messageAdapter.isInitialized) messageAdapter.setSpeakingMessage(null)
+    }
+
     private fun speakText(text: String) {
         if (!ttsReady || text.isBlank()) return
+        clearSpeakingMessageUi()
         tts?.speak(text.take(3500), TextToSpeech.QUEUE_FLUSH, null, "nanu_reply_${System.currentTimeMillis()}")
     }
 
@@ -1053,8 +1243,17 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         ttsReady = selected != null && (tts?.setLanguage(selected) ?: TextToSpeech.LANG_NOT_SUPPORTED) >= TextToSpeech.LANG_AVAILABLE
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) = Unit
-            override fun onDone(utteranceId: String?) = Unit
-            @Deprecated("Deprecated in Java") override fun onError(utteranceId: String?) = Unit
+            override fun onDone(utteranceId: String?) {
+                if (utteranceId?.startsWith(MESSAGE_SPEAK_PREFIX) == true) {
+                    runOnUiThread { clearSpeakingMessageUi() }
+                }
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                if (utteranceId?.startsWith(MESSAGE_SPEAK_PREFIX) == true) {
+                    runOnUiThread { clearSpeakingMessageUi() }
+                }
+            }
         })
     }
 
@@ -1075,7 +1274,6 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         GENERAL("general", "General", "Answer clearly and naturally. Be useful, accurate, and concise unless more detail is needed."),
         CODING("coding", "Code", "Act as a practical coding assistant. Write, debug, review, and explain code. Prefer correct runnable examples and clear steps."),
         ACADEMICS("study", "Academics", "Teach and research carefully. Explain concepts step by step, use examples, and distinguish established facts from uncertainty."),
-        TRADING("trading", "Trading", "Act as a disciplined market-analysis assistant for forex and crypto. Discuss price action, indicators, chart patterns, risk, position sizing, and scenarios. Never guarantee profit and clearly separate analysis from financial advice."),
         IMAGE("image", "Create Image", "Create or refine a concise visual description for local image generation.");
 
         companion object {
@@ -1084,6 +1282,7 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     }
 
     companion object {
+        const val EXTRA_DRAFT_PROMPT = "nanu_draft_prompt"
         private const val PREFS_NAME = "nanu_local_ai"
         private const val KEY_LAST_MODEL = "last_model"
         private const val KEY_MODE = "assistant_mode"
@@ -1092,7 +1291,8 @@ class MainActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         private const val KEY_IMAGE_DOWNLOAD_ID = "active_image_model_download"
         private const val DIRECTORY_MODELS = "models"
         private const val FILE_EXTENSION_GGUF = ".gguf"
-        private const val BASE_SYSTEM_PROMPT = "You are Nanu, a private on-device assistant. Follow the NANU MODE instruction included with each user request. Never reveal hidden chain-of-thought, private reasoning, or <think> blocks. Return only useful final answers."
+        private const val MESSAGE_SPEAK_PREFIX = "nanu_message_"
+        private val BASE_SYSTEM_PROMPT = "You are Nanu, a local-first assistant. The language model runs on this device. Follow the NANU MODE instruction included with each user request. Use only Nanu's explicitly provided, bounded tools when current information is required. Never reveal hidden chain-of-thought, private reasoning, or <think> blocks. Return only useful final answers." + SafetyGuard.SYSTEM_RULES
     }
 }
 

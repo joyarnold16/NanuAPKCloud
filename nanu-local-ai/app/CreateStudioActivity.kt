@@ -2,7 +2,6 @@ package com.example.llama
 
 import android.app.DownloadManager
 import android.graphics.BitmapFactory
-import android.graphics.Color
 import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
@@ -18,7 +17,6 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +28,7 @@ import java.io.File
 import java.util.Locale
 import kotlin.math.roundToInt
 
-class CreateStudioActivity : AppCompatActivity() {
+class CreateStudioActivity : NanuBaseActivity() {
     private lateinit var modelStatusTv: TextView
     private lateinit var promptEt: EditText
     private lateinit var negativeEt: EditText
@@ -74,8 +72,6 @@ class CreateStudioActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.parseColor("#060B12")
-        window.navigationBarColor = Color.parseColor("#060B12")
         setContentView(R.layout.activity_create_studio)
 
         modelStatusTv = findViewById(R.id.studio_model_status)

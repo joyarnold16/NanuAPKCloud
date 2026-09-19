@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.media.AudioAttributes
 import android.os.Bundle
 import android.speech.RecognitionListener
@@ -37,6 +36,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
     private lateinit var stopBtn: MaterialButton
     private lateinit var voiceBtn: MaterialButton
     private lateinit var continuousBtn: MaterialButton
+    private lateinit var voiceWave: NanuVoiceWaveView
 
     private var recognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
@@ -56,7 +56,8 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         rows.lastOrNull { !it.isUser }?.let { reply ->
             answerTv.text = reply.content
             statusTv.text = reply.status
-            if (reply.status == "Complete" && spokenReply != reply.id && sessionActive) {
+            voiceWave.setMode(if (reply.status?.startsWith("Complete") == true) NanuVoiceWaveView.Mode.SPEAKING else NanuVoiceWaveView.Mode.THINKING)
+            if (reply.status?.startsWith("Complete") == true && spokenReply != reply.id && sessionActive) {
                 spokenReply = reply.id
                 if (voiceReplies && ttsReady) tts?.speak(reply.content.take(4000), TextToSpeech.QUEUE_FLUSH, null, REPLY_UTTERANCE)
                 else if (loopArmed) scheduleListen(450L)
@@ -70,6 +71,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             startConversation()
         } else {
             sessionActive = false
+            voiceWave.setMode(NanuVoiceWaveView.Mode.IDLE)
             refreshTalkButton()
             Toast.makeText(this, "Microphone permission is required.", Toast.LENGTH_LONG).show()
         }
@@ -77,8 +79,6 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.parseColor("#060B12")
-        window.navigationBarColor = Color.parseColor("#060B12")
         setContentView(R.layout.activity_talk_rc8)
 
         statusTv = findViewById(R.id.talk8_status)
@@ -88,6 +88,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         stopBtn = findViewById(R.id.talk8_stop)
         voiceBtn = findViewById(R.id.talk8_voice)
         continuousBtn = findViewById(R.id.talk8_continuous)
+        voiceWave = findViewById(R.id.talk8_wave)
 
         findViewById<MaterialButton>(R.id.talk8_back).setOnClickListener { finish() }
         talkBtn.setOnClickListener {
@@ -176,17 +177,20 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         recognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 if (!sessionActive) return
+                voiceWave.setMode(NanuVoiceWaveView.Mode.LISTENING)
                 statusTv.text = if (preferOffline) "Listening • offline preferred" else "Listening"
             }
 
             override fun onBeginningOfSpeech() {
+                voiceWave.setMode(NanuVoiceWaveView.Mode.LISTENING)
                 if (sessionActive) statusTv.text = "Listening…"
             }
 
-            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onRmsChanged(rmsdB: Float) = voiceWave.updateRms(rmsdB)
             override fun onBufferReceived(buffer: ByteArray?) = Unit
 
             override fun onEndOfSpeech() {
+                voiceWave.setMode(NanuVoiceWaveView.Mode.THINKING)
                 if (sessionActive) statusTv.text = "Processing speech…"
             }
 
@@ -258,6 +262,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         if (!sessionActive) return
         answerTv.text = "Thinking locally…"
         statusTv.text = "Nanu is thinking…"
+        voiceWave.setMode(NanuVoiceWaveView.Mode.THINKING)
         taskSession.submit(prompt, "You are Nanu. Reply naturally and concisely for spoken conversation. Never reveal hidden chain-of-thought or <think> blocks." + SafetyGuard.SYSTEM_RULES)
     }
 
@@ -275,6 +280,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         loopArmed = false
         refreshTalkButton()
         statusTv.text = message
+        voiceWave.setMode(NanuVoiceWaveView.Mode.IDLE)
     }
 
     private fun stopEverything() {
@@ -287,6 +293,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         tts?.stop()
         refreshTalkButton()
         statusTv.text = "Stopped • tap Speak when ready"
+        voiceWave.setMode(NanuVoiceWaveView.Mode.IDLE)
     }
 
     private fun stripThinking(raw: String): String {
@@ -324,7 +331,9 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
             (tts?.setLanguage(selected) ?: TextToSpeech.LANG_NOT_SUPPORTED) >= TextToSpeech.LANG_AVAILABLE
 
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) = Unit
+            override fun onStart(utteranceId: String?) {
+                if (utteranceId == REPLY_UTTERANCE) runOnUiThread { voiceWave.setMode(NanuVoiceWaveView.Mode.SPEAKING) }
+            }
 
             override fun onDone(utteranceId: String?) {
                 if (utteranceId != REPLY_UTTERANCE) return
@@ -353,6 +362,7 @@ class ContinuousTalkActivity : NanuBaseActivity(), TextToSpeech.OnInitListener {
         loopArmed = false
         recognizer?.cancel()
         tts?.stop()
+        voiceWave.setMode(NanuVoiceWaveView.Mode.IDLE)
         super.onStop()
     }
 

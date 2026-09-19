@@ -1,0 +1,7 @@
+Nanu Local AI 1.0 final device-test candidate (versionCode 27).
+Includes local chat, RAG and project memory, bounded read-only online tools,
+voice, local image generation, tarot, saved history and Nanu Pro.
+Adds an adaptive Compose home, system/light/dark themes, on-device OCR,
+multi-file retrieval, richer live answers, voice visualization, consistent
+icons, full debug-device access to Projects/Agents and stronger diagnostics.
+Trading Lab and Paper Trading are separate from this application.

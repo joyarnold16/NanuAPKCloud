@@ -95,33 +95,118 @@ class LocalTaskService : Service() {
                         }
                         }
                     } else {
-                        val engine = AiChat.getInferenceEngine(applicationContext)
-                        try {
-                            withTimeout(30_000) { engine.state.first { it !is InferenceEngine.State.Initializing && it !is InferenceEngine.State.Uninitialized } }
+                        val toolsEnabled = request.optBoolean("agentTools")
+                        val onlineEnabled = request.optBoolean("onlineTools", true)
+                        val projectAvailable = request.optString("projectId").isNotBlank()
+                        val routingPrompt = request.optString("userPrompt").takeIf { it.isNotBlank() }
+                            ?: request.getString("prompt")
+                        var initialToolResult: NanuToolResult? = null
+                        var directAnswerDelivered = false
+
+                        if (toolsEnabled) {
+                            NanuToolRegistry.suggestedCall(routingPrompt, onlineEnabled)?.let { suggested ->
+                                val onlineTool = suggested.name in setOf(
+                                    "current_weather", "crypto_price", "forex_rate",
+                                    "news_search", "web_search", "image_search"
+                                )
+                                reply = reply!!.copy(
+                                    content = if (onlineTool) "Checking a read-only online source…" else "Using a safe local tool…",
+                                    status = "Agent step 1/${NanuToolRegistry.MAX_TOOL_STEPS}"
+                                )
+                                store.update(task!!, reply!!)
+                                val result = NanuToolRegistry.execute(this@LocalTaskService, request, suggested)
+                                if (result.directlyPresentable) {
+                                    reply = reply!!.copy(
+                                        content = result.content,
+                                        status = if (result.online) "Complete • live online source" else "Complete • local tool",
+                                        generationStats = if (result.online) "Fast answer • 1 read-only online tool" else "Fast answer • 1 local tool"
+                                    )
+                                    directAnswerDelivered = true
+                                } else {
+                                    initialToolResult = result
+                                }
+                            }
+                        }
+
+                        if (!directAnswerDelivered) {
+                            reply = reply!!.copy(content = "Starting the local AI engine…", status = "Engine startup")
+                            store.update(task!!, reply!!)
+                            val engine = AiChat.getInferenceEngine(applicationContext)
+                            try {
+                            val stable = withTimeout(45_000) {
+                                engine.state.first {
+                                    it is InferenceEngine.State.Initialized ||
+                                        it is InferenceEngine.State.ModelReady ||
+                                        it is InferenceEngine.State.Error
+                                }
+                            }
+                            if (stable is InferenceEngine.State.Error) {
+                                val cause = stable.exception
+                                runCatching { engine.cleanUp() }
+                                throw IllegalStateException("Native engine initialization failed: ${cause.message ?: cause.javaClass.simpleName}", cause)
+                            }
                             val model = File(request.getString("model"))
-                            require(model.isFile) { "Selected model is no longer available" }
-                            when(engine.state.value) {
-                                is InferenceEngine.State.ModelReady, is InferenceEngine.State.Error -> engine.cleanUp()
-                                else -> Unit
+                            require(model.isFile && model.canRead()) { "Selected model is no longer available" }
+                            if (engine.state.value is InferenceEngine.State.ModelReady) engine.cleanUp()
+                            check(engine.state.value is InferenceEngine.State.Initialized) {
+                                "Local engine is not ready (state: ${engineStateName(engine.state.value)})"
                             }
-                            engine.loadModel(model.absolutePath)
-                            engine.setSystemPrompt(request.getString("system"))
-                            val raw = StringBuilder()
-                            var saved = 0L
-                            var tokens = 0
+                            reply = reply!!.copy(
+                                content = "Loading ${model.nameWithoutExtension.take(36)}…",
+                                status = "Loading local model • ${formatBytes(model.length())}"
+                            )
+                            store.update(task!!, reply!!)
+                            withTimeout(10 * 60 * 1000L) { engine.loadModel(model.absolutePath) }
+                            reply = reply!!.copy(content = "Preparing Nanu…", status = "Preparing local model")
+                            store.update(task!!, reply!!)
+                            engine.setSystemPrompt(request.getString("system") + if(toolsEnabled) NanuToolRegistry.systemPrompt(projectAvailable, onlineEnabled) else "")
+                            var nextPrompt = request.getString("prompt")
+                            var totalTokens = 0
+                            var toolSteps = 0
+                            var onlineToolUsed = false
+                            var finalAnswer = false
                             val started = android.os.SystemClock.elapsedRealtime()
-                            engine.sendUserPrompt(request.getString("prompt")).collect { token ->
-                                tokens++
-                                raw.append(token)
-                                reply = reply!!.copy(content=visibleText(raw.toString()).ifBlank { "Thinking locally…" }, status="Generating")
-                                val now = android.os.SystemClock.elapsedRealtime()
-                                if (now - saved >= 300) { store.update(task!!, reply!!); saved = now }
+                            initialToolResult?.let { result ->
+                                toolSteps = 1
+                                onlineToolUsed = result.online
+                                nextPrompt = request.getString("prompt") + "\n\n" + NanuToolRegistry.followUpPrompt(result)
                             }
-                            check(raw.isNotEmpty()) { "The model returned no answer. Try a shorter prompt or conversation." }
+                            while(!finalAnswer) {
+                                val raw = StringBuilder()
+                                var saved = 0L
+                                engine.sendUserPrompt(nextPrompt).collect { token ->
+                                    totalTokens++
+                                    raw.append(token)
+                                    val visible = visibleText(raw.toString())
+                                    val choosingTool = toolsEnabled && visible.trimStart().startsWith("<tool_call>")
+                                    reply = reply!!.copy(content=if(choosingTool) "Choosing a safe local tool…" else visible.ifBlank { "Thinking locally…" }, status=if(choosingTool) "Agent planning" else "Generating")
+                                    val now = android.os.SystemClock.elapsedRealtime()
+                                    if (now - saved >= 300) { store.update(task!!, reply!!); saved = now }
+                                }
+                                check(raw.isNotEmpty()) { "The model returned no answer. Try a shorter prompt or conversation." }
+                                val call = if(toolsEnabled) NanuToolRegistry.parseCall(raw.toString()) else null
+                                if(call == null) {
+                                    reply = reply!!.copy(content=visibleText(raw.toString()).ifBlank { "The model returned no visible answer." })
+                                    finalAnswer = true
+                                } else {
+                                    check(toolSteps < NanuToolRegistry.MAX_TOOL_STEPS) { "The local agent reached its tool-step limit." }
+                                    val result = NanuToolRegistry.execute(this@LocalTaskService,request,call)
+                                    toolSteps++
+                                    onlineToolUsed = onlineToolUsed || result.online
+                                    reply = reply!!.copy(content="Used ${result.name.replace('_',' ')} ${if(result.online) "online" else "locally"}. Preparing answer…",status="Agent step $toolSteps/${NanuToolRegistry.MAX_TOOL_STEPS}")
+                                    store.update(task!!,reply!!)
+                                    nextPrompt = NanuToolRegistry.followUpPrompt(result)
+                                }
+                            }
                             val seconds = (android.os.SystemClock.elapsedRealtime() - started).coerceAtLeast(1) / 1000.0
-                            reply = reply!!.copy(status="Complete", generationStats=String.format(java.util.Locale.US, "%d tokens • %.1f tok/s • %.1fs", tokens, tokens / seconds, seconds))
-                        } finally {
-                            withContext(NonCancellable) { runCatching { engine.cleanUp() } }
+                            reply = reply!!.copy(status=when {
+                                onlineToolUsed -> "Complete • live online source"
+                                toolSteps > 0 -> "Complete • $toolSteps local tool${if(toolSteps==1) "" else "s"}"
+                                else -> "Complete • fully local"
+                            }, generationStats=String.format(java.util.Locale.US, "%d tokens • %.1f tok/s • %.1fs", totalTokens, totalTokens / seconds, seconds))
+                            } finally {
+                                withContext(NonCancellable) { runCatching { engine.cleanUp() } }
+                            }
                         }
                     }
                 }
@@ -129,10 +214,24 @@ class LocalTaskService : Service() {
             } catch (e: CancellationException) {
                 withContext(NonCancellable) {
                     images.cancel()
-                    if (task != null && reply != null) store.update(task!!, reply!!.copy(status=if (e is TimeoutCancellationException) "Time limit reached — tap Regenerate to retry" else "Stopped"), "stopped")
+                    if (task != null && reply != null) {
+                        val timedOut = e is TimeoutCancellationException
+                        store.update(task!!, reply!!.copy(
+                            content = if (timedOut) "Nanu could not start or finish the local model in time. Try a shorter message or a smaller model." else reply!!.content,
+                            status = if (timedOut) "Time limit reached — tap Regenerate to retry" else "Stopped"
+                        ), "stopped")
+                    }
+                }
+            } catch (e: LinkageError) {
+                if (task != null && reply != null) {
+                    val reason = failureMessage(e)
+                    runCatching { store.update(task!!, reply!!.copy(content=reason, status="Failed"), "failed") }
                 }
             } catch (e: Exception) {
-                if (task != null && reply != null) store.update(task!!, reply!!.copy(status="Failed: ${e.message ?: "Unknown error"}"), "failed")
+                if (task != null && reply != null) {
+                    val reason = failureMessage(e)
+                    runCatching { store.update(task!!, reply!!.copy(content=reason, status="Failed"), "failed") }
+                }
             } finally {
                 if (wakeLock?.isHeld == true) wakeLock?.release()
                 withContext(NonCancellable + Dispatchers.Main.immediate) {
@@ -144,7 +243,11 @@ class LocalTaskService : Service() {
         }
         return START_NOT_STICKY
     }
-    override fun onDestroy() { scope.cancel(); super.onDestroy() }
+    override fun onDestroy() {
+        active.value = false
+        scope.cancel()
+        super.onDestroy()
+    }
     companion object {
         private const val CHANNEL = "local_ai_tasks"
         private const val STOP = "com.nanu.localai.STOP_TASK"
@@ -166,9 +269,46 @@ class LocalTaskService : Service() {
             task
         }
         fun stop(context: Context) { context.startService(Intent(context, LocalTaskService::class.java).setAction(STOP)) }
+        fun engineStateName(state: InferenceEngine.State): String = state.javaClass.simpleName.ifBlank { "unknown" }
+        fun formatBytes(bytes: Long): String = when {
+            bytes >= 1024L * 1024L * 1024L -> String.format(java.util.Locale.US, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+            bytes >= 1024L * 1024L -> String.format(java.util.Locale.US, "%.0f MB", bytes / (1024.0 * 1024.0))
+            else -> "${bytes / 1024L} KB"
+        }
         fun visibleText(raw: String): String {
             val cleaned = raw.replace(Regex("(?s)<think>.*?</think>"), "")
             return cleaned.substringBefore("<think>").replace("</think>", "").trimStart()
+        }
+        fun errorSummary(error: Throwable): String {
+            val details = mutableListOf<String>()
+            val seen = HashSet<Throwable>()
+            var current: Throwable? = error
+            while (current != null && details.size < 6 && seen.add(current)) {
+                val type = current.javaClass.simpleName.ifBlank { current.javaClass.name }
+                val message = current.message?.trim()?.replace(Regex("\\s+"), " ")?.take(180)
+                details += if (message.isNullOrBlank()) type else "$type: $message"
+                current = current.cause
+            }
+            return details.joinToString(" → ").take(420)
+        }
+        private fun hasNativeFailure(error: Throwable): Boolean {
+            val seen = HashSet<Throwable>()
+            var current: Throwable? = error
+            while (current != null && seen.add(current)) {
+                if (current is UnsatisfiedLinkError) return true
+                current = current.cause
+            }
+            return false
+        }
+        fun failureMessage(error: Throwable): String {
+            val summary = errorSummary(error)
+            return when {
+                error is TimeoutCancellationException -> "Nanu timed out while starting or running the local model. Try a smaller model."
+                hasNativeFailure(error) -> "Nanu's native AI engine could not start on this device: $summary"
+                summary.contains("Selected model is no longer available", ignoreCase = true) -> "The selected AI model is missing. Tap Model and download or select it again."
+                summary.contains("no answer", ignoreCase = true) -> "The model produced no answer. Try a shorter message or another model."
+                else -> "Nanu could not answer: $summary"
+            }
         }
     }
 }

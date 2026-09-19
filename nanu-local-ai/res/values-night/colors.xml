@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="nanu_bg">#061018</color>
+    <color name="nanu_panel">#0E1A24</color>
+    <color name="nanu_panel_2">#142432</color>
+    <color name="nanu_input">#101E29</color>
+    <color name="nanu_border">#2B4556</color>
+    <color name="nanu_border_bright">#3B677B</color>
+    <color name="nanu_glass">#E0101D28</color>
+    <color name="nanu_text">#F3F8FC</color>
+    <color name="nanu_muted">#ACBECA</color>
+    <color name="nanu_accent">#40DDF4</color>
+    <color name="nanu_accent_2">#7DEAF7</color>
+    <color name="nanu_success">#50E2A4</color>
+    <color name="nanu_user">#073A52</color>
+    <color name="nanu_user_border">#1591B1</color>
+    <color name="nanu_assistant">#111F2A</color>
+    <color name="nanu_danger">#FF8491</color>
+    <color name="nanu_code">#C4B3FF</color>
+    <color name="nanu_academic">#C7A2FF</color>
+    <color name="nanu_image">#56E9A7</color>
+    <color name="nanu_file">#71BEFF</color>
+</resources>

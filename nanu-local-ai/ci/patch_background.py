@@ -5,7 +5,14 @@ import shutil
 
 project = Path('llama-upstream/examples/llama.android')
 app = project / 'app/src/main'
-for name in ['ChatStore.kt', 'LocalTaskService.kt', 'TaskScreenSession.kt', 'ImageEditInput.kt', 'ProEntitlement.kt', 'ProBilling.kt', 'ProStore.kt', 'ProActivity.kt']:
+for name in [
+    'ChatStore.kt', 'LocalTaskService.kt', 'TaskScreenSession.kt', 'ImageEditInput.kt',
+    'LocalRagEngine.kt', 'NanuToolRegistry.kt', 'OnlineToolClient.kt', 'NanuPulseView.kt',
+    'NanuThemeController.kt', 'NanuVisualHome.kt', 'OnDeviceOcr.kt',
+    'NanuVoiceWaveView.kt', 'NanuThinkingView.kt', 'NanuInsightView.kt',
+    'NanuRemoteGalleryView.kt', 'TarotDeck.kt', 'TarotActivity.kt',
+    'ProEntitlement.kt', 'ProBilling.kt', 'ProStore.kt', 'ProActivity.kt',
+]:
     shutil.copyfile(Path('nanu-local-ai/app') / name, app / 'java/com/example/llama' / name)
 android = '{http://schemas.android.com/apk/res/android}'
 ET.register_namespace('android', android[1:-1])
@@ -19,6 +26,8 @@ for name in ['FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_SPECIAL_USE', 'POST_NOTIF
 application = manifest.find('application')
 if not any(a.get(android + 'name') == '.ProActivity' for a in application.findall('activity')):
     ET.SubElement(application, 'activity', {android + 'name': '.ProActivity', android + 'exported': 'false'})
+if not any(a.get(android + 'name') == '.TarotActivity' for a in application.findall('activity')):
+    ET.SubElement(application, 'activity', {android + 'name': '.TarotActivity', android + 'exported': 'false'})
 if not any(s.get(android + 'name') == '.LocalTaskService' for s in application.findall('service')):
     service = ET.SubElement(application, 'service', {android + 'name': '.LocalTaskService', android + 'exported': 'false', android + 'stopWithTask': 'false', android + 'foregroundServiceType': 'specialUse'})
     ET.SubElement(service, 'property', {android + 'name': 'android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE', android + 'value': 'User-initiated on-device language-model inference and image generation; saves progress while minimized, stops when complete or cancelled.'})

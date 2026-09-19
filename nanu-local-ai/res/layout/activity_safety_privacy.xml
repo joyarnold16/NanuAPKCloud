@@ -51,7 +51,7 @@
                 android:orientation="vertical"
                 android:padding="16dp">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Local-first by design" android:textColor="@color/nanu_success" android:textSize="17sp" android:textStyle="bold" />
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="LLM inference, document extraction, generated images, paper trades and most app data stay on this device. Internet is used for model downloads, optional live market snapshots, AI safety reports you explicitly submit, and links you choose to open. Speech recognition may use the installed Android speech service when offline recognition is unavailable." android:textColor="@color/nanu_text" android:textSize="13sp" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="LLM inference, RAG/document extraction, generated images, tarot readings and most app data stay on this device. Optional Online Tools send only the short place, symbol, currency pair or search term needed for weather, time, prices, news, web or reusable-image results—not your full chat or documents. You can turn Online Tools off on Home. Internet is also used for model downloads, reports you explicitly submit, and links you open. Speech recognition may use the installed Android speech service when offline recognition is unavailable." android:textColor="@color/nanu_text" android:textSize="13sp" />
                 <com.google.android.material.button.MaterialButton android:id="@+id/privacy_policy_button" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="14dp" android:text="Read privacy policy" android:textAllCaps="false" android:textColor="@color/nanu_text" />
                 <com.google.android.material.button.MaterialButton android:id="@+id/terms_button" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:text="Read terms of use" android:textAllCaps="false" android:textColor="@color/nanu_text" />
             </LinearLayout>
@@ -88,7 +88,7 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="18dp"
             android:gravity="center"
-            android:text="Markets are informational. Paper Trading uses virtual funds. Nanu does not execute real-money trades or operate a crypto wallet/exchange."
+            android:text="Nanu Local AI is a general assistant. Trading analysis, paper trading, wallets, exchanges and order execution belong in a separate application."
             android:textColor="@color/nanu_muted"
             android:textSize="11sp" />
     </LinearLayout>

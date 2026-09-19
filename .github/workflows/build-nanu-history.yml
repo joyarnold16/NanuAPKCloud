@@ -34,7 +34,9 @@ jobs:
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4.0.1
+        with:
+          packages: platform-tools
 
       - name: Install Android build dependencies
         shell: bash
@@ -63,15 +65,15 @@ jobs:
         run: |
           set -euo pipefail
           bash nanu-local-ai/ci/build_rc8.sh
-          python3 nanu-local-ai/ci/verify_16k_native.py out/nanu-local-ai-v1.0-rc8.apk
-          python3 nanu-local-ai/ci/verify_16k_native.py out/nanu-local-ai-v1.0-rc8-debug.aab
+          python3 nanu-local-ai/ci/verify_16k_native.py out/nanu-local-ai-v1.0-final-test.apk
+          python3 nanu-local-ai/ci/verify_16k_native.py out/nanu-local-ai-v1.0-final-test-debug.aab
 
       - name: Verify installable APK and record build identity
         shell: bash
         run: |
           set -euo pipefail
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs out/nanu-local-ai-v1.0-rc8.apk > out/APK_SIGNATURE.txt
-          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 out/nanu-local-ai-v1.0-rc8.apk > out/APK_ALIGNMENT.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs out/nanu-local-ai-v1.0-final-test.apk > out/APK_SIGNATURE.txt
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 out/nanu-local-ai-v1.0-final-test.apk > out/APK_ALIGNMENT.txt
           sha256sum out/*.apk > out/APK_SHA256.txt
           git rev-parse HEAD > out/SOURCE_COMMIT.txt
 
