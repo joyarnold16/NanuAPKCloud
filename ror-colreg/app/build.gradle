@@ -8,8 +8,8 @@ android {
         applicationId 'com.joyarnold.rorvisualdeck'
         minSdk 23
         targetSdk 36
-        versionCode 45
-        versionName '4.5'
+        versionCode 46
+        versionName '4.6'
     }
 
     signingConfigs {
@@ -58,6 +58,10 @@ dependencies {
     // further API churn for no benefit here.
     implementation 'com.android.billingclient:billing:8.3.0'
     implementation 'androidx.core:core:1.13.1'
+
+    // Play's in-app review card. 2.0.2 is the current release and is plain
+    // Java, so it does not fight the kotlin-stdlib pin below.
+    implementation 'com.google.android.play:review:2.0.2'
 
     // Declared only to raise what Play Billing drags in. Billing 7.1.1 resolves
     // androidx.fragment to 1.1.0 and androidx.activity to 1.2.3 - both from 2019

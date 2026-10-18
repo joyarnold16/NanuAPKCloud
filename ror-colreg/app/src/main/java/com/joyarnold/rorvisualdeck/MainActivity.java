@@ -17,6 +17,7 @@ import org.json.JSONObject;
 public final class MainActivity extends Activity implements BillingManager.Listener {
     private WebView webView;
     private BillingManager billingManager;
+    private ReviewPrompter reviewPrompter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,6 +72,9 @@ public final class MainActivity extends Activity implements BillingManager.Liste
         billingManager.start();
 
         webView.loadUrl("file:///android_asset/index.html");
+
+        reviewPrompter = new ReviewPrompter(this);
+        reviewPrompter.onLaunch();
     }
 
     @Override
@@ -113,6 +117,10 @@ public final class MainActivity extends Activity implements BillingManager.Liste
 
     @Override
     protected void onDestroy() {
+        if (reviewPrompter != null) {
+            reviewPrompter.cancel();
+            reviewPrompter = null;
+        }
         if (billingManager != null) {
             billingManager.destroy();
         }
