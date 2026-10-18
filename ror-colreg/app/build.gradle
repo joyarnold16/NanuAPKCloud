@@ -6,9 +6,13 @@ android {
 
     defaultConfig {
         applicationId 'com.joyarnold.rorvisualdeck'
-        minSdk 23
+        // Play's automatic protection - which keeps a cracked copy of a paid
+        // unlock from installing off-store - refuses a bundle below 24, so the
+        // upload is rejected at 23. API 23 is Android 6.0, a sliver of devices
+        // by 2026, and anyone still on it keeps the installed v4.5.
+        minSdk 24
         targetSdk 36
-        versionCode 46
+        versionCode 47
         versionName '4.6'
     }
 
